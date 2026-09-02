@@ -25,15 +25,20 @@ Widget _host(AccordDiscoveryBrowse browse) => ProviderScope(
   ),
 );
 
-RestResult _spaces(String name, {List<String> tags = const []}) =>
-    RestResult.success(200, [
-      {
-        'space_id': name.toLowerCase().replaceAll(' ', '-'),
-        'server_url': 'https://accord.example.test',
-        'name': name,
-        'tags': tags,
-      },
-    ]);
+RestResult _spaces(
+  String name, {
+  List<String> tags = const [],
+  String serverUrl = 'https://accord.example.test',
+}) => RestResult.success(200, [
+  {
+    'space_id': name.toLowerCase().replaceAll(' ', '-'),
+    'server_url': serverUrl,
+    'name': name,
+    'tags': tags,
+  },
+]);
+
+const _sparseHeading = 'This list is short on purpose';
 
 void main() {
   testWidgets('an older search cannot replace the latest results', (
@@ -110,4 +115,96 @@ void main() {
     );
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
+
+  testWidgets('a near-empty directory explains itself and offers a way in', (
+    tester,
+  ) async {
+    Future<RestResult> browse({
+      required String masterUrl,
+      required String query,
+      required String tag,
+    }) async => _spaces('Daccord Official');
+
+    await tester.pumpWidget(_host(browse));
+    await tester.pump();
+
+    expect(find.text('Daccord Official'), findsOneWidget);
+    expect(find.text(_sparseHeading), findsOneWidget);
+    expect(find.text('Connect to a server by URL'), findsOneWidget);
+    expect(find.text('Host your own'), findsOneWidget);
+  });
+
+  testWidgets('an empty directory still offers the manual-connect footer', (
+    tester,
+  ) async {
+    Future<RestResult> browse({
+      required String masterUrl,
+      required String query,
+      required String tag,
+    }) async => RestResult.success(200, const []);
+
+    await tester.pumpWidget(_host(browse));
+    await tester.pump();
+
+    expect(find.text('No servers found'), findsOneWidget);
+    expect(find.text(_sparseHeading), findsOneWidget);
+    expect(find.text('Connect to a server by URL'), findsOneWidget);
+  });
+
+  testWidgets('a search that matched nothing is not blamed on the directory', (
+    tester,
+  ) async {
+    Future<RestResult> browse({
+      required String masterUrl,
+      required String query,
+      required String tag,
+    }) async => query.isEmpty
+        ? _spaces('Daccord Official')
+        : RestResult.success(200, const []);
+
+    await tester.pumpWidget(_host(browse));
+    await tester.pump();
+    expect(find.text(_sparseHeading), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'nothing matches this');
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+
+    expect(find.text('No servers found'), findsOneWidget);
+    expect(find.text(_sparseHeading), findsNothing);
+    // The way out of a dead end is still there.
+    expect(find.text('Connect to a server by URL'), findsOneWidget);
+  });
+
+  testWidgets(
+    'a failed join reports itself while the listing stays on screen',
+    (tester) async {
+      // A listing with no server URL fails in `_join` before any network call,
+      // which is exactly the case that used to render nothing at all: the
+      // error was only painted inside the `listings.isEmpty` branch (#292).
+      Future<RestResult> browse({
+        required String masterUrl,
+        required String query,
+        required String tag,
+      }) async => _spaces('Daccord Official', serverUrl: '');
+
+      await tester.pumpWidget(_host(browse));
+      await tester.pump();
+      expect(find.text('Daccord Official'), findsOneWidget);
+      expect(
+        find.text('This listing is missing its server details'),
+        findsNothing,
+      );
+
+      await tester.tap(find.text('Join'));
+      await tester.pump();
+
+      expect(
+        find.text('This listing is missing its server details'),
+        findsOneWidget,
+      );
+      // ...and the listing it applies to is still visible next to it.
+      expect(find.text('Daccord Official'), findsOneWidget);
+    },
+  );
 }

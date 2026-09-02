@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/self_hosting_dialog.dart';
 import 'package:bonfire/shared/components/ticker_aware_circle_avatar.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
@@ -110,6 +111,12 @@ class _DiscoveryPanel extends StatelessWidget {
             ),
             Expanded(
               child: AccordDiscoveryBody(
+                // The dialog is modal, so hand off to Add-Server rather than
+                // stacking a second dialog on top of this one.
+                onManualConnect: () {
+                  Navigator.of(context).pop();
+                  showAddServerDialog(context);
+                },
                 // When a listing needs auth, close this panel and either defer
                 // to the host (e.g. the login screen pre-fills its form) or fall
                 // back to opening the Add-Server flow pre-targeted at the
@@ -147,12 +154,21 @@ class _DiscoveryPanel extends StatelessWidget {
 /// auth against that instance: [onJoinRequiresAuth] is invoked so the host can
 /// drive the right flow (switch the Add-Server URL tab, or open it fresh).
 class AccordDiscoveryBody extends ConsumerStatefulWidget {
-  const AccordDiscoveryBody({super.key, this.onJoinRequiresAuth});
+  const AccordDiscoveryBody({
+    super.key,
+    this.onJoinRequiresAuth,
+    this.onManualConnect,
+  });
 
   /// Called when joining requires authenticating against `serverUrl` first
   /// (i.e. there is no live connection to that instance yet). `spaceId` is the
   /// directory listing's space to join once connected.
   final void Function(String serverUrl, String spaceId)? onJoinRequiresAuth;
+
+  /// Called by the "Connect to a server by URL" footer. When omitted the footer
+  /// falls back to the Add-Server dialog, which is the right destination
+  /// everywhere except the signed-out login flow (it drives its own form).
+  final VoidCallback? onManualConnect;
 
   @override
   ConsumerState<AccordDiscoveryBody> createState() =>
@@ -367,37 +383,191 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
             ),
           ),
         const SizedBox(height: 8),
-        Expanded(
+        // Above the list, not inside its empty branch: a failed *join* leaves
+        // the one visible listing on screen, and the error has to be visible
+        // alongside it rather than swallowed (#292).
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: _DirectoryError(message: _error!),
+          ),
+        // [Flexible] + `shrinkWrap`, not [Expanded]: a one-listing directory
+        // should not leave the footer marooned at the bottom of a tablet-sized
+        // void. A long list still fills the space and scrolls under it.
+        Flexible(
           child: listings == null
               ? const LoadingView()
-              : listings.isEmpty
-              ? Center(
-                  child: Text(
-                    _error ?? 'No servers found',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                )
-              : ListView.separated(
+              : ListView(
+                  shrinkWrap: true,
                   padding: const EdgeInsets.all(12),
-                  itemCount: listings.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final listing = listings[index];
-                    final id =
-                        listing['space_id']?.toString() ??
-                        listing['id']?.toString() ??
-                        '';
-                    return _DiscoveryCard(
-                      listing: listing,
-                      colors: colors,
-                      theme: theme,
-                      joining: _joining.contains(id),
-                      onJoin: () => _join(listing),
-                    );
-                  },
+                  children: [
+                    if (listings.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Text(
+                          'No servers found',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                    for (final listing in listings)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _DiscoveryCard(
+                          listing: listing,
+                          colors: colors,
+                          theme: theme,
+                          joining: _joining.contains(
+                            listing['space_id']?.toString() ??
+                                listing['id']?.toString() ??
+                                '',
+                          ),
+                          onJoin: () => _join(listing),
+                        ),
+                      ),
+                    // A one-card directory reads as a broken feature unless we
+                    // say why it is short. Only shown for an unfiltered browse —
+                    // a search that matched nothing is a different story.
+                    if (listings.length <= 2 &&
+                        _query.text.trim().isEmpty &&
+                        _activeTag == null)
+                      const _SparseDirectoryNote(),
+                  ],
                 ),
         ),
+        _ConnectFooter(onManualConnect: _manualConnect),
       ],
+    );
+  }
+
+  void _manualConnect() {
+    final handler = widget.onManualConnect;
+    if (handler != null) {
+      handler();
+    } else {
+      showAddServerDialog(context);
+    }
+  }
+}
+
+/// The directory's error line. Always painted above the results so a failed
+/// join (which leaves the listings on screen) still reports itself.
+class _DirectoryError extends StatelessWidget {
+  const _DirectoryError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.error_outline, size: 18, color: colors.red),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            message,
+            style: theme.textTheme.bodyMedium?.copyWith(color: colors.red),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Why an almost-empty public directory is not a broken feature.
+class _SparseDirectoryNote extends StatelessWidget {
+  const _SparseDirectoryNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.background,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline, size: 18, color: colors.dirtyWhite),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'This list is short on purpose',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Only communities that choose to advertise themselves appear in the '
+            'public directory. Most Accord communities are private or '
+            'self-hosted, so you usually reach them from an invite link, or by '
+            'connecting straight to the server they run.',
+            style: theme.textTheme.bodySmall?.copyWith(color: colors.gray),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pinned below the results in every host of [AccordDiscoveryBody]: the two
+/// ways into a server that isn't in the directory. Always visible, so an empty
+/// or one-line directory is never a dead end.
+class _ConnectFooter extends StatelessWidget {
+  const _ConnectFooter({required this.onManualConnect});
+
+  final VoidCallback onManualConnect;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: colors.background)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Not listed here? Any Accord server works.',
+            style: theme.textTheme.bodySmall?.copyWith(color: colors.gray),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              FilledButton.icon(
+                onPressed: onManualConnect,
+                icon: const Icon(Icons.link, size: 18),
+                label: const Text('Connect to a server by URL'),
+              ),
+              TextButton.icon(
+                onPressed: () =>
+                    showSelfHostingDialog(context, onConnect: onManualConnect),
+                icon: const Icon(Icons.home_work_outlined, size: 18),
+                label: const Text('Host your own'),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

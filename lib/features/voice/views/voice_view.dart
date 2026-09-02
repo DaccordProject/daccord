@@ -3,7 +3,6 @@ import 'dart:async' show unawaited;
 import 'package:accordkit/accordkit.dart'
     show AccordMember, AccordUser, AccordVoiceState;
 import 'package:bonfire/shared/utils/client_access.dart';
-import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
@@ -19,7 +18,7 @@ import 'package:bonfire/features/voice/views/voice_text_panel.dart';
 import 'package:bonfire/shared/components/horizontal_wheel_scroll.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
-import 'package:collection/collection.dart' show IterableExtension;
+import 'package:bonfire/features/voice/views/voice_lobby.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -173,7 +172,11 @@ class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
                   _spotlightUserId = _spotlightUserId == userId ? null : userId,
             ),
           )
-        : _LobbyBody(channelId: widget.channelId, spaceId: widget.spaceId);
+        : VoiceLobbyBody(
+            channelId: widget.channelId,
+            spaceId: widget.spaceId,
+            channelName: widget.channelName,
+          );
 
     if (!_chatOpen) return primary;
 
@@ -206,9 +209,10 @@ class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
         // closing the chat first (#202).
         return Column(
           children: [
-            _LobbyBody(
+            VoiceLobbyBody(
               channelId: widget.channelId,
               spaceId: widget.spaceId,
+              channelName: widget.channelName,
               compact: true,
             ),
             Expanded(child: chat),
@@ -313,215 +317,6 @@ class _RingingBanner extends StatelessWidget {
   }
 }
 
-/// The pre-join state: participants already in the channel plus a Join button.
-///
-/// This is what opening a voice channel shows — selecting a channel never
-/// connects (#202), so the lobby is the only thing standing between a stray
-/// click and an audible join. [compact] lays it out as a fixed-height strip
-/// above the chat panel for the narrow layout, where a centred column would
-/// either push the chat off-screen or be pushed off itself.
-class _LobbyBody extends ConsumerWidget {
-  const _LobbyBody({
-    required this.channelId,
-    required this.spaceId,
-    this.compact = false,
-  });
-
-  final String channelId;
-  final String? spaceId;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = BonfireThemeExtension.of(context);
-    final states = ref.watch(
-      voiceStatesControllerProvider(ref.readActiveServerKey() ?? '').select(
-        (cache) => voiceStatesFor(cache, channelId),
-      ),
-    );
-    final members = spaceId == null
-        ? null
-        : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId!));
-    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
-    final cdnUrl = ref.watchCdnUrl();
-
-    // Viewing a lobby while a call is running elsewhere is a normal state now
-    // (clicking channel B no longer drags you out of channel A), so say so
-    // rather than letting the lobby read as "you're in this channel".
-    final (activeChannelId, activeSpaceId) = ref.watch(
-      voiceControllerProvider.select((v) => (v.channelId, v.spaceId)),
-    );
-    final elsewhere = activeChannelId != null && activeChannelId != channelId;
-    String? activeName;
-    if (elsewhere && activeSpaceId != null) {
-      activeName = ref.watch(
-        accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', activeSpaceId).select(
-          (channels) =>
-              channels?.firstWhereOrNull((c) => c.id == activeChannelId)?.name,
-        ),
-      );
-    }
-
-    final avatars = <Widget>[];
-    for (final vs in states) {
-      final display = participantDisplay(
-        vs.userId,
-        members: members,
-        users: users,
-        cdnUrl: cdnUrl,
-      );
-      avatars.add(
-        _LobbyAvatar(
-          name: display.name,
-          avatarUrl: display.avatarUrl,
-          bg: display.color,
-          compact: compact,
-        ),
-      );
-    }
-
-    final empty = Text(
-      'No one is here yet',
-      style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-        color: colors.gray,
-        fontSize: compact ? 12 : null,
-      ),
-    );
-
-    final joinButton = FilledButton.icon(
-      style: FilledButton.styleFrom(backgroundColor: colors.green),
-      onPressed: spaceId == null
-          ? null
-          : () => ref
-                .read(voiceControllerProvider.notifier)
-                .join(channelId, spaceId!),
-      icon: const Icon(Icons.call),
-      label: const Text('Join Voice'),
-    );
-
-    final note = elsewhere
-        ? Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              activeName == null
-                  ? "You're connected to another voice channel — joining moves you."
-                  : "You're connected to #$activeName — joining moves you.",
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                color: colors.gray,
-              ),
-            ),
-          )
-        : null;
-
-    if (!compact) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (states.isEmpty)
-                empty
-              else
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: avatars,
-                ),
-              const SizedBox(height: 24),
-              joinButton,
-              if (note != null) note,
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Compact strip: a single row of participants (scrolled horizontally when
-    // the channel is busy) over a full-width Join button, both above the chat.
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.foreground, width: 1)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (states.isEmpty)
-            Center(child: empty)
-          else
-            SizedBox(
-              height: 62,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  for (final avatar in avatars)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: avatar,
-                    ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 10),
-          joinButton,
-          if (note != null) note,
-        ],
-      ),
-    );
-  }
-}
-
-class _LobbyAvatar extends StatelessWidget {
-  const _LobbyAvatar({
-    required this.name,
-    required this.avatarUrl,
-    required this.bg,
-    this.compact = false,
-  });
-
-  final String name;
-  final String? avatarUrl;
-  final Color bg;
-
-  /// Smaller, for the narrow layout's participant strip.
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    final initial = accordInitial(name);
-    return SizedBox(
-      width: compact ? 56 : 72,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AccordMemberAvatar(
-            avatarUrl: avatarUrl,
-            initial: initial,
-            radius: compact ? 18 : 24,
-            backgroundColor: bg,
-            initialStyle: TextStyle(fontSize: compact ? 14 : 18),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall!.copyWith(color: colors.dirtyWhite),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// A renderable tile: either a video track or a placeholder for [userId].
 class _Tile {
   const _Tile({
@@ -562,17 +357,24 @@ class _ConnectedBody extends ConsumerWidget {
     // Rebuild on any room change (track added/removed, speaker changes).
     ref.watch(voiceControllerProvider.select((v) => v.tick));
     final states = ref.watch(
-      voiceStatesControllerProvider(ref.readActiveServerKey() ?? '').select(
-        (cache) => voiceStatesFor(cache, channelId),
-      ),
+      voiceStatesControllerProvider(
+        ref.readActiveServerKey() ?? '',
+      ).select((cache) => voiceStatesFor(cache, channelId)),
     );
     final speaking = ref.watch(
       voiceControllerProvider.select((v) => v.speakingUserIds),
     );
     final members = spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId!));
-    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
+        : ref.watch(
+            accordMembersControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              spaceId!,
+            ),
+          );
+    final users = ref.watch(
+      accordUsersControllerProvider(ref.readActiveServerKey() ?? ''),
+    );
     final cdnUrl = ref.watchCdnUrl();
     final myId = ref.watchUserId();
     final session = ref.read(voiceControllerProvider.notifier).session;

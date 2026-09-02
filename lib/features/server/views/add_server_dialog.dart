@@ -409,6 +409,8 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
                 children: [
                   _urlTab(theme, colors),
                   AccordDiscoveryBody(
+                    // Connect-by-URL is the tab next door, not another dialog.
+                    onManualConnect: () => _tabs.animateTo(0),
                     onJoinRequiresAuth: (serverUrl, spaceId) {
                       // Stay in this dialog: pre-fill the URL tab for the
                       // listing's instance and join that space once signed in.
