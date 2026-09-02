@@ -223,6 +223,37 @@ def force_manual_signing(project, profile_name, identity: "Apple Distribution")
   )
 end
 
+# Archive, sign and export the App Store .ipa, and return an absolute path to
+# it. Shared by the two iOS lanes so the binary that gets installed for a
+# screen recording is the one Apple reviews, signed the same way.
+def build_appstore_ipa
+  profile = ENV.fetch("IOS_PROFILE_NAME")
+  force_manual_signing("ios/Runner.xcodeproj", profile)
+  ipa = build_app(
+    workspace: "ios/Runner.xcworkspace",
+    scheme: "Runner",
+    configuration: "Release",
+    export_method: "app-store",
+    output_directory: "build/appstore",
+    output_name: "Daccord-iOS.ipa",
+    clean: false, # Flutter already produced the build; don't nuke it.
+    export_options: {
+      provisioningProfiles: { ENV.fetch("APP_BUNDLE_ID") => profile },
+      teamID: ENV.fetch("APPLE_TEAM_ID"),
+      signingStyle: "manual",
+    },
+  )
+  # gym may return a workspace-relative path while its analyser runs from the
+  # fastlane directory. Resolve the path against the checkout before the
+  # review-state preflight opens the IPA.
+  ipa ||= Fastlane::Actions.lane_context[
+    Fastlane::Actions::SharedValues::IPA_OUTPUT_PATH
+  ] || "build/appstore/Daccord-iOS.ipa"
+  ipa = File.expand_path(ipa, ENV.fetch("GITHUB_WORKSPACE", Dir.pwd))
+  UI.user_error!("No .ipa produced by gym (got #{ipa.inspect})") unless File.exist?(ipa)
+  ipa
+end
+
 platform :android do
   desc "Upload the release App Bundle (.aab) to Google Play"
   # The workflow builds a signed AAB with `flutter build appbundle` and writes
@@ -301,34 +332,22 @@ platform :ios do
   # TestFlight, because every App Store build does.
   lane :appstore do
     api_key = asc_api_key
-    profile = ENV.fetch("IOS_PROFILE_NAME")
-    force_manual_signing("ios/Runner.xcodeproj", profile)
-    ipa = build_app(
-      workspace: "ios/Runner.xcworkspace",
-      scheme: "Runner",
-      configuration: "Release",
-      export_method: "app-store",
-      output_directory: "build/appstore",
-      output_name: "Daccord-iOS.ipa",
-      clean: false, # Flutter already produced the build; don't nuke it.
-      export_options: {
-        provisioningProfiles: { ENV.fetch("APP_BUNDLE_ID") => profile },
-        teamID: ENV.fetch("APPLE_TEAM_ID"),
-        signingStyle: "manual",
-      },
-    )
-    # gym may return a workspace-relative path while its analyser runs from the
-    # fastlane directory. Resolve the path against the checkout before the
-    # review-state preflight opens the IPA.
-    ipa ||= lane_context[SharedValues::IPA_OUTPUT_PATH] || "build/appstore/Daccord-iOS.ipa"
-    ipa = File.expand_path(ipa, ENV.fetch("GITHUB_WORKSPACE", Dir.pwd))
-    UI.user_error!("No .ipa produced by gym (got #{ipa.inspect})") unless File.exist?(ipa)
     submit_release(
       api_key: api_key,
       platform: "ios",
       metadata_path: "fastlane/metadata/ios",
-      ipa: ipa,
+      ipa: build_appstore_ipa,
     )
+  end
+
+  desc "Build and sign the App Store .ipa, stopping before it is uploaded"
+  # The same binary :appstore submits, left on disk instead of delivered, so it
+  # can be installed somewhere the guideline 1.2 precautions can be filmed on
+  # hardware — a borrowed phone over TestFlight, or a device farm that resigns
+  # uploaded apps (#293). Deliberately never calls asc_api_key: nothing here
+  # talks to App Store Connect, so it needs the signing secrets alone.
+  lane :ipa do
+    UI.success("Built #{build_appstore_ipa}")
   end
 end
 

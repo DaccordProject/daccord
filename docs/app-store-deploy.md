@@ -299,6 +299,29 @@ reviewer seeing the self-updater in a recording invites the 2.2 finding back
 the phone or tablet this recording is captured on, regardless of this flag —
 still build with it set, since the store lane always does.
 
+**No Mac, and no device? Get the .ipa out of CI.** `flutter run` needs both.
+The release lane hands its `.ipa` to App Store Connect from inside fastlane, so
+no release asset carries one — dispatch **iOS .ipa artifact**
+(`.github/workflows/ios-ipa.yml`) instead. It runs the same build and the same
+signing as `ios-appstore` and stops before delivery (`fastlane ios ipa`), then
+uploads `Daccord-iOS.ipa` as a run artifact, so what you install is what Apple
+reviews, already built with `APP_STORE=true`. Two ways to get it onto hardware:
+
+- **TestFlight to a borrowed phone.** Any iPhone will do, and the person
+  holding it only has to follow the shot list — Control Centre's Screen
+  Recording produces exactly the file Apple wants.
+- **A real-device cloud** (BrowserStack App Live, Sauce Labs, AWS Device Farm).
+  These are physical phones and their session video is downloadable. Upload the
+  same `.ipa`: they resign it with their own profile. The device sits in their
+  datacentre, so the Accord server has to be reachable from it — a public
+  instance you control, or the vendor's local-tunnel binary.
+
+A simulator recording is *not* a substitute: Apple asked for a physical device.
+The nearest fallback, if neither route is open, is a capture from
+`.github/workflows/ios-simulator.yml` (which already boots a simulator and can
+`xcrun simctl io <udid> recordVideo`) with the reply saying plainly that it is
+a simulator — expect to be asked again.
+
 **Reset first.** Terms acceptance is stored device-globally and keyed by
 `appTermsVersion` (`lib/features/authentication/utils/terms_acceptance.dart`), so
 an install that has already accepted will skip the gate. **Delete the app and
