@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:bonfire/features/authentication/utils/tos_gate.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 
@@ -38,7 +39,7 @@ class AuthCredentialsFields extends StatelessWidget {
     required this.usernameController,
     required this.passwordController,
     required this.displayNameController,
-    required this.tosEnabled,
+    required this.tosAvailability,
     required this.tosAccepted,
     required this.onTosChanged,
     required this.onTosLinkTap,
@@ -58,8 +59,9 @@ class AuthCredentialsFields extends StatelessWidget {
   final TextEditingController passwordController;
   final TextEditingController displayNameController;
 
-  /// ToS gate, shown only in register mode when the server enables it.
-  final bool tosEnabled;
+  /// ToS gate, shown only in register mode: the checkbox when the server
+  /// advertises terms, a note when the fetch failed and we can't tell.
+  final TosAvailability tosAvailability;
   final bool tosAccepted;
   final ValueChanged<bool> onTosChanged;
   final VoidCallback onTosLinkTap;
@@ -121,7 +123,7 @@ class AuthCredentialsFields extends StatelessWidget {
             label: 'Display name (optional)',
             enabled: enabled,
           ),
-          if (tosEnabled) ...[
+          if (tosAvailability == TosAvailability.advertised) ...[
             const SizedBox(height: 4),
             Row(
               children: [
@@ -137,6 +139,26 @@ class AuthCredentialsFields extends StatelessWidget {
                     'Terms of Service',
                     style: theme.textTheme.bodyMedium!.copyWith(
                       color: colors.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else if (tosAvailability == TosAvailability.unknown) ...[
+            // Not an error the user can act on, and never a blocker: the app's
+            // own terms gate already ran. It exists so a server's terms can't
+            // go missing silently (#289).
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, size: 16, color: colors.dirtyWhite),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    tosUnavailableNotice,
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: colors.dirtyWhite,
                     ),
                   ),
                 ),
