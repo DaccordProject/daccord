@@ -123,6 +123,7 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
   final FocusNode _inputFocus = FocusNode();
   late AccordMessage _root = widget.root;
   bool _sending = false;
+  bool _closedForHiddenRoot = false;
 
   @override
   void dispose() {
@@ -300,6 +301,16 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     final replies = loadedReplies == null
         ? null
         : visibility.filter(loadedReplies);
+    // The root isn't in [replies] to filter, but the same promise applies to
+    // it: if reporting it (or blocking its author) just hid it, follow the
+    // pane's behavior and close rather than leave it the one message the
+    // filter didn't reach (#290).
+    if (!visibility.shows(_root) && !_closedForHiddenRoot) {
+      _closedForHiddenRoot = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onClose(null);
+      });
+    }
     final currentUserId = _currentUserId;
     final dialog = widget.dialog;
     // Index 0 is the root post, 1 the divider, 2 the loading/empty placeholder

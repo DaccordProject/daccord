@@ -22,6 +22,12 @@ const int accordBlockedRelationship = 2;
 /// effect in the panes immediately rather than on the next fetch.
 @Riverpod(keepAlive: true)
 class BlockedUsersController extends _$BlockedUsersController {
+  // The event handler fires a [refresh] on gateway READY and on every
+  // relationship event, so several can be in flight together; without this,
+  // whichever response lands last wins even if it was the one that started
+  // first, clobbering a set a later refresh had already applied.
+  int _refreshGeneration = 0;
+
   @override
   Set<String> build(String serverKey) {
     ref.watchAccordClientFor(serverKey);
@@ -32,7 +38,9 @@ class BlockedUsersController extends _$BlockedUsersController {
   /// does nothing when the request fails — a stale set is better than dropping
   /// a block the user made locally.
   Future<void> refresh(AccordClient client) async {
+    final generation = ++_refreshGeneration;
     final result = await client.users.listRelationships();
+    if (generation != _refreshGeneration) return;
     if (!ref.isCurrentAccordClient(serverKey, client)) return;
     final data = result.data;
     if (!result.ok || data is! List) return;
