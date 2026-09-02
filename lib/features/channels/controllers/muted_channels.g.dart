@@ -64,7 +64,7 @@ final class MutedChannelsControllerProvider
 }
 
 String _$mutedChannelsControllerHash() =>
-    r'479efe0709e0f04aa8225ae33c6b60fdafc9ab86';
+    r'f6c660e096a20220f545602edd8c75bb86372470';
 
 /// Server-backed channel mutes for one connected account.
 ///

@@ -75,6 +75,25 @@ bool get isDeveloperModeAvailable =>
     debugDeveloperModeAvailable ??
     (!isAppStoreBuild && UniversalPlatform.isDesktop);
 
+/// Overrides [isBackgroundConnectionAvailable] in tests, which can neither set
+/// a `--dart-define` nor pretend to run on another platform. Null in
+/// production.
+@visibleForTesting
+bool? debugBackgroundConnectionAvailable;
+
+/// Whether the Android background-connection foreground service may be offered
+/// at all — the single source of truth shared by the settings toggle and
+/// `BackgroundConnectionController`, so the switch can never be shown where
+/// flipping it does nothing.
+///
+/// Android-only (nothing else has a cached-app freezer to escape), and never in
+/// a store build: the Play AAB (`--flavor play` + `APP_STORE=true`) ships
+/// without `BackgroundConnectionService` in its manifest, so starting it would
+/// crash.
+bool get isBackgroundConnectionAvailable =>
+    debugBackgroundConnectionAvailable ??
+    (!isAppStoreBuild && UniversalPlatform.isAndroid);
+
 /// `owner/repo` whose GitHub Releases drive the in-app update checker. This is
 /// the Flutter client's own repository (the reference client checks its own
 /// Godot repo). See [kGithubLatestReleaseUrl].

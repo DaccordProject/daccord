@@ -77,9 +77,13 @@ class _MuteButton extends ConsumerWidget {
                   AccordSettings.channelNotifNothing,
                 );
           case _NotifAction.toggleMute:
-            ref
-                .read(mutedChannelsControllerProvider(activeKey).notifier)
-                .setMuted(channelId, !muted);
+            toggleChannelMute(
+              context,
+              ref,
+              serverKey: activeKey,
+              channelId: channelId,
+              muted: muted,
+            );
         }
       },
       itemBuilder: (context) => [

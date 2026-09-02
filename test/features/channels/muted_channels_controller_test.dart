@@ -76,7 +76,7 @@ void main() {
     expect(container.read(provider).value, {'existing', 'new'});
     release.complete();
 
-    expect(await update, isFalse);
+    expect(await update, MuteResult.failed);
     expect(container.read(provider).value, {'existing'});
   });
 
@@ -101,10 +101,10 @@ void main() {
 
     final first = notifier.setMuted('channel', true);
     await started.future;
-    expect(await notifier.setMuted('channel', true), isFalse);
+    expect(await notifier.setMuted('channel', true), MuteResult.busy);
     expect(updateCalls, 1);
     release.complete();
 
-    expect(await first, isTrue);
+    expect(await first, MuteResult.ok);
   });
 }

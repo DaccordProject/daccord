@@ -107,6 +107,11 @@ class SettingsController extends _$SettingsController {
   void setSuppressEveryone(bool suppress) =>
       _update(state.copyWith(suppressEveryone: suppress));
 
+  /// Turns the Android background-connection foreground service on or off.
+  /// `BackgroundConnectionController` watches this and starts/stops the service.
+  void setBackgroundConnection(bool enabled) =>
+      _update(state.copyWith(backgroundConnection: enabled));
+
   void setSoundsEnabled(bool enabled) =>
       _update(state.copyWith(soundsEnabled: enabled));
 

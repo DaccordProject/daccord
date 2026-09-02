@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:universal_platform/universal_platform.dart';
 
 part 'background_connection.g.dart';
 
@@ -33,7 +32,9 @@ class BackgroundConnectionController extends _$BackgroundConnectionController {
     // without BackgroundConnectionService in their manifest, so never try to start
     // it — that would crash on an undeclared service. Background delivery on Play
     // awaits a server-side push system; the sideload build keeps this feature.
-    if (!UniversalPlatform.isAndroid || kAppStoreBuild) return;
+    // Shared with the settings toggle so the two can never disagree about
+    // whether the feature exists on this build.
+    if (!isBackgroundConnectionAvailable) return;
     final enabled = ref.watch(
       settingsControllerProvider.select((s) => s.backgroundConnection),
     );

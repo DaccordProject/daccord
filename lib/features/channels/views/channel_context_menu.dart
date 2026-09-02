@@ -5,6 +5,7 @@ import 'package:bonfire/features/channels/views/channel_management.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/channels/controllers/muted_channels.dart';
 import 'package:bonfire/features/channels/utils/mark_channel_read.dart';
+import 'package:bonfire/features/channels/utils/toggle_channel_mute.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
 import 'package:flutter/material.dart';
@@ -84,9 +85,13 @@ Future<void> showChannelContextMenu(
           ? null
           : () {
               if (activeKey != null) {
-                ref
-                    .read(mutedChannelsControllerProvider(activeKey).notifier)
-                    .setMuted(channel.id, !muted);
+                toggleChannelMute(
+                  hostContext,
+                  ref,
+                  serverKey: activeKey,
+                  channelId: channel.id,
+                  muted: muted,
+                );
               }
             },
     ),

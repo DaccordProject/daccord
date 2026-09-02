@@ -47,3 +47,5 @@ Click the **Camera** button to share your camera feed. Other participants see yo
 ## Voice Settings
 
 Access voice and video settings from the voice bar settings button or from **App Settings > Voice & Video**. Here you can configure your input/output devices and other audio preferences.
+
+The **Output device** picker is shown on desktop and Android, where the platform can honour an explicit choice. iOS routes call audio itself — use Control Centre, the AirPlay picker, or plug in a headset — so the app does not offer a picker that iOS would ignore.

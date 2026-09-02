@@ -1,6 +1,7 @@
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
+import 'package:bonfire/features/voice/utils/audio_output_support.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -36,7 +37,46 @@ Widget _host(AccordSettings settings) => ProviderScope(
   ),
 );
 
+/// Lays the whole (lazy) list out at once so a `findsNothing` means the control
+/// is absent rather than merely unbuilt.
+Future<void> _pumpTall(WidgetTester tester) async {
+  tester.view.physicalSize = const Size(600, 6000);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(_host(const AccordSettings()));
+  await tester.pump();
+}
+
 void main() {
+  group('output device picker (#306)', () {
+    tearDown(() => debugCanPickAudioOutputDevice = null);
+
+    testWidgets('is offered where the platform can honour the choice', (
+      tester,
+    ) async {
+      debugCanPickAudioOutputDevice = true;
+      await _pumpTall(tester);
+
+      expect(find.text('OUTPUT DEVICE'), findsOneWidget);
+      expect(find.byKey(const Key('audio-output-dropdown')), findsOneWidget);
+    });
+
+    testWidgets('is not offered where the write would be swallowed (iOS)', (
+      tester,
+    ) async {
+      debugCanPickAudioOutputDevice = false;
+      await _pumpTall(tester);
+
+      expect(find.text('OUTPUT DEVICE'), findsNothing);
+      expect(find.byKey(const Key('audio-output-dropdown')), findsNothing);
+      // The rest of the voice stack is untouched — only the one dead control
+      // goes, never the feature.
+      expect(find.text('INPUT DEVICE'), findsOneWidget);
+      expect(find.text('Output volume'), findsOneWidget);
+      expect(find.text('CAMERA'), findsOneWidget);
+    });
+  });
+
   testWidgets('screen-share quality is its own section, labelled apart from '
       'the camera', (tester) async {
     await tester.pumpWidget(
