@@ -392,7 +392,9 @@ SETUP (about 1 minute)
 3. Sign in with the demo credentials supplied with this submission. You will
    land in a space with channels, message history, and members.
 4. A six-step guided tour starts automatically on first sign-in. Step through it
-   or skip it; it can be replayed from Settings → Advanced → Replay the app tour.
+   or skip it; it can be replayed from Settings → "Replay the app tour" (in the
+   Help & tour section — under the "Advanced" category on a wide/desktop
+   window, or further down the flat list on a phone).
 
 MESSAGING
 5. Pick any text channel in the left sidebar. Type in the composer at the bottom
@@ -440,8 +442,8 @@ SPACES, ROLES, AND MODERATION
     gated: a member without the permission does not see the entry at all, which
     is why they are not visible on a brand-new account. Sign in as the demo
     admin account (also supplied) to reach them.
-18. Server administrators additionally get Settings → Server administration, with
-    instance-wide user, space, and report management.
+18. Server administrators additionally get a "Server administration" entry in
+    Settings → Account, with instance-wide user, space, and report management.
 
 ACCOUNT AND PRIVACY
 19. Settings → Account has profile editing, password and two-factor
