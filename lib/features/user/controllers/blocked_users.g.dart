@@ -93,7 +93,7 @@ final class BlockedUsersControllerProvider
 }
 
 String _$blockedUsersControllerHash() =>
-    r'd9bde4f7faa48e1d06493b4dcf7e710bdd0fe432';
+    r'50c80e7dedcf6ee243e873bd58c6fbcb8f3cbbaf';
 
 /// The accounts this connection has blocked, by user id.
 ///
