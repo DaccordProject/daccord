@@ -277,6 +277,13 @@ and the full test suite (431 tests) staying green.
 - **B2 [Δ fix]** — `backgroundConnectionControllerProvider` wired into
   `MainWindow` per its own doc comment; the Android "Background connection"
   settings toggle previously did nothing.
+- **B2 follow-up (#306)** — the settings *toggle* itself was missing:
+  `AccordSettings.backgroundConnection` had a reader and no setter, so the
+  wired-up service was unreachable from the UI. Added
+  `SettingsController.setBackgroundConnection` and a Notifications-section
+  switch, both gated on the new `isBackgroundConnectionAvailable` (Android,
+  non-store) that `BackgroundConnectionController` now shares, so the switch
+  cannot appear where the service does not exist.
 - **F1** — the message-pane cluster (list/row/composer/reactions/attachments/
   mute button) moved out of `spaces/views/` into
   `messaging/views/message_pane/` as one library with `MessagePane` as its

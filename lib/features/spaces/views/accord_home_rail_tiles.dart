@@ -585,7 +585,11 @@ class _SpaceIcon extends ConsumerWidget {
   final AccordSpace space;
   final bool selected;
   final String? cdnUrl;
-  final VoidCallback onTap;
+
+  /// Null where the icon is shown for identification only (the hidden-servers
+  /// sheet, whose row action is its own "Unhide" button) — a no-op `onTap`
+  /// would present the icon as interactive when it isn't (#306).
+  final VoidCallback? onTap;
 
   /// The connection that owns this space, so the unread badge reads that
   /// server's read state (snowflakes collide across servers).

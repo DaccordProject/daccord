@@ -457,7 +457,9 @@ class VoiceSession {
     });
   }
 
-  /// Switches the speaker/output device (desktop only; empty = default).
+  /// Switches the speaker/output device (empty = default). Only meaningful
+  /// where `canPickAudioOutputDevice` is true — i.e. everywhere but iOS and
+  /// web, which is where the settings page offers the picker.
   Future<void> setAudioOutputDevice(String deviceId) =>
       _applyOutputDevice(deviceId);
 

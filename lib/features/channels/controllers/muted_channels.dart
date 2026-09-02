@@ -3,6 +3,24 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'muted_channels.g.dart';
 
+/// Outcome of [MutedChannelsController.setMuted].
+///
+/// A plain `bool` could not tell "the server rejected it" apart from "another
+/// tap for this channel is still in flight", so every caller had to treat the
+/// in-flight case as a failure — or, as they did, say nothing at all (#306).
+enum MuteResult {
+  /// The server accepted the change; the optimistic state stands.
+  ok,
+
+  /// The server rejected it (or there was no client); the state rolled back and
+  /// the caller must tell the user.
+  failed,
+
+  /// Ignored because the same channel is already being updated. Not a failure —
+  /// the in-flight request still owns the outcome.
+  busy,
+}
+
 /// Server-backed channel mutes for one connected account.
 ///
 /// Both the channel header and context menu use this cache so opening either
@@ -23,8 +41,11 @@ class MutedChannelsController extends _$MutedChannelsController {
 
   /// Optimistically updates [channelId], rolling back when the server rejects
   /// the change. Repeated taps while the same channel is in flight are ignored.
-  Future<bool> setMuted(String channelId, bool muted) async {
-    if (!_updating.add(channelId)) return false;
+  ///
+  /// Returns [MuteResult.failed] when the rollback happened, so the caller can
+  /// say why the toggle sprang back instead of leaving it unexplained.
+  Future<MuteResult> setMuted(String channelId, bool muted) async {
+    if (!_updating.add(channelId)) return MuteResult.busy;
     final previous = state.value ?? const <String>{};
     final wasMuted = previous.contains(channelId);
     final next = {...previous};
@@ -37,16 +58,16 @@ class MutedChannelsController extends _$MutedChannelsController {
           .clientForKey(serverKey);
       if (client == null) {
         _rollback(channelId, wasMuted);
-        return false;
+        return MuteResult.failed;
       }
       final result = muted
           ? await client.channels.mute(channelId)
           : await client.channels.unmute(channelId);
       if (!result.ok) _rollback(channelId, wasMuted);
-      return result.ok;
+      return result.ok ? MuteResult.ok : MuteResult.failed;
     } catch (_) {
       _rollback(channelId, wasMuted);
-      return false;
+      return MuteResult.failed;
     } finally {
       _updating.remove(channelId);
     }

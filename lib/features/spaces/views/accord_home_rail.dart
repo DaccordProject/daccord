@@ -460,7 +460,8 @@ class _SpaceRail extends ConsumerWidget {
                   selected: false,
                   cdnUrl: connOf[railSpace.key]?.cdnUrl,
                   serverKey: connOf[railSpace.key]?.serverKey ?? '',
-                  onTap: () {},
+                  // Identification only — the row's action is "Unhide".
+                  onTap: null,
                 ),
                 title: Text(
                   railSpace.space.name,

@@ -37,38 +37,52 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
     setState(() => _relationships = relationships);
   }
 
+  /// Runs a relationship mutation and reports a rejection in [_error] (rendered
+  /// as an [InlineError] under the list) rather than leaving the row unchanged
+  /// with no explanation (#306). Clears any previous message on the way in, so
+  /// a retry that works doesn't leave a stale complaint on screen.
+  Future<void> _mutate(
+    Future<RestResult> Function() op,
+    String failureFallback,
+  ) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final result = await op();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = result.ok ? null : result.errorMessageOr(failureFallback);
+    });
+    if (result.ok) await _load();
+  }
+
   Future<void> _accept(String userId) async {
     final client = _client;
     if (client == null) return;
-    setState(() => _busy = true);
-    final result = await client.users.putRelationship(userId, {
-      'type': _Rel.friend,
-    });
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (result.ok) await _load();
+    await _mutate(
+      () => client.users.putRelationship(userId, {'type': _Rel.friend}),
+      'Could not accept that friend request.',
+    );
   }
 
   Future<void> _remove(String userId) async {
     final client = _client;
     if (client == null) return;
-    setState(() => _busy = true);
-    final result = await client.users.deleteRelationship(userId);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (result.ok) await _load();
+    await _mutate(
+      () => client.users.deleteRelationship(userId),
+      'Could not remove that relationship.',
+    );
   }
 
   Future<void> _block(String userId) async {
     final client = _client;
     if (client == null) return;
-    setState(() => _busy = true);
-    final result = await client.users.putRelationship(userId, {
-      'type': _Rel.blocked,
-    });
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (result.ok) await _load();
+    await _mutate(
+      () => client.users.putRelationship(userId, {'type': _Rel.blocked}),
+      'Could not block that user.',
+    );
   }
 
   Future<void> _addFriend() async {

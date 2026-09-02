@@ -179,7 +179,8 @@ class AccordSettings {
   /// LiveKit audio capture options. Mirrors `config_voice.gd` `input_device`.
   final String audioInputDeviceId;
 
-  /// Selected speaker/output device ID (empty = system default; desktop only).
+  /// Selected speaker/output device ID (empty = system default). Only offered
+  /// where the platform can honour it — see `canPickAudioOutputDevice`.
   /// Mirrors `config_voice.gd` `output_device`.
   final String audioOutputDeviceId;
 

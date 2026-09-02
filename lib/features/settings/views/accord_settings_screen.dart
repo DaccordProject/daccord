@@ -491,6 +491,20 @@ class _NotificationsSection extends StatelessWidget {
               ? controller.setSuppressEveryone
               : null,
         ),
+        // Android sideload builds only — see [isBackgroundConnectionAvailable].
+        // Without this entry the foreground service could not be turned on at
+        // all, so the whole feature was unreachable from the UI (#306).
+        if (isBackgroundConnectionAvailable)
+          SwitchListTile(
+            key: const Key('background-connection-switch'),
+            title: const Text('Stay connected in the background'),
+            subtitle: const Text(
+              'Keeps notifications arriving while the app is closed. Shows a '
+              'permanent notification and uses more battery.',
+            ),
+            value: settings.backgroundConnection,
+            onChanged: controller.setBackgroundConnection,
+          ),
       ],
     );
   }

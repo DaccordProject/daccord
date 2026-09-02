@@ -193,7 +193,13 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     final confirmed = await confirmDeletePost(context, isPost: true);
     if (confirmed != true) return;
     final result = await client.messages.delete(widget.channelId, _root.id);
-    if (!mounted || !result.ok) return;
+    if (!mounted) return;
+    // A rejected delete used to close nothing and say nothing, so the post
+    // looked like it had simply refused to go (#306).
+    if (!result.ok) {
+      showErrorSnack(context, result, prefix: 'Failed to delete post');
+      return;
+    }
     widget.onClose(const ThreadResult.deleted());
   }
 

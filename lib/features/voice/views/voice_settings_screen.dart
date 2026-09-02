@@ -4,9 +4,9 @@ import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/utils/afk_logic.dart';
+import 'package:bonfire/features/voice/utils/audio_output_support.dart';
 import 'package:bonfire/features/voice/views/mic_level_meter.dart';
 import 'package:bonfire/theme/theme.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:livekit_client/livekit_client.dart';
@@ -116,9 +116,10 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
             onChanged: controller.setInputSensitivity,
           ),
           const Divider(height: 24),
-          if (!kIsWeb) ...[
+          if (canPickAudioOutputDevice) ...[
             SectionHeader('Output device'),
             _DeviceDropdown(
+              key: const Key('audio-output-dropdown'),
               devices: _audioOutputs,
               loading: _loadingDevices,
               selectedId: settings.audioOutputDeviceId,
@@ -299,6 +300,7 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
 /// A device picker with a leading "System default" option (empty id).
 class _DeviceDropdown extends StatelessWidget {
   const _DeviceDropdown({
+    super.key,
     required this.devices,
     required this.loading,
     required this.selectedId,
