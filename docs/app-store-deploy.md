@@ -355,6 +355,112 @@ must not be one whose content names another platform.
 
 Screenshots are metadata, so a new upload in App Store Connect (Previews and
 Screenshots → View All Sizes in Media Manager) needs no new build.
+## Guideline 2.2: App Review Information notes
+
+The same 0.2.16 review also returned *2.2 Performance: Beta Testing* — "your app
+appears to be a pre-release, test, or trial version with a limited feature set".
+Nothing in the binary is beta-labelled; the finding is about what a reviewer can
+*see* in fifteen minutes on a fresh account. Two things drive it: reachable
+surfaces that look unfinished, and a reviewer who never found the finished ones.
+The second is fixed here — the walkthrough below goes in **App Store Connect →
+App Review Information → Notes** with every submission, alongside the 1.2 screen
+recording.
+
+Keep it accurate rather than aspirational: a step that does not do what it says
+is worse than no step at all. Re-walk it against the build being submitted
+before pasting, and keep the demo account named in the Notes joined to a
+populated space.
+
+<!-- BEGIN reviewer notes — paste into App Review Information → Notes -->
+
+```text
+Daccord is a full chat client for Accord servers — self-hosted communities that
+run their own instance, in the way an IRC or Matrix client connects to a server
+the user chooses. It is not a demo or trial: every feature below is shipping and
+works against the demo account supplied with this submission.
+
+There is no Daccord-operated account system. The app connects to a server the
+user picks, and the account lives on that server. The sign-in screen therefore
+asks for a server URL as well as credentials.
+
+SETUP (about 1 minute)
+1. Launch the app. Accept the Terms of Use & Community Guidelines. (This gate is
+   the guideline 1.2 EULA; it appears before registration and before sign-in.)
+2. Tap "Browse Servers" to see the public server directory, then "Join" on a
+   listing — or tap "Connect directly to a server" and enter a server URL by
+   hand. Either path lands on the sign-in form.
+3. Sign in with the demo credentials supplied with this submission. You will
+   land in a space with channels, message history, and members.
+4. A six-step guided tour starts automatically on first sign-in. Step through it
+   or skip it; it can be replayed from Settings → "Replay the app tour" (in the
+   Help & tour section — under the "Advanced" category on a wide/desktop
+   window, or further down the flat list on a phone).
+
+MESSAGING
+5. Pick any text channel in the left sidebar. Type in the composer at the bottom
+   and send. Messages appear live for every member over the server's WebSocket
+   gateway.
+6. Long-press (or right-click / hover) a message for the full action set: reply,
+   react with an emoji, edit or delete your own message, pin, copy a link, and
+   Report. Reply threads open in a side panel.
+7. The "+" button in the composer attaches images, video, and files. Images and
+   video preview inline; links unfurl into embeds.
+8. The magnifier in the channel-list header searches messages and members across
+   the space.
+9. The pin icon in the channel header lists pinned messages; the bell sets that
+   channel's notification level.
+
+DIRECT MESSAGES AND FRIENDS
+10. The speech-bubble icon at the top of the far-left rail opens Direct Messages.
+    "Friends" manages friend requests and blocking; "New group" starts a group
+    DM; "Message remote user" starts a DM with a user on another Accord server.
+11. Report and Block are available on messages, on user profiles, and in the DM
+    user menu — including in DMs, where there are no space moderators, in which
+    case the report is filed to the server operator.
+
+VOICE, VIDEO, AND SCREEN SHARING
+12. Channels under a "Voice" category are voice channels. Open one and tap
+    "Join Voice". Real-time audio, camera video, and screen sharing all run over
+    WebRTC. Two devices (or a second browser signed in as another account) are
+    needed to see a second participant.
+13. In-call controls: mute, deafen, camera on/off, share screen, and disconnect.
+    Screen sharing on iOS uses the system broadcast picker.
+14. Settings → App → Voice & video settings has input/output device selection,
+    input sensitivity, a live microphone test meter, video resolution, and
+    bitrate controls.
+
+SPACES, ROLES, AND MODERATION
+15. The far-left rail lists the servers and spaces the account belongs to; "+"
+    adds a server and the compass icon opens the public directory.
+16. The member list on the right shows the roster grouped by role. Tap a member
+    for their profile, with role badges, and — with permission — kick, ban, and
+    timeout.
+17. On a space you own or administer, the space header menu opens space settings:
+    channel creation and ordering, per-channel permission overrides, role
+    creation and permission editing, invites, the ban list, the audit log,
+    custom emoji, a soundboard, and ownership transfer. These are permission
+    gated: a member without the permission does not see the entry at all, which
+    is why they are not visible on a brand-new account. Sign in as the demo
+    admin account (also supplied) to reach them.
+18. Server administrators additionally get a "Server administration" entry in
+    Settings → Account, with instance-wide user, space, and report management.
+
+ACCOUNT AND PRIVACY
+19. Settings → Account has profile editing, password and two-factor
+    authentication, "Request Data Export" (a full JSON copy of the account's
+    data), per-server "Leave & Delete", and account deletion.
+20. Settings → App covers themes, accent colour, message density, UI scale,
+    notifications, and sounds.
+
+SELF-HOSTING
+21. Anyone can run their own Accord server and connect this app to it — that is
+    the point of the product, and why the server URL is part of signing in. The
+    public directory is one way to find a community; "Connect directly to a
+    server" is the other, and neither depends on infrastructure we operate.
+    Server software: https://github.com/DaccordProject/accordserver
+```
+
+<!-- END reviewer notes -->
 
 ## Guideline 2.5.1: no libmpv in the iOS build
 
