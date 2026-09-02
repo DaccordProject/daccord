@@ -252,11 +252,19 @@ Two of those had gaps, both since fixed:
   alongside it when the server advertises one.
 - **Reporting only existed on space messages.** The action was gated on a
   non-null space, and a DM pane passes none. Report now sits on every message
-  and on user profiles and DM user menus, filing to the space's moderators
-  where there is a space and to the account-level `/reports` route where there
-  isn't.
+  surface — the pane, thread replies and the pinned list — and on user profiles
+  and DM user menus, filing to the space's moderators where there is a space and
+  to the account-level `/reports` route where there isn't. When neither route
+  took the report the confirmation says so instead of promising a review.
 
-Blocking was already in place (member popout, DM relationship actions).
+Blocking was already in place (member popout, DM relationship actions) and is
+now reachable from the two places a reviewer actually lands: the account-level
+profile a DM user tap opens, and a visible overflow button in the 1:1 DM header
+(the menu behind it was long-press/right-click only). A blocked account's
+messages are filtered out of every message surface — see `MessageVisibility`
+(`lib/features/messaging/utils/message_visibility.dart`) over
+`BlockedUsersController` — so the promise the block makes is one the client
+keeps rather than one only the server could.
 
 Do not re-gate the terms on a server response: nothing a signed-out client can
 read is guaranteed to be there, and the gate has to hold before any server is

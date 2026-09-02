@@ -141,52 +141,58 @@ Future<void> _showSheet(
     builder: (sheetCtx) {
       final theme = Theme.of(sheetCtx);
       return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (title != null) ...[
-              ListTile(
-                dense: true,
-                leading: titleIcon == null
-                    ? null
-                    : Icon(titleIcon, color: colors.dirtyWhite),
-                title: Text(
-                  title,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall,
-                ),
-              ),
-              const Divider(height: 1),
-            ],
-            for (final entry in entries)
-              if (entry.isDivider)
-                const Divider(height: 1)
-              else
+        // Scrollable: the sheet is capped at a fraction of the viewport, and a
+        // long menu — the DM user menu is nine entries — overflowed it on a
+        // short screen, clipping the last entries instead of letting the user
+        // reach them.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (title != null) ...[
                 ListTile(
-                  leading: entry.icon == null
+                  dense: true,
+                  leading: titleIcon == null
                       ? null
-                      : Icon(
-                          entry.icon,
-                          color: entry.destructive ? colors.red : null,
-                        ),
+                      : Icon(titleIcon, color: colors.dirtyWhite),
                   title: Text(
-                    entry.label,
-                    style: entry.destructive
-                        ? TextStyle(color: colors.red)
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall,
+                  ),
+                ),
+                const Divider(height: 1),
+              ],
+              for (final entry in entries)
+                if (entry.isDivider)
+                  const Divider(height: 1)
+                else
+                  ListTile(
+                    leading: entry.icon == null
+                        ? null
+                        : Icon(
+                            entry.icon,
+                            color: entry.destructive ? colors.red : null,
+                          ),
+                    title: Text(
+                      entry.label,
+                      style: entry.destructive
+                          ? TextStyle(color: colors.red)
+                          : null,
+                    ),
+                    subtitle: entry.subtitle == null
+                        ? null
+                        : Text(entry.subtitle!),
+                    enabled: entry._interactive,
+                    onTap: entry._interactive
+                        ? () {
+                            Navigator.of(sheetCtx).pop();
+                            entry.onSelected!.call();
+                          }
                         : null,
                   ),
-                  subtitle: entry.subtitle == null
-                      ? null
-                      : Text(entry.subtitle!),
-                  enabled: entry._interactive,
-                  onTap: entry._interactive
-                      ? () {
-                          Navigator.of(sheetCtx).pop();
-                          entry.onSelected!.call();
-                        }
-                      : null,
-                ),
-          ],
+            ],
+          ),
         ),
       );
     },

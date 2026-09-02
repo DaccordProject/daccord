@@ -21,6 +21,7 @@ import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/utils/space_cache.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/features/user/controllers/blocked_users.dart';
 import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
@@ -105,6 +106,14 @@ VoidCallback handleAccordEvents(
         serverKey: serverKey,
         homeDomain: selfDomain,
       );
+      // Blocked accounts drive the message filter that makes "their messages
+      // are hidden" true (#290), and READY doesn't carry relationships — so
+      // this connection's set is fetched here, for background connections too.
+      unawaited(
+        ref
+            .read(blockedUsersControllerProvider(serverKey).notifier)
+            .refresh(client),
+      );
       if (isActive()) {
         _seedVoiceStates(ref, data, serverKey: serverKey);
       }
@@ -178,6 +187,23 @@ VoidCallback handleAccordEvents(
           .upsert(presence, homeDomain: selfDomain);
     }),
   );
+
+  // ── Blocked accounts (message filter) ────────────────────────────────────
+  // A block made on another device has to reach this one, or the account it
+  // silenced keeps appearing here. The relationship events carry no reliable
+  // "which user" for a removal, so each one re-reads the authoritative list —
+  // they are rare enough that the extra request doesn't matter.
+  void refreshBlocked() {
+    unawaited(
+      ref
+          .read(blockedUsersControllerProvider(serverKey).notifier)
+          .refresh(client),
+    );
+  }
+
+  subs.add(client.onRelationshipAdd.listen((_) => refreshBlocked()));
+  subs.add(client.onRelationshipUpdate.listen((_) => refreshBlocked()));
+  subs.add(client.onRelationshipRemove.listen((_) => refreshBlocked()));
 
   // ── User cache (profile changes) ─────────────────────────────────────────
   // `user.update` carries a user's new avatar / display name / username, for

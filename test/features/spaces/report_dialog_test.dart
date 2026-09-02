@@ -26,7 +26,7 @@ const _selfId = 'u1';
 const _themId = 'u2';
 
 class _Harness {
-  _Harness({this.directReportStatus = 200}) {
+  _Harness({this.directReportStatus = 200, this.failedBlocks = 0}) {
     final responder = MockClient((request) async {
       final path = request.url.path;
       requests.add('${request.method} $path');
@@ -52,6 +52,14 @@ class _Harness {
         });
       }
       if (path.contains('/relationships/')) {
+        blockAttempts++;
+        if (blockAttempts <= failedBlocks) {
+          return http.Response(
+            jsonEncode({'message': 'relationship service unavailable'}),
+            503,
+            headers: {'content-type': 'application/json'},
+          );
+        }
         return _json({'data': {}});
       }
       return _json({'data': []});
@@ -91,6 +99,10 @@ class _Harness {
   /// Status the account-level `POST /reports` answers with. 404 stands for a
   /// server that only implements space-scoped reports.
   final int directReportStatus;
+
+  /// How many block attempts fail before one is allowed to succeed.
+  final int failedBlocks;
+  int blockAttempts = 0;
   final List<String> requests = [];
   late final AccordClient client;
   late final ProviderContainer container;
@@ -183,5 +195,62 @@ void main() {
       harness.container.read(hiddenMessagesControllerProvider),
       contains('m1'),
     );
+  });
+
+  testWidgets('a failed block after a delivered report says only that', (
+    tester,
+  ) async {
+    final harness = _Harness(failedBlocks: 99);
+    addTearDown(harness.dispose);
+    await tester.pumpWidget(harness.app());
+    await _openAndSubmit(tester);
+
+    expect(
+      find.textContaining('Reported, but blocking the account failed'),
+      findsOneWidget,
+    );
+    expect(find.text('Report submitted'), findsNothing);
+  });
+
+  testWidgets('a failed block with no report filed claims neither', (
+    tester,
+  ) async {
+    // The account-level route is missing *and* the block failed: nothing
+    // reached the server, and the copy must not pretend otherwise.
+    final harness = _Harness(directReportStatus: 404, failedBlocks: 99);
+    addTearDown(harness.dispose);
+    await tester.pumpWidget(harness.app());
+    await _openAndSubmit(tester);
+
+    expect(find.textContaining('Nothing was sent'), findsOneWidget);
+    expect(find.textContaining('Reported, but'), findsNothing);
+    expect(find.textContaining('Moderators will review it'), findsNothing);
+  });
+
+  testWidgets('retrying after a failed block does not file a second report', (
+    tester,
+  ) async {
+    final harness = _Harness(failedBlocks: 1);
+    addTearDown(harness.dispose);
+    await tester.pumpWidget(harness.app());
+    await _openAndSubmit(tester);
+
+    expect(
+      find.textContaining('Reported, but blocking the account failed'),
+      findsOneWidget,
+    );
+
+    // The form is still live so the block can be retried — the report behind it
+    // must not be sent again.
+    await tester.tap(find.text('Submit report'));
+    await tester.pumpAndSettle();
+
+    expect(harness.blockAttempts, 2);
+    expect(
+      harness.requests.where((r) => r == 'POST /api/v1/reports').length,
+      1,
+    );
+    expect(find.text('Report submitted'), findsOneWidget);
+    expect(find.textContaining('account is blocked'), findsOneWidget);
   });
 }

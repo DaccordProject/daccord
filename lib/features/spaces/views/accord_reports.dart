@@ -11,6 +11,7 @@ import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/controllers/hidden_messages.dart';
+import 'package:bonfire/features/user/controllers/blocked_users.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -93,6 +94,11 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
   bool _delivered = false;
   bool _blocked = false;
 
+  /// Whether the report itself has already been sent. A failed block leaves the
+  /// form live so it can be retried; without this latch that retry filed a
+  /// second report for the same target.
+  bool _sent = false;
+
   @override
   void initState() {
     super.initState();
@@ -166,32 +172,38 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
     };
 
     final spaceId = widget.spaceId;
-    var delivered = false;
-    if (spaceId != null) {
-      final result = await client.reports.create(spaceId, payload);
-      if (!mounted) return;
-      if (!result.ok) {
-        setState(() {
-          _busy = false;
-          _error = result.errorOr('Failed to submit report');
-        });
-        return;
+    // Only sent once, however many times this is submitted: a retry after a
+    // failed block must not file the report again (#290).
+    var delivered = _delivered;
+    if (!_sent) {
+      if (spaceId != null) {
+        final result = await client.reports.create(spaceId, payload);
+        if (!mounted) return;
+        if (!result.ok) {
+          setState(() {
+            _busy = false;
+            _error = result.errorOr('Failed to submit report');
+          });
+          return;
+        }
+        delivered = true;
+      } else {
+        final result = await client.reports.createDirect(payload);
+        if (!mounted) return;
+        // A server without the account-level route isn't a failed report: the
+        // block and the local hide below are still the outcome the user asked
+        // for. Any other error is a real failure and stops here.
+        if (!result.ok && !ReportsApi.reportRouteMissing(result)) {
+          setState(() {
+            _busy = false;
+            _error = result.errorOr('Failed to submit report');
+          });
+          return;
+        }
+        delivered = result.ok;
       }
-      delivered = true;
-    } else {
-      final result = await client.reports.createDirect(payload);
-      if (!mounted) return;
-      // A server without the account-level route isn't a failed report: the
-      // block and the local hide below are still the outcome the user asked
-      // for. Any other error is a real failure and stops here.
-      if (!result.ok && !ReportsApi.reportRouteMissing(result)) {
-        setState(() {
-          _busy = false;
-          _error = result.errorOr('Failed to submit report');
-        });
-        return;
-      }
-      delivered = result.ok;
+      _sent = true;
+      _delivered = delivered;
     }
 
     // Hidden before the block is attempted: the user reported this content, so
@@ -206,23 +218,33 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
     final reportedUserId = widget.reportedUserId;
     if (_block && reportedUserId != null) {
       final result = await client.users.putRelationship(reportedUserId, {
-        'type': 2,
+        'type': accordBlockedRelationship,
       });
       if (!mounted) return;
       blocked = result.ok;
       if (!result.ok) {
+        // Says what actually happened in either case: claiming a report was
+        // filed when the server never took one is the thing App Review calls
+        // out, so the wording tracks [delivered].
+        final failure = delivered
+            ? 'Reported, but blocking the account failed'
+            : 'Nothing was sent — this server only accepts reports inside a '
+                  'space — and blocking the account failed';
+        final detail = result.errorMessageOr('');
         setState(() {
           _busy = false;
-          _error = result.errorOr('Reported, but blocking the account failed');
+          _error = detail.isEmpty ? failure : '$failure: $detail';
         });
         return;
       }
+      // Filters their messages out of every pane straight away, which is what
+      // the checkbox promised.
+      ref.blockedUsers.block(reportedUserId);
     }
 
     if (!mounted) return;
     setState(() {
       _busy = false;
-      _delivered = delivered;
       _blocked = blocked;
       _done = true;
     });
@@ -233,7 +255,9 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
   List<String> get _outcomes => [
     if (_delivered) 'Moderators will review it shortly.',
     if (widget.targetType == 'message') 'The message is now hidden for you.',
-    if (_blocked) 'The account is blocked and can no longer message you.',
+    if (_blocked)
+      'The account is blocked: they can no longer message you, and their '
+          'messages are hidden.',
   ];
 
   String get _outcomeTitle {
@@ -357,8 +381,8 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                           style: theme.textTheme.bodyMedium,
                         ),
                         subtitle: Text(
-                          'They can no longer message you, and their content '
-                          'is hidden.',
+                          'They can no longer message you, and their messages '
+                          'are hidden from your view.',
                           style: theme.textTheme.bodySmall!.copyWith(
                             color: colors.gray,
                           ),
