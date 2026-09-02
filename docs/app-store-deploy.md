@@ -342,6 +342,13 @@ Open a DM and long-press a message from the other person — **Report** is prese
 here too. The dialog now reads *"Reports outside a space go to the server
 operator. Blocking takes effect immediately."*
 
+Outside a space the **"Also block …"** checkbox starts **ticked** — with no
+moderator to act on a DM, the block is what actually stops the abuse, so the
+dialog defaults it on. Untick it unless you want this shot to end the
+conversation: submitting with it set blocks the account, which empties the DM
+of their messages and turns **Block** into **Unblock** in the menus shot 4
+needs.
+
 Also show reporting the person rather than the message, from any of: the DM
 header's **⋮ "Conversation options"** button → **Report user**; tapping the
 other person's avatar in the DM, which opens their profile carrying **Report
@@ -355,6 +362,20 @@ checkbox, whose subtitle promises *"They can no longer message you, and their
 messages are hidden from your view."* — a promise the client keeps via
 `MessageVisibility`, so demonstrate a blocked account's messages disappearing
 from the pane.
+
+#### Before a retake
+
+Shots 2–4 change state, so a second take does not start where the first one
+did:
+
+- **A reported message stays hidden.** Reporting hides it for good — persisted
+  under `reported-hidden-message-ids` in the profile's settings box, with
+  nothing in the UI to unhide it. The delete-and-reinstall above clears that
+  box along with the terms acceptance, so a clean retake is free; carrying on
+  without reinstalling needs a message you have not already reported.
+- **A block is not.** It is a relationship on the account, held server-side, so
+  reinstalling leaves it in place. Clear it from Friends → **Blocked** →
+  **Unblock**, or shot 4 has nobody left to block.
 
 #### After recording
 
