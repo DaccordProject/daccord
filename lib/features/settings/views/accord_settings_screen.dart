@@ -94,12 +94,18 @@ class AccordSettingsScreen extends ConsumerWidget {
               const Divider(height: 24),
               const _ServerDirectorySection(),
               const Divider(height: 24),
-              const _UpdatesSection(),
-              const Divider(height: 24),
+              // Store builds update through the store and never expose the
+              // GitHub self-updater; Developer Mode is desktop-only (#292).
+              if (!isAppStoreBuild) ...[
+                const _UpdatesSection(),
+                const Divider(height: 24),
+              ],
               const _BackupSection(),
               const Divider(height: 24),
-              _DeveloperSection(settings: settings, controller: controller),
-              const Divider(height: 24),
+              if (isDeveloperModeAvailable) ...[
+                _DeveloperSection(settings: settings, controller: controller),
+                const Divider(height: 24),
+              ],
               const OnboardingHelpSection(),
               const Divider(height: 24),
               const _AboutSection(),
@@ -311,11 +317,15 @@ class _CategoryPane extends ConsumerWidget {
         const _VoiceVideoSection(),
       ],
       SettingsCategory.system => <Widget>[
-        const _UpdatesSection(),
+        // Store builds update through the store and never expose the GitHub
+        // self-updater (#292).
+        if (!isAppStoreBuild) const _UpdatesSection(),
         const _BackupSection(),
       ],
       SettingsCategory.advanced => <Widget>[
-        _DeveloperSection(settings: settings, controller: controller),
+        // The local MCP server is desktop-only and never in a store build.
+        if (isDeveloperModeAvailable)
+          _DeveloperSection(settings: settings, controller: controller),
         const OnboardingHelpSection(),
         const _AboutSection(),
       ],

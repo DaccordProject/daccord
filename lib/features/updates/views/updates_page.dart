@@ -56,9 +56,10 @@ class UpdatesScreen extends ConsumerWidget {
             leading: const Icon(Icons.auto_awesome),
             title: const Text("What's new in this version"),
             subtitle: const Text("Release notes for the build you're running"),
-            trailing: ref.watch(
-              releaseNotesControllerProvider.select((s) => s.loading),
-            )
+            trailing:
+                ref.watch(
+                  releaseNotesControllerProvider.select((s) => s.loading),
+                )
                 ? const SizedBox(
                     width: 16,
                     height: 16,
@@ -67,160 +68,177 @@ class UpdatesScreen extends ConsumerWidget {
                 : const Icon(Icons.chevron_right),
             onTap: () => openCurrentReleaseNotes(context, ref),
           ),
-          SwitchListTile(
-            title: const Text('Check for updates on startup'),
-            value: autoCheck,
-            onChanged: settings.setAutoUpdateCheck,
-          ),
-          const Divider(height: 16),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-            child: Row(
-              children: [
-                FilledButton.icon(
-                  onPressed: update.checking
-                      ? null
-                      : () => notifier.check(manual: true),
-                  icon: update.checking
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.refresh),
-                  label: Text(
-                    update.checking ? 'Checking…' : 'Check for updates',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (update.error != null)
+          // App-store builds update through the store and must never query
+          // GitHub for releases, so the whole check/download half of this page
+          // is replaced by a one-line statement of where updates come from.
+          if (isAppStoreBuild)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: InlineError(update.error!, centered: false),
-            )
-          else if (update.checkedOnce && !available)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle, size: 16, color: colors.green),
-                  const SizedBox(width: 6),
-                  Text(
-                    "You're up to date.",
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall!.copyWith(color: colors.green),
-                  ),
-                ],
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Text(
+                'Updates are delivered through the app store.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall!.copyWith(color: colors.gray),
               ),
+            )
+          else ...[
+            SwitchListTile(
+              title: const Text('Check for updates on startup'),
+              value: autoCheck,
+              onChanged: settings.setAutoUpdateCheck,
             ),
-          if (available && release != null) ...[
             const Divider(height: 16),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-              child: Text(
-                'Update available: ${release.name}',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall!.copyWith(color: colors.primary),
-              ),
-            ),
-            // GitHub release bodies are markdown — render them with the app's
-            // own viewer rather than dumping the raw source (#183).
-            if (release.notes.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: AccordMarkdownBox(content: release.notes),
-              ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              child: Row(
                 children: [
-                  Builder(
-                    builder: (context) {
-                      // Where the platform supports it, download + install in
-                      // place (desktop binary swap / Android APK install);
-                      // otherwise fall back to a plain download link.
-                      if (!kIsWeb && notifier.canInstallInPlace) {
-                        return FilledButton.icon(
-                          onPressed: update.installing
-                              ? null
-                              : () => notifier.applyUpdate(),
-                          icon: update.installing
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : Icon(
-                                  update.updateReady
-                                      ? Icons.restart_alt
-                                      : Icons.download,
-                                ),
-                          label: Text(
-                            _installLabel(
-                              update,
-                              notifier.requiresPrivilegedInstall,
-                            ),
-                          ),
-                        );
-                      }
-                      // Prefer the matching platform asset (one-click download
-                      // of the right file); fall back to the release page.
-                      final assetUrl = notifier.platformAssetUrl();
-                      final target = assetUrl ?? release.url;
-                      return FilledButton.icon(
-                        onPressed: target.isEmpty
-                            ? null
-                            : () => launchUrl(
-                                Uri.parse(target),
-                                mode: LaunchMode.externalApplication,
-                              ),
-                        icon: const Icon(Icons.download),
-                        label: Text(
-                          assetUrl != null ? 'Download' : 'View release',
-                        ),
-                      );
-                    },
-                  ),
-                  TextButton(
-                    onPressed: update.installing
+                  FilledButton.icon(
+                    onPressed: update.checking
                         ? null
-                        : () {
-                            notifier.skipCurrent();
-                            Navigator.of(context).maybePop();
-                          },
-                    child: const Text('Skip this version'),
+                        : () => notifier.check(manual: true),
+                    icon: update.checking
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh),
+                    label: Text(
+                      update.checking ? 'Checking…' : 'Check for updates',
+                    ),
                   ),
                 ],
               ),
             ),
-            if (update.phase == UpdatePhase.downloading && update.progress > 0)
+            if (update.error != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: LinearProgressIndicator(value: update.progress),
-              ),
-            if (update.installError != null)
+                child: InlineError(update.error!, centered: false),
+              )
+            else if (update.checkedOnce && !available)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: InlineError(update.installError!, centered: false),
-              ),
-            if (kIsWeb)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Text(
-                  'On the web, refresh the page to load the latest version.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall!.copyWith(color: colors.gray),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, size: 16, color: colors.green),
+                    const SizedBox(width: 6),
+                    Text(
+                      "You're up to date.",
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall!.copyWith(color: colors.green),
+                    ),
+                  ],
                 ),
               ),
+            if (available && release != null) ...[
+              const Divider(height: 16),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                child: Text(
+                  'Update available: ${release.name}',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall!.copyWith(color: colors.primary),
+                ),
+              ),
+              // GitHub release bodies are markdown — render them with the app's
+              // own viewer rather than dumping the raw source (#183).
+              if (release.notes.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: AccordMarkdownBox(content: release.notes),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Builder(
+                      builder: (context) {
+                        // Where the platform supports it, download + install in
+                        // place (desktop binary swap / Android APK install);
+                        // otherwise fall back to a plain download link.
+                        if (!kIsWeb && notifier.canInstallInPlace) {
+                          return FilledButton.icon(
+                            onPressed: update.installing
+                                ? null
+                                : () => notifier.applyUpdate(),
+                            icon: update.installing
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Icon(
+                                    update.updateReady
+                                        ? Icons.restart_alt
+                                        : Icons.download,
+                                  ),
+                            label: Text(
+                              _installLabel(
+                                update,
+                                notifier.requiresPrivilegedInstall,
+                              ),
+                            ),
+                          );
+                        }
+                        // Prefer the matching platform asset (one-click download
+                        // of the right file); fall back to the release page.
+                        final assetUrl = notifier.platformAssetUrl();
+                        final target = assetUrl ?? release.url;
+                        return FilledButton.icon(
+                          onPressed: target.isEmpty
+                              ? null
+                              : () => launchUrl(
+                                  Uri.parse(target),
+                                  mode: LaunchMode.externalApplication,
+                                ),
+                          icon: const Icon(Icons.download),
+                          label: Text(
+                            assetUrl != null ? 'Download' : 'View release',
+                          ),
+                        );
+                      },
+                    ),
+                    TextButton(
+                      onPressed: update.installing
+                          ? null
+                          : () {
+                              notifier.skipCurrent();
+                              Navigator.of(context).maybePop();
+                            },
+                      child: const Text('Skip this version'),
+                    ),
+                  ],
+                ),
+              ),
+              if (update.phase == UpdatePhase.downloading &&
+                  update.progress > 0)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: LinearProgressIndicator(value: update.progress),
+                ),
+              if (update.installError != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: InlineError(update.installError!, centered: false),
+                ),
+              if (kIsWeb)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Text(
+                    'On the web, refresh the page to load the latest version.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall!.copyWith(color: colors.gray),
+                  ),
+                ),
+            ],
           ],
         ],
       ),

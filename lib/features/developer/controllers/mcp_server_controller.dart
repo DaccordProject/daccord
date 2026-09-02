@@ -1,6 +1,7 @@
 import 'package:bonfire/features/developer/services/mcp_server.dart';
 import 'package:bonfire/features/developer/services/mcp_tools.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/shared/app_info.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'mcp_server_controller.g.dart';
@@ -40,8 +41,15 @@ const int _activityLogCap = 100;
 /// tool groups are read live by the server, so changing those takes effect
 /// without a restart.
 ///
+/// The desktop-only part is enforced here rather than assumed: [McpServer]
+/// resolves to the real `dart:io` implementation on *any* platform with
+/// `dart:library.io` — which includes iOS and Android — so without this gate a
+/// persisted `developerMode` flag would start a real HTTP listener on a phone or
+/// inside a store build. [isDeveloperModeAvailable] is the single source of
+/// truth, shared with the settings UI that offers the toggle.
+///
 /// On web (no `dart:io`) the [McpServer] facade is a no-op, so this controller
-/// is inert there.
+/// is inert there too.
 @Riverpod(keepAlive: true)
 class McpServerController extends _$McpServerController {
   McpServer? _server;
@@ -54,6 +62,7 @@ class McpServerController extends _$McpServerController {
   McpServerState build() {
     final settings = ref.watch(settingsControllerProvider);
     final shouldRun =
+        isDeveloperModeAvailable &&
         settings.developerMode &&
         settings.mcpEnabled &&
         settings.mcpToken.trim().isNotEmpty;

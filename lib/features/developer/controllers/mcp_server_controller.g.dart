@@ -15,8 +15,15 @@ part of 'mcp_server_controller.dart';
 /// tool groups are read live by the server, so changing those takes effect
 /// without a restart.
 ///
+/// The desktop-only part is enforced here rather than assumed: [McpServer]
+/// resolves to the real `dart:io` implementation on *any* platform with
+/// `dart:library.io` — which includes iOS and Android — so without this gate a
+/// persisted `developerMode` flag would start a real HTTP listener on a phone or
+/// inside a store build. [isDeveloperModeAvailable] is the single source of
+/// truth, shared with the settings UI that offers the toggle.
+///
 /// On web (no `dart:io`) the [McpServer] facade is a no-op, so this controller
-/// is inert there.
+/// is inert there too.
 
 @ProviderFor(McpServerController)
 const mcpServerControllerProvider = McpServerControllerProvider._();
@@ -28,8 +35,15 @@ const mcpServerControllerProvider = McpServerControllerProvider._();
 /// tool groups are read live by the server, so changing those takes effect
 /// without a restart.
 ///
+/// The desktop-only part is enforced here rather than assumed: [McpServer]
+/// resolves to the real `dart:io` implementation on *any* platform with
+/// `dart:library.io` — which includes iOS and Android — so without this gate a
+/// persisted `developerMode` flag would start a real HTTP listener on a phone or
+/// inside a store build. [isDeveloperModeAvailable] is the single source of
+/// truth, shared with the settings UI that offers the toggle.
+///
 /// On web (no `dart:io`) the [McpServer] facade is a no-op, so this controller
-/// is inert there.
+/// is inert there too.
 final class McpServerControllerProvider
     extends $NotifierProvider<McpServerController, McpServerState> {
   /// Owns the desktop-only local MCP server lifecycle, driven by the persisted
@@ -39,8 +53,15 @@ final class McpServerControllerProvider
   /// tool groups are read live by the server, so changing those takes effect
   /// without a restart.
   ///
+  /// The desktop-only part is enforced here rather than assumed: [McpServer]
+  /// resolves to the real `dart:io` implementation on *any* platform with
+  /// `dart:library.io` — which includes iOS and Android — so without this gate a
+  /// persisted `developerMode` flag would start a real HTTP listener on a phone or
+  /// inside a store build. [isDeveloperModeAvailable] is the single source of
+  /// truth, shared with the settings UI that offers the toggle.
+  ///
   /// On web (no `dart:io`) the [McpServer] facade is a no-op, so this controller
-  /// is inert there.
+  /// is inert there too.
   const McpServerControllerProvider._()
     : super(
         from: null,
@@ -69,7 +90,7 @@ final class McpServerControllerProvider
 }
 
 String _$mcpServerControllerHash() =>
-    r'6a2734149fa1b62c8d4299e6e0d4ceb4d3e39983';
+    r'4729c9d96fe693efdf6b902c15ea5fdae1f1bc88';
 
 /// Owns the desktop-only local MCP server lifecycle, driven by the persisted
 /// [SettingsController] flags. The server runs only while Developer Mode **and**
@@ -78,8 +99,15 @@ String _$mcpServerControllerHash() =>
 /// tool groups are read live by the server, so changing those takes effect
 /// without a restart.
 ///
+/// The desktop-only part is enforced here rather than assumed: [McpServer]
+/// resolves to the real `dart:io` implementation on *any* platform with
+/// `dart:library.io` — which includes iOS and Android — so without this gate a
+/// persisted `developerMode` flag would start a real HTTP listener on a phone or
+/// inside a store build. [isDeveloperModeAvailable] is the single source of
+/// truth, shared with the settings UI that offers the toggle.
+///
 /// On web (no `dart:io`) the [McpServer] facade is a no-op, so this controller
-/// is inert there.
+/// is inert there too.
 
 abstract class _$McpServerController extends $Notifier<McpServerState> {
   McpServerState build();

@@ -1,6 +1,7 @@
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/updates/controllers/update_controller.dart';
 import 'package:bonfire/features/updates/views/updates_page.dart';
+import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/shared/components/app_banner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,11 +14,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// self-install (web/iOS, or an older release with no installable asset) fall
 /// back to the legacy "tap to view" banner that opens the Updates page. The ✕
 /// dismisses the current version until a newer one ships.
+///
+/// Never shown on app-store builds — those update through the store, so there
+/// is no GitHub check to surface (see [isAppStoreBuild]).
 class UpdateBanner extends ConsumerWidget {
   const UpdateBanner({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (isAppStoreBuild) return const SizedBox.shrink();
     final update = ref.watch(updateControllerProvider);
     final notifier = ref.read(updateControllerProvider.notifier);
     final skipped = ref.watch(
