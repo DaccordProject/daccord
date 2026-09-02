@@ -108,7 +108,16 @@ void _checkSizes(String dir, (int, int) expected) {
 
 /// Width/height straight out of the PNG header, without decoding the image.
 (int, int) _ihdrSize(File file) {
-  final bytes = file.openSync().readSync(33);
+  final handle = file.openSync();
+  final List<int> bytes;
+  try {
+    bytes = handle.readSync(33);
+  } finally {
+    handle.closeSync();
+  }
+  if (bytes.length < 33) {
+    throw StateError('${file.path} is too short to be a PNG');
+  }
   final signature = [137, 80, 78, 71, 13, 10, 26, 10];
   for (var i = 0; i < signature.length; i++) {
     if (bytes[i] != signature[i]) throw StateError('${file.path} is not a PNG');
