@@ -353,7 +353,10 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
               ? () => context.push('/switcher')
               : null,
         ),
-        maxWidth: 480,
+        // Wide enough for the welcome screen's three-up highlights on a tablet
+        // or desktop canvas; it collapses itself back to a phone layout below
+        // `kWelcomeWideBreakpoint` (#292).
+        maxWidth: 760,
       ),
       _LoggedOutView.browse => _BrowseView(
         onBack: _goBack,
@@ -635,17 +638,12 @@ class _BrowseView extends StatelessWidget {
                 ],
               ),
             ),
+            // The connect-by-URL / host-your-own footer lives inside
+            // [AccordDiscoveryBody] so the dialog variant gets it too (#292).
             Expanded(
               child: AccordDiscoveryBody(
                 onJoinRequiresAuth: onJoinRequiresAuth,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-              child: TextButton.icon(
-                onPressed: onManualConnect,
-                icon: const Icon(Icons.link, size: 18),
-                label: const Text('Connect to a server by URL'),
+                onManualConnect: onManualConnect,
               ),
             ),
           ],

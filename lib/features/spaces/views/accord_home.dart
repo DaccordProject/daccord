@@ -29,6 +29,7 @@ import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/controllers/role_preview.dart';
+import 'package:bonfire/features/spaces/models/home_layout.dart';
 import 'package:bonfire/features/spaces/models/space_folder.dart';
 import 'package:bonfire/features/spaces/views/role_preview_banner.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
@@ -125,10 +126,6 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   /// Scaffold for the narrow (mobile) layout, so the channel-list drawer and
   /// member-list end-drawer can be opened/closed programmatically.
   final _scaffoldKey = GlobalKey<ScaffoldState>();
-
-  /// Below this width the three panes can't sit side-by-side, so the channel
-  /// list and member list move into drawers (see [build]).
-  static const double _wideLayoutBreakpoint = 720;
 
   @override
   void initState() {
@@ -612,9 +609,22 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       ),
     );
 
-    final messageArea = Column(
+    // [membersButton] is the escape hatch for the medium layout, where the
+    // roster has been pushed into the end drawer to keep the message column
+    // readable; the wide layout keeps it inline and passes false.
+    Widget messageArea({required bool membersButton}) => Column(
       children: [
-        _TabStrip(onSelect: _selectTab),
+        Row(
+          children: [
+            Expanded(child: _TabStrip(onSelect: _selectTab)),
+            if (membersButton)
+              IconButton(
+                tooltip: 'Members',
+                icon: Icon(Icons.people_alt_outlined, color: colors.dirtyWhite),
+                onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+              ),
+          ],
+        ),
         Expanded(
           child: MessagePane(
             channel: channels?.firstWhereOrNull((c) => c.id == shownChannelId),
@@ -634,18 +644,28 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
 
     final hasMembers = effectiveSpaceId != null;
 
+    Widget? memberEndDrawer() => hasMembers
+        ? Drawer(
+            width: 260,
+            backgroundColor: colors.background,
+            child: SafeArea(child: AccordMemberList(spaceId: effectiveSpaceId)),
+          )
+        : null;
+
     final body = LayoutBuilder(
       builder: (context, constraints) {
-        final wide = constraints.maxWidth >= _wideLayoutBreakpoint;
-        if (wide) {
-          final savedWidth = ref.watch(
-            settingsControllerProvider.select((s) => s.channelListWidth),
-          );
-          final channelWidth = (_dragChannelWidth ?? savedWidth).clamp(
-            AccordSettings.minChannelListWidth,
-            AccordSettings.maxChannelListWidth,
-          );
-          return Stack(
+        // Panes are kept or dropped by the width they'd leave the message
+        // column, not by a device breakpoint — see [resolveHomeLayout].
+        final savedWidth = ref.watch(
+          settingsControllerProvider.select((s) => s.channelListWidth),
+        );
+        final layout = resolveHomeLayout(
+          width: constraints.maxWidth,
+          preferredChannelListWidth: _dragChannelWidth ?? savedWidth,
+        );
+        if (layout.showsSidebarInline) {
+          final channelWidth = layout.channelListWidth;
+          final panes = Stack(
             children: [
               Row(
                 children: [
@@ -671,13 +691,29 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
                       setState(() => _dragChannelWidth = null);
                     },
                   ),
-                  Expanded(child: messageArea),
-                  if (hasMembers && _memberListVisible)
+                  Expanded(
+                    child: messageArea(
+                      membersButton:
+                          hasMembers && !layout.showsMemberListInline,
+                    ),
+                  ),
+                  if (layout.showsMemberListInline &&
+                      hasMembers &&
+                      _memberListVisible)
                     AccordMemberList(spaceId: effectiveSpaceId),
                 ],
               ),
               pip,
             ],
+          );
+          if (layout.showsMemberListInline) return panes;
+          // Medium: the roster is an end drawer, so this half of the tree needs
+          // its own Scaffold to host it.
+          return Scaffold(
+            key: _scaffoldKey,
+            backgroundColor: colors.background,
+            endDrawer: memberEndDrawer(),
+            body: panes,
           );
         }
         // Narrow: rail + channel list move into a drawer, members into an
@@ -717,15 +753,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
                 ),
               ),
             ),
-            endDrawer: hasMembers
-                ? Drawer(
-                    width: 260,
-                    backgroundColor: colors.background,
-                    child: SafeArea(
-                      child: AccordMemberList(spaceId: effectiveSpaceId),
-                    ),
-                  )
-                : null,
+            endDrawer: memberEndDrawer(),
             body: Stack(
               children: [
                 // Inset the mobile chrome below the OS status bar / nav bar.

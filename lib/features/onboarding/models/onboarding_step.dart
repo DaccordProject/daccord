@@ -1,3 +1,4 @@
+import 'package:bonfire/features/spaces/models/home_layout.dart';
 import 'package:flutter/material.dart';
 
 /// A named hook a live widget can publish so the first-launch tour (#175) can
@@ -58,12 +59,16 @@ class OnboardingStep {
 }
 
 /// Below this width `AccordHomeScreen` moves the rail and channel list into a
-/// drawer and the three-pane layout is gone. Mirrors that screen's private
-/// `_wideLayoutBreakpoint` — the tour must not point at a rail that isn't on
-/// screen, so it branches on exactly the same number rather than on
+/// drawer, so the tour has nothing inline to spotlight. Aliases
+/// [kHomeSidebarBreakpoint] — the tour must not point at a rail that isn't on
+/// screen, so it branches on exactly the width that screen does rather than on
 /// `shouldUseDesktopLayout` (which is true for short-but-wide windows where the
 /// panes are still collapsed).
-const double kOnboardingWideBreakpoint = 720;
+///
+/// The wide tour is also correct for `HomeLayoutMode.medium`: the rail, channel
+/// list and composer it spotlights are all inline there — only the member
+/// roster (which the tour never points at) has moved into a drawer.
+const double kOnboardingWideBreakpoint = kHomeSidebarBreakpoint;
 
 /// The walkthrough, adapted to the layout actually on screen.
 ///
