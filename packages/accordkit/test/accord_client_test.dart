@@ -54,6 +54,20 @@ void main() {
     );
   });
 
+  test('applies the default upload timeout, and an override', () {
+    expect(
+      AccordClient(baseUrl: 'https://srv').rest.uploadTimeout,
+      AccordConfig.defaultUploadTimeout,
+    );
+    expect(
+      AccordClient(
+        baseUrl: 'https://srv',
+        uploadTimeout: const Duration(minutes: 1),
+      ).rest.uploadTimeout,
+      const Duration(minutes: 1),
+    );
+  });
+
   test('forwards gateway events through the client', () async {
     final factory = FakeConnectionFactory();
     final client = AccordClient(

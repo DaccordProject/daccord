@@ -25,6 +25,15 @@ class AccordConfig {
   /// own semantics; see [AccordRest].
   static const Duration defaultRequestTimeout = Duration(seconds: 30);
 
+  /// How long a single multipart (file upload) attempt may take before it is
+  /// abandoned.
+  ///
+  /// Kept separate from [defaultRequestTimeout]: an upload's duration scales
+  /// with attachment size and the caller's connection speed rather than
+  /// server response latency, so the ordinary request budget would abort a
+  /// large or slow-link attachment upload that was still making progress.
+  static const Duration defaultUploadTimeout = Duration(minutes: 5);
+
   /// Lower bound applied to the server-advertised `heartbeat_interval`.
   ///
   /// A zero or negative interval makes the periodic heartbeat timer fire as

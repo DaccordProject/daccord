@@ -125,6 +125,18 @@ The deadline applies **per attempt**, not across the built-in 429 retry loop, so
 a server-dictated `Retry-After` pause never counts against the next attempt's
 budget.
 
+Multipart file uploads use a separate, longer budget —
+`AccordConfig.defaultUploadTimeout` (5 minutes) — since an upload's duration
+scales with attachment size and connection speed rather than server response
+latency. Override it independently with `uploadTimeout`:
+
+```dart
+final client = AccordClient(
+  baseUrl: 'https://your.accord.server',
+  uploadTimeout: const Duration(minutes: 10),
+);
+```
+
 ### File uploads
 
 ```dart

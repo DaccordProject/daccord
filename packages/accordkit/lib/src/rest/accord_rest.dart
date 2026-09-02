@@ -16,10 +16,11 @@ import 'rest_result.dart';
 /// The underlying [http.Client] is injectable for testing, as is the [sleep]
 /// callback used between rate-limit retries.
 ///
-/// Every attempt is bounded by [timeout]. A request that runs out of time comes
-/// back as an ordinary [RestResult] failure (`INTERNAL`, "… timed out after
-/// …"), never as a thrown [TimeoutException], so existing call sites report it
-/// on the error path they already have.
+/// Every attempt is bounded by [timeout] (multipart uploads use the longer
+/// [uploadTimeout] instead). A request that runs out of time comes back as an
+/// ordinary [RestResult] failure (`INTERNAL`, "… timed out after …"), never as
+/// a thrown [TimeoutException], so existing call sites report it on the error
+/// path they already have.
 class AccordRest {
   static const int maxRetries = 3;
 
@@ -46,6 +47,12 @@ class AccordRest {
   /// Defaults to [AccordConfig.defaultRequestTimeout].
   final Duration timeout;
 
+  /// The deadline applied to each individual multipart (file upload) attempt.
+  ///
+  /// Separate from [timeout] — see [AccordConfig.defaultUploadTimeout].
+  /// Defaults to [AccordConfig.defaultUploadTimeout].
+  final Duration uploadTimeout;
+
   final http.Client _client;
   final Future<void> Function(Duration) _sleep;
 
@@ -55,6 +62,7 @@ class AccordRest {
     this.tokenType = 'Bot',
     this.onUnauthorized,
     Duration? timeout,
+    Duration? uploadTimeout,
     http.Client? client,
     Future<void> Function(Duration)? sleep,
   })  : baseUrl = validateHttpEndpoint(
@@ -62,6 +70,7 @@ class AccordRest {
           label: 'Accord REST URL',
         ).toString(),
         timeout = timeout ?? AccordConfig.defaultRequestTimeout,
+        uploadTimeout = uploadTimeout ?? AccordConfig.defaultUploadTimeout,
         _client = client ?? http.Client(),
         _sleep = sleep ?? _defaultSleep;
 
@@ -142,6 +151,7 @@ class AccordRest {
     return _executeWithRetry(
       failureLabel: 'multipart request',
       exhaustedLabel: 'Multipart request',
+      attemptTimeout: uploadTimeout,
       send: () async {
         final request = http.Request(method, uri)
           ..headers.addAll(headers)
@@ -161,17 +171,19 @@ class AccordRest {
     required RestResult Function(http.Response) interpret,
     String failureLabel = 'request',
     String exhaustedLabel = 'Request',
+    Duration? attemptTimeout,
   }) async {
+    final effectiveTimeout = attemptTimeout ?? timeout;
     var attempt = 0;
     while (attempt < maxRetries) {
       final http.Response response;
       try {
-        response = await send().timeout(timeout);
+        response = await send().timeout(effectiveTimeout);
       } on TimeoutException {
         return RestResult.failure(
           0,
           _internalError(
-            '$exhaustedLabel timed out after ${_timeoutLabel(timeout)}',
+            '$exhaustedLabel timed out after ${_timeoutLabel(effectiveTimeout)}',
           ),
         );
       } catch (error) {

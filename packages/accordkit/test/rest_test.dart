@@ -330,6 +330,47 @@ void main() {
       expect(result.ok, isFalse);
       expect(calls, 1);
     });
+
+    test('is bounded by uploadTimeout rather than the shorter request timeout',
+        () async {
+      // A large or slow-link attachment upload can easily outrun the ordinary
+      // request timeout without being stuck; uploadTimeout gives it a
+      // separate, longer budget (#306 follow-up).
+      final rest = mockRest(
+        log: [],
+        timeout: const Duration(milliseconds: 20),
+        uploadTimeout: const Duration(milliseconds: 200),
+        responder: (_) async {
+          await Future<void>.delayed(const Duration(milliseconds: 60));
+          return jsonData({'id': '1'});
+        },
+      );
+      final form = MultipartForm(boundary: 'BOUND')..addField('a', 'b');
+      final result = await rest.makeMultipartRequest('POST', '/upload', form);
+      expect(result.ok, isTrue);
+    });
+
+    test('still times out as a normal failure once uploadTimeout elapses',
+        () async {
+      final rest = mockRest(
+        log: [],
+        uploadTimeout: const Duration(milliseconds: 20),
+        responder: (_) => Completer<http.Response>().future,
+      );
+      final form = MultipartForm(boundary: 'BOUND')..addField('a', 'b');
+      final result = await rest.makeMultipartRequest('POST', '/upload', form);
+      expect(result.ok, isFalse);
+      expect(result.error!.message, contains('timed out'));
+    });
+
+    test('defaults to AccordConfig.defaultUploadTimeout', () {
+      final rest = mockRest(log: [], responder: (_) => jsonData(null));
+      expect(rest.uploadTimeout, AccordConfig.defaultUploadTimeout);
+      expect(
+        AccordConfig.defaultUploadTimeout,
+        greaterThan(AccordConfig.defaultRequestTimeout),
+      );
+    });
   });
 
   group('MultipartForm', () {
