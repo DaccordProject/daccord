@@ -292,9 +292,12 @@ shows the surfaces a reviewer gets:
 flutter run --release -d <device-id> --dart-define=APP_STORE=true
 ```
 
-Without `APP_STORE=true` the Settings → Updates entry and Developer Mode toggle
-are present, and a reviewer seeing those in a recording invites the 2.2 finding
-back (see below).
+Without `APP_STORE=true` the Settings → Updates entry is present, and a
+reviewer seeing the self-updater in a recording invites the 2.2 finding back
+(see below). The Developer Mode toggle is desktop-only
+(`isDeveloperModeAvailable` in `lib/shared/app_info.dart`) and never appears on
+the phone or tablet this recording is captured on, regardless of this flag —
+still build with it set, since the store lane always does.
 
 **Reset first.** Terms acceptance is stored device-globally and keyed by
 `appTermsVersion` (`lib/features/authentication/utils/terms_acceptance.dart`), so
