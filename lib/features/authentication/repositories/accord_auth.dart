@@ -204,18 +204,46 @@ class AccordAuth extends _$AccordAuth {
   }
 
   /// Fetches a server's public settings (e.g. Terms-of-Service config) before
-  /// login. Returns the settings map, unwrapping a `{ data: {...} }` envelope,
-  /// or null on failure.
-  Future<Map<String, dynamic>?> fetchServerSettings(AccordServer server) async {
+  /// login. Exactly one of [settings] (the map, with a `{ data: {...} }`
+  /// envelope unwrapped) and [error] is non-null, so callers can tell "the
+  /// server said nothing is configured" from "we never got an answer".
+  ///
+  /// [statusCode] carries the HTTP status the failure came with (`0` when the
+  /// request never produced a response at all), because the *reason* matters:
+  /// accordserver serves `GET /settings` to authenticated users only, so a
+  /// signed-out read reliably 401s and callers treat that structural refusal
+  /// differently from an unexpected failure (#289).
+  Future<({Map<String, dynamic>? settings, String? error, int statusCode})>
+  fetchServerSettings(AccordServer server) async {
     final client = _restClientFor(server);
     try {
       final result = await client.rest.makeRequest('GET', '/settings');
-      if (!result.ok || result.data is! Map) return null;
+      if (!result.ok || result.data is! Map) {
+        final message =
+            result.error?.message ??
+            (result.ok
+                ? 'Unexpected settings response'
+                : 'HTTP ${result.statusCode}');
+        debugPrint(
+          'Failed to read ${server.baseUrl} settings '
+          '(${result.statusCode}): $message',
+        );
+        return (
+          settings: null,
+          error: message,
+          statusCode: result.statusCode,
+        );
+      }
       final map = Map<String, dynamic>.from(result.data as Map);
       final inner = map['data'];
-      return inner is Map ? Map<String, dynamic>.from(inner) : map;
-    } catch (_) {
-      return null;
+      return (
+        settings: inner is Map ? Map<String, dynamic>.from(inner) : map,
+        error: null,
+        statusCode: result.statusCode,
+      );
+    } catch (e) {
+      debugPrint('Failed to read ${server.baseUrl} settings: $e');
+      return (settings: null, error: e.toString(), statusCode: 0);
     } finally {
       await client.dispose();
     }

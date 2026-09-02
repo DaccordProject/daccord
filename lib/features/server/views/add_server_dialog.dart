@@ -78,7 +78,8 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
   bool _busy = false;
 
   // Terms-of-Service config, fetched per server when the Register mode is shown.
-  bool _tosEnabled = false;
+  // Absent until a fetch says otherwise, so no gate flashes before the answer.
+  TosAvailability _tosAvailability = TosAvailability.absent;
   bool _tosAccepted = false;
   String? _tosUrl;
   String? _tosText;
@@ -231,7 +232,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
     if (!mounted) return;
     setState(() {
       _tosFetchedServer = server.baseUrl;
-      _tosEnabled = tos.enabled;
+      _tosAvailability = tos.availability;
       _tosUrl = tos.url;
       _tosText = tos.text;
       _tosAccepted = false;
@@ -252,7 +253,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
       final validationError = validateRegistrationCredentials(
         username: username,
         password: password,
-        tosRequired: _tosEnabled,
+        tosRequired: _tosAvailability == TosAvailability.advertised,
         tosAccepted: _tosAccepted,
       );
       if (validationError != null) {
@@ -467,7 +468,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
                 usernameController: _userCtrl,
                 passwordController: _passCtrl,
                 displayNameController: _displayCtrl,
-                tosEnabled: _tosEnabled,
+                tosAvailability: _tosAvailability,
                 tosAccepted: _tosAccepted,
                 onTosChanged: (v) => setState(() => _tosAccepted = v),
                 onTosLinkTap: _openTos,

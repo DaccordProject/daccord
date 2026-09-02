@@ -89,7 +89,8 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   bool _termsAccepted = true;
 
   // Terms-of-Service config, fetched per server when the Register tab is shown.
-  bool _tosEnabled = false;
+  // Absent until a fetch says otherwise, so no gate flashes before the answer.
+  TosAvailability _tosAvailability = TosAvailability.absent;
   bool _tosAccepted = false;
   String? _tosUrl;
   String? _tosText;
@@ -166,7 +167,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     if (!mounted) return;
     setState(() {
       _tosFetchedServer = server.baseUrl;
-      _tosEnabled = tos.enabled;
+      _tosAvailability = tos.availability;
       _tosUrl = tos.url;
       _tosText = tos.text;
       _tosAccepted = false;
@@ -226,7 +227,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
       final validationError = validateRegistrationCredentials(
         username: username,
         password: password,
-        tosRequired: _tosEnabled,
+        tosRequired: _tosAvailability == TosAvailability.advertised,
         tosAccepted: _tosAccepted,
       );
       if (validationError != null) {
@@ -368,7 +369,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
           displayNameController: _displayNameController,
           mode: _mode,
           hasAccounts: _hasAccounts,
-          tosEnabled: _tosEnabled,
+          tosAvailability: _tosAvailability,
           tosAccepted: _tosAccepted,
           onBack: _atFlowRoot ? null : _goBack,
           onModeChanged: _onModeChanged,
@@ -463,7 +464,7 @@ class _AuthForm extends StatelessWidget {
     required this.displayNameController,
     required this.mode,
     required this.hasAccounts,
-    required this.tosEnabled,
+    required this.tosAvailability,
     required this.tosAccepted,
     required this.onModeChanged,
     required this.onSwitchAccount,
@@ -483,7 +484,7 @@ class _AuthForm extends StatelessWidget {
   final TextEditingController displayNameController;
   final AuthMode mode;
   final bool hasAccounts;
-  final bool tosEnabled;
+  final TosAvailability tosAvailability;
   final bool tosAccepted;
   final VoidCallback? onBack;
   final ValueChanged<AuthMode> onModeChanged;
@@ -539,7 +540,7 @@ class _AuthForm extends StatelessWidget {
           usernameController: usernameController,
           passwordController: passwordController,
           displayNameController: displayNameController,
-          tosEnabled: tosEnabled,
+          tosAvailability: tosAvailability,
           tosAccepted: tosAccepted,
           onTosChanged: onTosChanged,
           onTosLinkTap: onTosLinkTap,
