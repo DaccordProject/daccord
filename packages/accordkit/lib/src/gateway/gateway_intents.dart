@@ -21,28 +21,6 @@ class GatewayIntents {
   static const String presences = 'presences';
   static const String messageContent = 'message_content';
 
-  static List<String> unprivileged() => const [
-        spaces,
-        moderation,
-        emojis,
-        voiceStates,
-        messages,
-        messageReactions,
-        messageTyping,
-        directMessages,
-        dmReactions,
-        dmTyping,
-        scheduledEvents,
-        plugins,
-        relationships,
-        soundboard,
-      ];
-
-  static List<String> privileged() =>
-      const [members, presences, messageContent];
-
-  static List<String> all() => [...unprivileged(), ...privileged()];
-
   static List<String> defaults() => const [spaces, messages, messageContent];
 
   /// Reduced intent set for anonymous guest connections — space structure,

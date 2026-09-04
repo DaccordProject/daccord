@@ -3,8 +3,8 @@ import 'dart:typed_data';
 
 import '../core/accord_config.dart';
 
-/// Builds CDN URLs for avatars, icons, banners, emojis, attachments, and
-/// sounds, and resolves server-returned relative CDN paths to absolute URLs.
+/// Builds CDN URLs for avatars, icons, banners, and emojis, and resolves
+/// server-returned relative CDN paths to absolute URLs.
 class AccordCDN {
   /// Fallback CDN base used when a per-call [cdnUrl] is not provided.
   static String baseUrl = AccordConfig.defaultCdnUrl;
@@ -18,10 +18,6 @@ class AccordCDN {
     String cdnUrl = '',
   }) {
     return '${_resolve(cdnUrl)}/avatars/$userId/$hash.$format';
-  }
-
-  static String defaultAvatar(int index, {String cdnUrl = ''}) {
-    return '${_resolve(cdnUrl)}/embed/avatars/$index.png';
   }
 
   static String spaceIcon(
@@ -48,19 +44,6 @@ class AccordCDN {
     String cdnUrl = '',
   }) {
     return '${_resolve(cdnUrl)}/emojis/$emojiId.$format';
-  }
-
-  static String attachment(
-    String channelId,
-    String attachmentId,
-    String filename, {
-    String cdnUrl = '',
-  }) {
-    return '${_resolve(cdnUrl)}/attachments/$channelId/$attachmentId/$filename';
-  }
-
-  static String sound(String audioUrl, {String cdnUrl = ''}) {
-    return resolvePath(audioUrl, cdnUrl: cdnUrl);
   }
 
   /// Resolves a server-returned CDN path (e.g. "/cdn/avatars/123.png") to a

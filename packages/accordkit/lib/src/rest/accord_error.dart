@@ -5,19 +5,13 @@ import '../utils/json_utils.dart';
 class AccordError {
   String code;
   String message;
-  Map<String, dynamic> details;
 
-  AccordError({
-    this.code = '',
-    this.message = '',
-    Map<String, dynamic>? details,
-  }) : details = details ?? {};
+  AccordError({this.code = '', this.message = ''});
 
   factory AccordError.fromJson(Map<String, dynamic> d) {
     return AccordError(
       code: asString(d['code']),
       message: asString(d['message']),
-      details: asMap(d['details']) ?? {},
     );
   }
 

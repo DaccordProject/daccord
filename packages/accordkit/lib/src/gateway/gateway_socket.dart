@@ -6,7 +6,6 @@ import '../core/accord_config.dart';
 import '../models/accord_relationship.dart';
 import '../models/call_signal.dart';
 import '../models/channel.dart';
-import '../models/interaction.dart';
 import '../models/invite.dart';
 import '../models/member.dart';
 import '../models/message.dart';
@@ -141,7 +140,6 @@ class GatewaySocket {
 
   late final _voiceStateUpdate = _ctrl<AccordVoiceState>();
   late final _voiceServerUpdate = _ctrl<AccordVoiceServerUpdate>();
-  late final _voiceSignal = _ctrl<Map<String, dynamic>>();
 
   late final _callRing = _ctrl<AccordCallSignal>();
   late final _callDecline = _ctrl<AccordCallSignal>();
@@ -155,8 +153,6 @@ class GatewaySocket {
 
   late final _inviteCreate = _ctrl<AccordInvite>();
   late final _inviteDelete = _ctrl<Map<String, dynamic>>();
-
-  late final _interactionCreate = _ctrl<AccordInteraction>();
 
   late final _pluginInstalled = _ctrl<Map<String, dynamic>>();
   late final _pluginUninstalled = _ctrl<Map<String, dynamic>>();
@@ -238,7 +234,6 @@ class GatewaySocket {
   Stream<AccordVoiceState> get onVoiceStateUpdate => _voiceStateUpdate.stream;
   Stream<AccordVoiceServerUpdate> get onVoiceServerUpdate =>
       _voiceServerUpdate.stream;
-  Stream<Map<String, dynamic>> get onVoiceSignal => _voiceSignal.stream;
 
   Stream<AccordCallSignal> get onCallRing => _callRing.stream;
   Stream<AccordCallSignal> get onCallDecline => _callDecline.stream;
@@ -252,9 +247,6 @@ class GatewaySocket {
 
   Stream<AccordInvite> get onInviteCreate => _inviteCreate.stream;
   Stream<Map<String, dynamic>> get onInviteDelete => _inviteDelete.stream;
-
-  Stream<AccordInteraction> get onInteractionCreate =>
-      _interactionCreate.stream;
 
   Stream<Map<String, dynamic>> get onPluginInstalled => _pluginInstalled.stream;
   Stream<Map<String, dynamic>> get onPluginUninstalled =>
@@ -433,28 +425,6 @@ class GatewaySocket {
         'self_deaf': selfDeaf,
         'self_video': selfVideo,
         'self_stream': selfStream,
-      },
-    });
-  }
-
-  /// Requests the member list (or a filtered subset) for a space.
-  void requestMembers(String spaceId, {String query = '', int limit = 0}) {
-    _send({
-      'op': GatewayOpcodes.requestMembers,
-      'data': {'space_id': spaceId, 'query': query, 'limit': limit},
-    });
-  }
-
-  /// Sends a voice signalling payload through the gateway.
-  void sendVoiceSignal(String spaceId, String channelId, String signalType,
-      Map<String, dynamic> payload) {
-    _send({
-      'op': GatewayOpcodes.voiceSignal,
-      'data': {
-        'space_id': spaceId,
-        'channel_id': channelId,
-        'type': signalType,
-        'payload': payload,
       },
     });
   }
@@ -845,9 +815,6 @@ class GatewaySocket {
       case 'voice.server_update':
         _voiceServerUpdate.add(AccordVoiceServerUpdate.fromJson(data));
         break;
-      case 'voice.signal':
-        _voiceSignal.add(data);
-        break;
       case 'call.ring':
         _callRing.add(AccordCallSignal.fromJson(data, type: 'ring'));
         break;
@@ -874,9 +841,6 @@ class GatewaySocket {
         break;
       case 'invite.delete':
         _inviteDelete.add(data);
-        break;
-      case 'interaction.create':
-        _interactionCreate.add(AccordInteraction.fromJson(data));
         break;
       case 'plugin.installed':
         _pluginInstalled.add(data);
