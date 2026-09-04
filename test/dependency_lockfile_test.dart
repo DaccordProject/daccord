@@ -3,12 +3,15 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('tracked dependency locks do not restore removed networking stacks', () {
-    final exampleLock = File('packages/markdown_viewer/example/pubspec.lock');
-    expect(exampleLock.existsSync(), isTrue);
-    final contents = exampleLock.readAsStringSync().toLowerCase();
-    expect(contents, isNot(contains('firebridge')));
+  test('the resolved dependency lock does not restore removed networking', () {
+    final lock = File('pubspec.lock');
+    expect(lock.existsSync(), isTrue);
+    // CLAUDE.md: firebridge is gone and must not come back through a
+    // transitive dependency or a reverted pubspec edit.
+    expect(lock.readAsStringSync().toLowerCase(), isNot(contains('firebridge')));
+  });
 
+  test('stale macOS swiftpm locks are not tracked', () {
     for (final path in [
       'macos/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved',
       'macos/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved',
