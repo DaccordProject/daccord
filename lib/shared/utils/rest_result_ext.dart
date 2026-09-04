@@ -28,7 +28,11 @@ extension RestResultParse on RestResult {
       return null;
     }
     final payload = data;
-    return payload is List ? payload.whereType<T>().toList() : null;
+    if (payload is! List) {
+      debugPrint('Failed to load $describe: $error');
+      return null;
+    }
+    return payload.whereType<T>().toList();
   }
 
   /// The payload as a single typed value, or `null` (logged) on failure or a

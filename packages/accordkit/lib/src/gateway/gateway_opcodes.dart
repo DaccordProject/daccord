@@ -10,6 +10,4 @@ class GatewayOpcodes {
   static const int invalidSession = 7;
   static const int presenceUpdate = 8;
   static const int voiceStateUpdate = 9;
-  static const int requestMembers = 10;
-  static const int voiceSignal = 11;
 }
