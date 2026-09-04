@@ -3,11 +3,9 @@ import 'package:flutter/widgets.dart';
 
 /// Shared state machine for dialogs that load a list once when opened.
 ///
-/// Consolidates the `_list?/_loading/_error/_load()` boilerplate that the
-/// moderation dialogs (ban list, invites, soundboard) each re-typed: the mixin
-/// owns the [items]/[loading]/[error] trio and the load flow (kicked off from
-/// `initState`), while each screen supplies [fetchItems] and keeps its own
-/// loading/error/empty rendering.
+/// The mixin owns the [items]/[loading]/[error] trio and the load flow (kicked
+/// off from `initState`), while each screen supplies [fetchItems] and keeps
+/// its own loading/error/empty rendering.
 mixin SelfLoadingListState<T, W extends StatefulWidget> on State<W> {
   /// The loaded items; null until the first [load] completes, so screens can
   /// key their initial-loading UI off null-ness.

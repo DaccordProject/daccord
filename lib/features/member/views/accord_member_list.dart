@@ -355,14 +355,10 @@ Future<void> _showMemberContextMenu(
       await openAccordDirectMessage(context, ref, member.userId);
     case 'copyId':
       await Clipboard.setData(ClipboardData(text: member.userId));
-      if (context.mounted) _toast(context, 'User ID copied');
+      if (context.mounted) showInfoSnack(context, 'User ID copied');
     case 'copyName':
       await Clipboard.setData(ClipboardData(text: username!));
-      if (context.mounted) _toast(context, 'Username copied');
+      if (context.mounted) showInfoSnack(context, 'Username copied');
   }
 }
 
-void _toast(BuildContext context, String message) {
-  if (!context.mounted) return;
-  showInfoSnack(context, message);
-}

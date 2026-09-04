@@ -1,5 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/list_ext.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -47,18 +49,14 @@ class ThreadRepliesController extends _$ThreadRepliesController {
   Future<void> _load(AccordClient client) async {
     final result = await client.messages.listThread(channelId, rootId);
     if (!ref.mounted || !ref.isCurrentAccordClient(serverKey, client)) return;
-    final data = result.data;
-    if (!result.ok || data is! List) {
-      debugPrint('Failed to load thread $rootId: ${result.error}');
+    final replies = result.listOrLog<AccordMessage>('thread $rootId');
+    if (replies == null) {
       // Settle on empty rather than spin forever (matches the previous view
       // behavior); a re-identify [reload] retries.
       state = const [];
       return;
     }
-    state = data
-        .whereType<AccordMessage>()
-        .where((m) => m.id != rootId)
-        .toList();
+    state = replies.where((m) => m.id != rootId).toList();
   }
 
   /// Re-fetches the reply list, replacing the cache in place (no flash back to
@@ -112,13 +110,8 @@ class ThreadRepliesController extends _$ThreadRepliesController {
   /// Replaces an existing reply (edit result / gateway echo); unknown ids are
   /// ignored.
   void updateReply(AccordMessage message) {
-    final current = state;
-    if (current == null) return;
-    final index = current.indexWhere((m) => m.id == message.id);
-    if (index < 0) return;
-    final copy = [...current];
-    copy[index] = message;
-    state = copy;
+    final next = state?.replaceById(message, (m) => m.id);
+    if (next != null) state = next;
   }
 
   /// Removes a deleted reply; a no-op when [messageId] isn't in this thread

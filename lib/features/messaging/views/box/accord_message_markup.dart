@@ -70,7 +70,9 @@ buildAccordMarkup(AccordMarkupContext ctx) {
 
 /// `||text||` → an `accordSpoiler` element carrying the hidden text.
 class _SpoilerSyntax extends md.InlineSyntax {
-  _SpoilerSyntax() : super(RegExp(r'\|\|(.+?)\|\|', dotAll: true));
+  _SpoilerSyntax() : super(_pattern);
+
+  static final _pattern = RegExp(r'\|\|(.+?)\|\|', dotAll: true);
 
   @override
   md.InlineObject? parse(md.InlineParser parser, Match match) {
@@ -90,7 +92,9 @@ class _SpoilerSyntax extends md.InlineSyntax {
 /// inner text is preserved as a child [md.Text] so it renders with the parent
 /// style merged.
 class _UnderlineSyntax extends md.InlineSyntax {
-  _UnderlineSyntax() : super(RegExp(r'__(.+?)__', dotAll: true));
+  _UnderlineSyntax() : super(_pattern);
+
+  static final _pattern = RegExp(r'__(.+?)__', dotAll: true);
 
   @override
   md.InlineObject? parse(md.InlineParser parser, Match match) {
@@ -114,7 +118,9 @@ class _UnderlineSyntax extends md.InlineSyntax {
 /// space emoji. Otherwise it regrets the match (returns `null` without
 /// consuming) so the literal `:name:` is left for other syntaxes / plain text.
 class _EmojiSyntax extends md.InlineSyntax {
-  _EmojiSyntax(this.ctx) : super(RegExp(r':([A-Za-z0-9_]+):'));
+  _EmojiSyntax(this.ctx) : super(_pattern);
+
+  static final _pattern = RegExp(r':([A-Za-z0-9_]+):');
 
   final AccordMarkupContext ctx;
 
@@ -139,7 +145,9 @@ class _EmojiSyntax extends md.InlineSyntax {
 /// mentionable role or a member (else it regrets). A leading word character
 /// (e.g. the `@` in `email@host`) suppresses the match.
 class _MentionSyntax extends md.InlineSyntax {
-  _MentionSyntax(this.ctx) : super(RegExp(r'@(everyone|here)\b|@(\w+)'));
+  _MentionSyntax(this.ctx) : super(_pattern);
+
+  static final _pattern = RegExp(r'@(everyone|here)\b|@(\w+)');
 
   final AccordMarkupContext ctx;
 
@@ -190,7 +198,9 @@ class _MentionSyntax extends md.InlineSyntax {
 /// `#name` → an `accordChannel` chip, only when it resolves to a real channel
 /// (else it regrets). A leading word character suppresses the match.
 class _ChannelSyntax extends md.InlineSyntax {
-  _ChannelSyntax(this.ctx) : super(RegExp(r'#([A-Za-z0-9_\-]+)'));
+  _ChannelSyntax(this.ctx) : super(_pattern);
+
+  static final _pattern = RegExp(r'#([A-Za-z0-9_\-]+)');
 
   final AccordMarkupContext ctx;
 

@@ -8,6 +8,7 @@ import 'package:bonfire/features/updates/controllers/release_notes_controller.da
 import 'package:bonfire/features/updates/models/app_release.dart';
 import 'package:bonfire/router/controller.dart';
 import 'package:bonfire/shared/app_info.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,13 +16,11 @@ import 'package:url_launcher/url_launcher.dart';
 
 /// Shows the "What's new" notes for [release]. Returns when the user dismisses
 /// it.
-Future<void> showReleaseNotesDialog(
-  BuildContext context,
-  AppRelease release,
-) => showDialog<void>(
-  context: context,
-  builder: (_) => ReleaseNotesDialog(release: release),
-);
+Future<void> showReleaseNotesDialog(BuildContext context, AppRelease release) =>
+    showDialog<void>(
+      context: context,
+      builder: (_) => ReleaseNotesDialog(release: release),
+    );
 
 /// A one-shot `What's new in v<x.y.z>` dialog rendering a release's markdown
 /// notes (#183). Purely informational — it can't install anything, so it is the
@@ -117,14 +116,15 @@ Future<bool> _waitForSignIn(
 /// Opens the notes for the running version on demand (the Updates page's
 /// "What's new" row). Fetches them if they aren't cached yet and reports the
 /// miss inline rather than opening an empty dialog.
-Future<void> openCurrentReleaseNotes(BuildContext context, WidgetRef ref) async {
+Future<void> openCurrentReleaseNotes(
+  BuildContext context,
+  WidgetRef ref,
+) async {
   final notifier = ref.read(releaseNotesControllerProvider.notifier);
   final release = await notifier.loadNotesForCurrentVersion();
   if (!context.mounted) return;
   if (release == null || release.notes.trim().isEmpty) {
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      SnackBar(content: Text('No release notes published for v$kAppVersion.')),
-    );
+    showInfoSnack(context, 'No release notes published for v$kAppVersion.');
     return;
   }
   await showReleaseNotesDialog(context, release);

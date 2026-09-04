@@ -42,13 +42,10 @@ class _Rel {
   static const pendingOut = 4;
 }
 
-/// Best display name for a user.
-String _userName(AccordUser? user) {
-  if (user == null) return 'Unknown';
-  final display = user.displayName;
-  if (display != null && display.isNotEmpty) return display;
-  return user.username.isNotEmpty ? user.username : user.id;
-}
+/// Best display name for a user, falling back to the raw id rather than
+/// "Unknown" so an unhydrated recipient stays identifiable (and reportable).
+String _userName(AccordUser? user) =>
+    user == null ? 'Unknown' : accordUserName(user, fallback: user.id);
 
 /// The recipients of [channel] excluding the current user.
 List<AccordUser> _others(AccordChannel channel, String? selfId) =>
@@ -73,13 +70,8 @@ bool _isGroup(AccordChannel channel, String? selfId) =>
 
 /// Title for a DM/group channel: a group's custom name, else the joined
 /// recipient names.
-String _channelTitle(AccordChannel channel, String? selfId) {
-  final name = channel.name;
-  if (name != null && name.isNotEmpty) return name;
-  final others = _others(channel, selfId);
-  if (others.isEmpty) return 'Direct message';
-  return others.map(_userName).join(', ');
-}
+String _channelTitle(AccordChannel channel, String? selfId) =>
+    dmChannelTitle(channel, selfId, fallback: 'Direct message');
 
 /// Opens the direct-messages & friends panel: a tabbed dialog with the user's DM
 /// conversations and their friends list (with requests). The Accord analogue of
@@ -120,17 +112,11 @@ Future<void> openAccordDirectMessage(
     // Surface the server's reason (federation disabled, recipient not
     // qualified, peer untrusted, recipient blocked, …) rather than a generic
     // failure, so a rejected cross-server open is actionable.
-    _snackDmError(context, result.error, 'Failed to open direct message');
+    showInfoSnack(
+      context,
+      result.errorMessageOr('Failed to open direct message'),
+    );
   }
-}
-
-/// Shows [error]'s server message (when present) or [fallback] in a snackbar.
-void _snackDmError(BuildContext context, AccordError? error, String fallback) {
-  final reason = error?.message;
-  showInfoSnack(
-    context,
-    reason != null && reason.isNotEmpty ? reason : fallback,
-  );
 }
 
 /// Account-level profile used where there is no space/member context. It keeps
@@ -393,8 +379,17 @@ class _DirectMessagesDialog extends ConsumerStatefulWidget {
 
 class _DirectMessagesDialogState extends ConsumerState<_DirectMessagesDialog>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 2, vsync: this);
+  // Built eagerly rather than lazily: opening straight into a conversation
+  // never builds the TabBar, so a `late` field would first run its initializer
+  // inside dispose(), creating a ticker on an already-deactivated State.
+  late final TabController _tabs;
   late AccordChannel? _openChannel = widget.initialChannel;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = TabController(length: 2, vsync: this);
+  }
 
   @override
   void dispose() {

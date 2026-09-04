@@ -4,6 +4,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_session_store.dart';
+import 'package:bonfire/features/authentication/utils/credential_validation.dart';
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/channels/controllers/muted_channels.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
@@ -133,12 +134,9 @@ class AccordAuth extends _$AccordAuth {
     required String password,
     String? displayName,
   }) async {
-    // Usernames are the public login identifier (login is by username, not
-    // email); reject email-like values before hitting the server. The server
-    // enforces this authoritatively as well.
-    if (username.contains('@')) {
-      return _fail("Username can't be an email address.");
-    }
+    // The server enforces the username rule authoritatively as well.
+    final usernameError = validateRegistrationUsername(username);
+    if (usernameError != null) return _fail(usernameError);
     state = const AccordAuthInProgress();
     final attempt = await _attemptRegister(
       server,
@@ -444,9 +442,8 @@ class AccordAuth extends _$AccordAuth {
     required String password,
     String? displayName,
   }) async {
-    if (username.contains('@')) {
-      return AddServerOutcome.error("Username can't be an email address.");
-    }
+    final usernameError = validateRegistrationUsername(username);
+    if (usernameError != null) return AddServerOutcome.error(usernameError);
     final attempt = await _attemptRegister(
       server,
       username: username,
@@ -541,11 +538,11 @@ class AccordAuth extends _$AccordAuth {
   );
 
   // The shared REST cores behind both the primary-login and add-a-server
-  // flows, which were previously near-verbatim clones of each other. Each
-  // opens a throwaway unauthenticated client, maps failures/exceptions to an
-  // [_AuthAttempt], and leaves state publication to the caller (primary login
-  // publishes global [AccordAuthState]s; add-a-server returns
-  // [AddServerOutcome]s so the home screen isn't bounced to login).
+  // flows. Each opens a throwaway unauthenticated client, maps
+  // failures/exceptions to an [_AuthAttempt], and leaves state publication to
+  // the caller (primary login publishes global [AccordAuthState]s;
+  // add-a-server returns [AddServerOutcome]s so the home screen isn't bounced
+  // to login).
 
   Future<_AuthAttempt> _attemptLogin(
     AccordServer server, {

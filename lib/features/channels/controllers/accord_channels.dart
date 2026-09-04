@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/channels/utils/channel_sort.dart';
 import 'package:bonfire/shared/controllers/load_failed.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/list_ext.dart';
@@ -111,13 +112,11 @@ class AccordChannelsController extends _$AccordChannelsController {
   List<AccordChannel> _sorted(List<AccordChannel> channels) {
     final copy = [...channels];
     copy.sort((a, b) {
-      final pa = _asInt(a.position);
-      final pb = _asInt(b.position);
+      final pa = parseChannelPosition(a);
+      final pb = parseChannelPosition(b);
       if (pa != pb) return pa.compareTo(pb);
       return a.id.compareTo(b.id);
     });
     return copy;
   }
-
-  int _asInt(Object? v) => v is int ? v : int.tryParse('$v') ?? 0;
 }

@@ -83,6 +83,25 @@ void main() {
     },
   );
 
+  test('does not re-fetch an id whose fetch failed', () async {
+    var calls = 0;
+    final client = _client((request) async {
+      calls++;
+      return http.Response(jsonEncode({'code': 'not_found'}), 404);
+    });
+    addTearDown(client.dispose);
+    final container = _container();
+    final users = container.read(accordUsersControllerProvider('').notifier);
+
+    expect(await users.resolve('gone', client: client), isNull);
+    expect(calls, 1);
+    // A deleted author is resolved again on every pane rebuild; the failure
+    // is remembered so that doesn't turn into a GET per rebuild.
+    expect(await users.resolve('gone', client: client), isNull);
+    expect(calls, 1);
+    expect(container.read(accordUsersControllerProvider('')), isEmpty);
+  });
+
   test('bounds concurrent requests across distinct user ids', () async {
     var started = 0;
     var active = 0;

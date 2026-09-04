@@ -27,6 +27,7 @@ import 'package:bonfire/features/voice/views/incoming_call_overlay.dart';
 import 'package:bonfire/router/controller.dart';
 import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/shared/components/app_lifecycle_ticker_mode.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/desktop_window.dart';
 import 'package:bonfire/theme/app_theme.dart';
 
@@ -283,11 +284,7 @@ class _MainWindowState extends ConsumerState<MainWindow> {
           if (outcome.error == null) {
             routerController.go('/spaces');
           } else {
-            if (ctx.mounted) {
-              ScaffoldMessenger.maybeOf(
-                ctx,
-              )?.showSnackBar(SnackBar(content: Text(outcome.error!)));
-            }
+            if (ctx.mounted) showInfoSnack(ctx, outcome.error!);
           }
           break;
         case 'connect':
@@ -341,9 +338,7 @@ class _MainWindowState extends ConsumerState<MainWindow> {
         ref.read(pendingDeepLinkProvider.notifier).clear();
         final context = rootNavigatorKey.currentContext;
         if (context != null && context.mounted) {
-          ScaffoldMessenger.maybeOf(
-            context,
-          )?.showSnackBar(SnackBar(content: Text(message)));
+          showInfoSnack(context, message);
         }
         return;
       case DeepLinkResolved(:final destination):
@@ -377,7 +372,20 @@ class _MainWindowState extends ConsumerState<MainWindow> {
       ),
     );
 
-    final settings = ref.watch(settingsControllerProvider);
+    // Select only the fields this widget reads so unrelated settings writes
+    // (drafts, last selection, recent emoji) don't rebuild the whole app.
+    final settings = ref.watch(
+      settingsControllerProvider.select(
+        (s) => (
+          soundsEnabled: s.soundsEnabled,
+          sfxVolume: s.sfxVolume,
+          themePreset: s.themePreset,
+          accentColor: s.accentColor,
+          uiScale: s.uiScale,
+          reducedMotion: s.reducedMotion,
+        ),
+      ),
+    );
     // Keep the local MCP server controller alive so it starts/stops with the
     // Developer Mode + MCP settings (desktop-only; a no-op on web).
     ref.watch(mcpServerControllerProvider);

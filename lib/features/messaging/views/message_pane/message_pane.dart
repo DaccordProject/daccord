@@ -1,9 +1,8 @@
 /// The message pane shown for the selected channel on the home screen: channel
 /// header, scrolling message history (with paging, grouping, bulk selection),
 /// typing indicator, and composer — plus the voice/forum channel views it
-/// delegates to. Extracted from the spaces feature's `accord_home.dart` part
-/// cluster; [MessagePane] is the sole public entry point, everything else in
-/// the `part` files stays private to this library.
+/// delegates to. [MessagePane] is the sole public entry point; everything else
+/// in the `part` files stays private to this library.
 library;
 
 import 'dart:convert';
@@ -71,6 +70,7 @@ import 'package:pasteboard/pasteboard.dart';
 
 part 'attachments.dart';
 part 'composer.dart';
+part 'mention_popup.dart';
 part 'message_row.dart';
 part 'message_row_actions.dart';
 part 'mute_button.dart';
@@ -436,6 +436,12 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
               // `reverse: true`: source index 0 is the last rendered row.
               messages[i].id: messages.length - 1 - i,
           };
+    // Reply previews look their target up here rather than scanning the list
+    // per row. Built from the unfiltered cache so a reply to a hidden
+    // (blocked/reported) message still previews what it answers.
+    final messagesById = {
+      for (final m in loadedMessages ?? const <AccordMessage>[]) m.id: m,
+    };
 
     return Container(
       decoration: BoxDecoration(
@@ -685,6 +691,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                             ? () => _enterSelection(message.id)
                             : null,
                         onToggleSelected: () => _toggleSelected(message.id),
+                        messagesById: messagesById,
                         onReply: () => setState(() => _replyTo = message),
                       );
                     },

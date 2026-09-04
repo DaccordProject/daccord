@@ -4,6 +4,7 @@ import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/ban_dialog.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
@@ -58,6 +59,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
   String? _error;
 
   AccordClient? get _client => ref.accordClient;
+  String get _serverKey => ref.readActiveServerKey() ?? '';
 
   Future<void> _run(
     Future<RestResult> Function(AccordClient client) action, {
@@ -116,7 +118,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
       closeOnSuccess: true,
       missingIsSuccess: true,
       onSuccess: () => ref
-          .read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier)
+          .read(accordMembersControllerProvider(_serverKey, widget.spaceId).notifier)
           .removeMember(widget.userId),
     );
   }
@@ -161,10 +163,10 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
   /// the moderation dialogs that name their target.
   String get _displayName {
     final member = ref.read(
-      accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId),
+      accordMembersControllerProvider(_serverKey, widget.spaceId),
     )?[widget.userId];
     if (member != null) return accordMemberName(member);
-    final cached = ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''))[widget.userId];
+    final cached = ref.read(accordUsersControllerProvider(_serverKey))[widget.userId];
     return accordUserName(cached, fallback: widget.userId);
   }
 
@@ -184,7 +186,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
       closeOnSuccess: true,
       missingIsSuccess: true,
       onSuccess: () => ref
-          .read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier)
+          .read(accordMembersControllerProvider(_serverKey, widget.spaceId).notifier)
           .removeMember(widget.userId),
       onResult: (result) {
         if (request.deleteMessageSeconds == 0) return;
@@ -210,7 +212,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     final data = result.data;
     if (data is! Map) return 0;
     final count = data['deleted_message_count'];
-    return count is int ? count : int.tryParse('$count') ?? 0;
+    return asInt(count);
   }
 
   void _timeout(int seconds) {
@@ -236,36 +238,15 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
   /// Sets or clears [member]'s nickname. An empty value resets to the display
   /// name. Optimistically mirrors the result into the member cache.
   Future<void> _editNickname(AccordMember member) async {
-    final controller = TextEditingController(text: member.nickname ?? '');
-    final next = await showDialog<String?>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Change nickname'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Nickname',
-            hintText: 'Leave empty to reset to their display name',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          if ((member.nickname ?? '').isNotEmpty)
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(''),
-              child: const Text('Reset'),
-            ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
+    final initial = member.nickname ?? '';
+    final next = (await showTextPromptDialog(
+      context,
+      title: 'Change nickname',
+      label: 'Nickname',
+      hintText: 'Leave empty to reset to their display name',
+      initial: initial,
+      resetLabel: initial.isNotEmpty ? 'Reset' : null,
+    ))?.trim();
     if (next == null || !mounted) return;
     _run(
       (c) => c.members.update(widget.spaceId, widget.userId, {
@@ -275,7 +256,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
       onSuccess: () {
         member.nickname = next.isEmpty ? null : next;
         ref
-            .read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier)
+            .read(accordMembersControllerProvider(_serverKey, widget.spaceId).notifier)
             .upsertMember(member);
       },
     );
@@ -296,7 +277,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
         }
         member.roles = roles;
         ref
-            .read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier)
+            .read(accordMembersControllerProvider(_serverKey, widget.spaceId).notifier)
             .upsertMember(member);
       },
     );
@@ -319,14 +300,14 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
 
-    final members = ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId));
+    final members = ref.watch(accordMembersControllerProvider(_serverKey, widget.spaceId));
     final member = members?[widget.userId];
     // Backfill the target from the on-demand user cache when outside the page.
     final cachedUser = ref.watch(
-      accordUsersControllerProvider(ref.readActiveServerKey() ?? '').select((m) => m[widget.userId]),
+      accordUsersControllerProvider(_serverKey).select((m) => m[widget.userId]),
     );
     if (member == null && cachedUser == null && members != null) {
-      ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure(widget.userId);
+      ref.read(accordUsersControllerProvider(_serverKey).notifier).ensure(widget.userId);
     }
 
     final space = ref.watch(

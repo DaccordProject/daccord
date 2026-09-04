@@ -5,10 +5,7 @@ import 'package:bonfire/features/messaging/utils/attachment_limits.dart';
 /// The server's limits are per-deployment configuration, not protocol
 /// constants: `max_attachment_size` and `max_attachments_per_message` are rows
 /// in `server_settings` that an admin can change at any time, checked on the
-/// upload route. The client used to hardcode 25 MB and never check the count at
-/// all, so an admin who lowered either got a client that happily read an
-/// oversize file into memory, uploaded it in full, and only then surfaced a
-/// server rejection.
+/// upload route.
 ///
 /// These are read from `GET /settings` (the public, client-facing subset of
 /// server settings) on connect, and fall back to [fallback] whenever the
@@ -59,6 +56,8 @@ class AccordServerLimits {
   }
 
   static int? _positiveInt(Object? value) {
+    // Deliberately not accordkit's `asInt`: that accepts bools (as 1/0) and
+    // does not trim, so a server sending " 100 " would fall back silently.
     final parsed = switch (value) {
       final int v => v,
       final num v => v.toInt(),
@@ -81,7 +80,8 @@ class AccordServerLimits {
       Object.hash(maxAttachmentBytes, maxAttachmentsPerMessage, fromServer);
 
   @override
-  String toString() => 'AccordServerLimits(maxAttachmentBytes: '
+  String toString() =>
+      'AccordServerLimits(maxAttachmentBytes: '
       '$maxAttachmentBytes, maxAttachmentsPerMessage: '
       '$maxAttachmentsPerMessage, fromServer: $fromServer)';
 }

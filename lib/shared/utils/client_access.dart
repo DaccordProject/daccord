@@ -44,8 +44,6 @@ extension AccordClientWidgetRef on WidgetRef {
 
   String? watchHomeDomain() =>
       watch(accordAuthProvider.select(_homeDomainFromState));
-  String? readHomeDomain() =>
-      read(accordAuthProvider.select(_homeDomainFromState));
 
   bool watchIsAdmin() => watch(accordAuthProvider.select(_isAdminFromState));
   bool readIsAdmin() => read(accordAuthProvider.select(_isAdminFromState));
@@ -55,9 +53,6 @@ extension AccordClientWidgetRef on WidgetRef {
 extension AccordClientRef on Ref {
   AccordClient? get accordClient =>
       read(accordAuthProvider.select(_clientFromState));
-
-  String? watchActiveServerKey() =>
-      watch(connectionsControllerProvider.select((state) => state.activeKey));
 
   String? readActiveServerKey() =>
       read(connectionsControllerProvider).activeKey;
@@ -98,8 +93,6 @@ extension AccordClientRef on Ref {
 
   String? watchHomeDomain() =>
       watch(accordAuthProvider.select(_homeDomainFromState));
-  String? readHomeDomain() =>
-      read(accordAuthProvider.select(_homeDomainFromState));
 
   bool watchIsAdmin() => watch(accordAuthProvider.select(_isAdminFromState));
   bool readIsAdmin() => read(accordAuthProvider.select(_isAdminFromState));

@@ -110,10 +110,11 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
         : await client.channels.delete(channel.id);
     if (!mounted || ref.readActiveServerKey() != serverKey) return;
     if (!result.ok) {
-      _snackDmError(
+      showInfoSnack(
         context,
-        result.error,
-        group ? 'Failed to leave group' : 'Failed to close conversation',
+        result.errorMessageOr(
+          group ? 'Failed to leave group' : 'Failed to close conversation',
+        ),
       );
       return;
     }
@@ -483,7 +484,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     if (result.ok) {
       await _refreshChannel();
     } else {
-      _snack('Failed to add member');
+      showInfoSnack(context, 'Failed to add member');
     }
   }
 
@@ -501,7 +502,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     if (result.ok) {
       await _refreshChannel();
     } else {
-      _snack('Failed to remove member');
+      showInfoSnack(context, 'Failed to remove member');
     }
   }
 
@@ -525,7 +526,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     } else if (result.ok) {
       await _refreshChannel();
     } else {
-      _snack('Failed to rename group');
+      showInfoSnack(context, 'Failed to rename group');
     }
   }
 
@@ -551,12 +552,8 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
           .remove(_channel.id);
       widget.onBack();
     } else {
-      _snack('Failed to leave group');
+      showInfoSnack(context, 'Failed to leave group');
     }
-  }
-
-  void _snack(String message) {
-    showInfoSnack(context, message);
   }
 
   Future<bool?> _confirm(String title, String message, String action) {

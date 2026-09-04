@@ -261,34 +261,20 @@ class UpdateController extends _$UpdateController {
   }
 
   /// File extensions the in-place installer can actually apply for the current
-  /// platform, in priority order. Kept in lockstep with [UpdateInstaller]: it
-  /// extracts a `.tar.gz`/`.zip` bundle on Linux/Windows, mounts a `.dmg` on
-  /// macOS, and hands a `.apk` to the system installer on Android. Package
-  /// formats the swap helper can't apply (`.rpm`/`.appimage`, setup `.exe`/
-  /// `.msi`) are download-only.
+  /// platform, in priority order — kept in lockstep with [UpdateInstaller]
+  /// (`.tgz`/`.zip` bundle swap on Linux/Windows, `.dmg` on macOS, `.apk` on
+  /// Android; `.rpm`/`.appimage` and setup `.exe`/`.msi` are download-only).
   ///
-  /// Desktop swaps need a writable install root (the helper renames it): a
-  /// package-manager install (root-owned `/opt`, `Program Files`,
-  /// `/Applications`) yields no swap asset. The one exception is a Linux `.deb`
-  /// install where `pkexec` is available — there the `.deb` *is* installable, by
-  /// reinstalling the package with elevated rights ([UpdateInstaller] routes a
-  /// `.deb` through `pkexec dpkg -i`).
+  /// A swap needs a writable install root, so a package-manager install yields
+  /// nothing — except a Linux `.deb` install with `pkexec` available, which is
+  /// reinstalled via `pkexec dpkg -i`. Windows tries `windows-x86_64.zip` before
+  /// the generic `.zip` so the web bundle (`daccord-web.zip`) is never picked.
   ///
-  /// Windows uses the more-specific `windows-x86_64.zip` suffix before the
-  /// generic `.zip` so the web build bundle (`daccord-web.zip`) is never
-  /// mistakenly selected ahead of the actual Windows installer.
-  ///
-  /// The Linux portable bundle is matched as `.tgz`, and releases must **never**
-  /// publish an asset ending in `.tar.gz` again (the release workflow enforces
-  /// this). Clients at v0.2.6 and earlier picked `.tar.gz` unconditionally on
-  /// Linux, with no writable-root check — so a `.deb` install under root-owned
-  /// `/opt` silently downloaded the portable tarball and ran a swap that could
-  /// never succeed, then relaunched the old build. Those clients are frozen and
-  /// can't be fixed in code; withholding the suffix they key on is what breaks
-  /// them out of it. With no `.tar.gz` asset they find nothing installable, fall
-  /// back to their "Update available — tap to view" banner, and offer the `.deb`
-  /// as a manual download — a working recovery path instead of a silent no-op.
-  /// `.tar.gz` stays *accepted* here so an older release is still applicable.
+  /// Releases must **never** publish a `.tar.gz` asset again (the release
+  /// workflow enforces this): clients at v0.2.6 and earlier picked `.tar.gz`
+  /// unconditionally on Linux with no writable-root check, and withholding that
+  /// suffix is what drops them back to the manual-download banner. `.tar.gz`
+  /// stays *accepted* here so an older release is still applicable.
   List<String> get _installableExts {
     if (UniversalPlatform.isAndroid) return const ['.apk'];
     if (UniversalPlatform.isWindows) {

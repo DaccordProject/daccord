@@ -1,6 +1,8 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/list_ext.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -37,15 +39,14 @@ class ForumPostsController extends _$ForumPostsController {
   Future<void> _load(AccordClient client) async {
     final result = await client.messages.listPosts(channelId);
     if (!ref.mounted || !ref.isCurrentAccordClient(serverKey, client)) return;
-    final data = result.data;
-    if (!result.ok || data is! List) {
-      debugPrint('Failed to load forum posts for $channelId: ${result.error}');
+    final posts = result.listOrLog<AccordMessage>('forum posts for $channelId');
+    if (posts == null) {
       // Settle on empty rather than spin forever (matches the previous view
       // behavior); pull-to-refresh or a re-identify [reload] retries.
       state = const [];
       return;
     }
-    state = data.whereType<AccordMessage>().toList();
+    state = posts;
   }
 
   /// Re-fetches the post list, replacing the cache in place (no flash back to
@@ -107,13 +108,8 @@ class ForumPostsController extends _$ForumPostsController {
   /// Replaces an existing post (edit result / thread-root edit / gateway
   /// echo); unknown ids are ignored.
   void updatePost(AccordMessage post) {
-    final current = state;
-    if (current == null) return;
-    final index = current.indexWhere((m) => m.id == post.id);
-    if (index < 0) return;
-    final copy = [...current];
-    copy[index] = post;
-    state = copy;
+    final next = state?.replaceById(post, (m) => m.id);
+    if (next != null) state = next;
   }
 
   /// Removes a deleted post; a no-op when [postId] isn't a root post here

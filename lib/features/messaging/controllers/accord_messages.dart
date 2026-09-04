@@ -3,6 +3,7 @@ import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/shared/controllers/load_failed.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/list_ext.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
@@ -74,13 +75,11 @@ class AccordMessagesController extends _$AccordMessagesController {
     // mutating another during initialization.
     if (!ref.mounted) return;
     if (!ref.isCurrentAccordClient(serverKey, client)) return;
-    final data = result.data;
-    if (!result.ok || data is! List) {
-      debugPrint('Failed to load messages for $channelId: ${result.error}');
+    final list = result.listOrLog<AccordMessage>('messages for $channelId');
+    if (list == null) {
       _setLoadFailed(true);
       return;
     }
-    final list = data.whereType<AccordMessage>().toList();
     // The REST list returns newest-first; store oldest-first for display.
     state = list.reversed.toList();
     if (list.length < _pageSize) hasMoreOlder = false;
@@ -122,15 +121,10 @@ class AccordMessagesController extends _$AccordMessagesController {
         query: {'limit': _pageSize, 'before': oldestId},
       );
       if (!ref.mounted) return 0;
-      if (!result.ok) {
-        debugPrint(
-          'Failed to load older messages for $channelId: ${result.error}',
-        );
-        return 0;
-      }
-      final data = result.data;
-      if (data is! List) return 0;
-      final page = data.whereType<AccordMessage>().toList();
+      final page = result.listOrLog<AccordMessage>(
+        'older messages for $channelId',
+      );
+      if (page == null) return 0;
       if (page.length < _pageSize) hasMoreOlder = false;
       if (page.isEmpty) return 0;
       // REST returns newest-first within the page; prepend oldest-first.
@@ -328,13 +322,8 @@ class AccordMessagesController extends _$AccordMessagesController {
   }
 
   void updateMessage(AccordMessage message) {
-    final current = state;
-    if (current == null) return;
-    final index = current.indexWhere((m) => m.id == message.id);
-    if (index < 0) return;
-    final copy = [...current];
-    copy[index] = message;
-    state = copy;
+    final next = state?.replaceById(message, (m) => m.id);
+    if (next != null) state = next;
   }
 
   void removeMessage(String messageId) {

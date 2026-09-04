@@ -254,12 +254,7 @@ class _SpaceRow extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onTransfer;
 
-  int get _memberCount {
-    final c = space.memberCount;
-    if (c is int) return c;
-    if (c is num) return c.toInt();
-    return int.tryParse(c?.toString() ?? '') ?? 0;
-  }
+  int get _memberCount => asInt(space.memberCount);
 
   @override
   Widget build(BuildContext context) {

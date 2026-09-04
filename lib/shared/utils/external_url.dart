@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -116,7 +117,7 @@ Future<ExternalUrlOpenResult> openExternalUrl(
 }) async {
   final uri = tryParseExternalWebUrl(value);
   if (uri == null) {
-    _showMessage(context, 'Only valid HTTP and HTTPS links can be opened.');
+    showInfoSnack(context, 'Only valid HTTP and HTTPS links can be opened.');
     return ExternalUrlOpenResult.blocked;
   }
 
@@ -138,17 +139,10 @@ Future<ExternalUrlOpenResult> openExternalUrl(
   }
 
   if (context.mounted) {
-    _showMessage(context, "Couldn't open the link to ${uri.host}.");
+    showInfoSnack(context, "Couldn't open the link to ${uri.host}.");
   }
   return ExternalUrlOpenResult.failed;
 }
 
 Future<bool> _launchExternalUrl(Uri uri) =>
     launchUrl(uri, mode: LaunchMode.externalApplication);
-
-void _showMessage(BuildContext context, String message) {
-  if (!context.mounted) return;
-  ScaffoldMessenger.maybeOf(
-    context,
-  )?.showSnackBar(SnackBar(content: Text(message)));
-}

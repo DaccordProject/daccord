@@ -118,7 +118,6 @@ class SettingsController extends _$SettingsController {
   void setSfxVolume(double volume) =>
       _update(state.copyWith(sfxVolume: volume.clamp(0.0, 1.0).toDouble()));
 
-  /// Sets the camera capture resolution index (0 = 480p, 1 = 720p, 2 = 1080p).
   void setVideoResolution(int index) => _update(
     state.copyWith(
       videoResolution: index.clamp(
@@ -158,27 +157,21 @@ class SettingsController extends _$SettingsController {
   void setScreenShareMotionPriority(bool enabled) =>
       _update(state.copyWith(screenShareMotionPriority: enabled));
 
-  /// Sets the microphone device ID (empty = system default).
   void setAudioInputDevice(String deviceId) =>
       _update(state.copyWith(audioInputDeviceId: deviceId));
 
-  /// Sets the speaker/output device ID (empty = system default).
   void setAudioOutputDevice(String deviceId) =>
       _update(state.copyWith(audioOutputDeviceId: deviceId));
 
-  /// Sets the camera device ID (empty = system default).
   void setVideoInputDevice(String deviceId) =>
       _update(state.copyWith(videoInputDeviceId: deviceId));
 
-  /// Sets the microphone input volume percentage, clamped to 0–200.
   void setInputVolume(int volume) =>
       _update(state.copyWith(inputVolume: volume.clamp(0, 200)));
 
-  /// Sets the remote-audio output volume percentage, clamped to 0–200.
   void setOutputVolume(int volume) =>
       _update(state.copyWith(outputVolume: volume.clamp(0, 200)));
 
-  /// Sets the voice-activity sensitivity, clamped to 0–100.
   void setInputSensitivity(int sensitivity) =>
       _update(state.copyWith(inputSensitivity: sensitivity.clamp(0, 100)));
 
@@ -187,7 +180,6 @@ class SettingsController extends _$SettingsController {
   void setVoiceAfkTimeoutMinutes(int minutes) =>
       _update(state.copyWith(voiceAfkTimeoutMinutes: max(0, minutes)));
 
-  /// Whether going AFK should move us into the space's AFK channel.
   void setVoiceAfkAutoMove(bool enabled) =>
       _update(state.copyWith(voiceAfkAutoMove: enabled));
 
@@ -225,19 +217,15 @@ class SettingsController extends _$SettingsController {
     _update(state.copyWith(channelNotifications: next));
   }
 
-  /// Sets compact (vs cozy) message density.
   void setCompactMode(bool enabled) =>
       _update(state.copyWith(compactMode: enabled));
 
-  /// Enables/disables converting text emoticons (`:)`, `<3`) to emoji on send.
   void setConvertEmoticons(bool enabled) =>
       _update(state.copyWith(convertEmoticons: enabled));
 
-  /// Enables/disables reduced motion (fewer UI animations).
   void setReducedMotion(bool enabled) =>
       _update(state.copyWith(reducedMotion: enabled));
 
-  /// Sets the app-wide UI text scale, clamped to the supported range.
   void setUiScale(double scale) => _update(
     state.copyWith(
       uiScale: scale.clamp(
@@ -247,7 +235,6 @@ class SettingsController extends _$SettingsController {
     ),
   );
 
-  /// Sets the desktop channel-list column width, clamped to the supported range.
   void setChannelListWidth(double width) => _update(
     state.copyWith(
       channelListWidth: width.clamp(
@@ -259,7 +246,6 @@ class SettingsController extends _$SettingsController {
 
   // ── Rail ordering & folders ───────────────────────────────────────────────
 
-  /// Persists the manual rail space ordering (a flat list of space ids).
   void setSpaceOrder(List<ServerEntityKey> order) => _update(
     state.copyWith(spaceOrder: [for (final key in order) key.encoded]),
   );
@@ -360,7 +346,6 @@ class SettingsController extends _$SettingsController {
     );
   }
 
-  /// Toggles the muted state of [spaceId].
   void toggleSpaceMuted(String serverKey, String spaceId) => setSpaceMuted(
     serverKey,
     spaceId,
@@ -406,7 +391,6 @@ class SettingsController extends _$SettingsController {
     _update(state.copyWith(recentEmoji: next));
   }
 
-  /// Marks [spaceId]'s rules interstitial as accepted so it isn't reshown.
   void acceptRules(String serverKey, String spaceId) {
     final key = ServerEntityKey(serverKey, spaceId).encoded;
     if (state.acceptedRuleSpaces.contains(key)) return;
@@ -415,7 +399,6 @@ class SettingsController extends _$SettingsController {
     );
   }
 
-  /// Marks [channelId]'s NSFW gate as acknowledged.
   void acknowledgeNsfw(String serverKey, String channelId) {
     final key = ServerEntityKey(serverKey, channelId).encoded;
     if (state.acknowledgedNsfwChannels.contains(key)) return;
@@ -426,7 +409,6 @@ class SettingsController extends _$SettingsController {
     );
   }
 
-  /// Sets whether [categoryId] is collapsed in [spaceId]'s channel list.
   void setCategoryCollapsed(
     String serverKey,
     String spaceId,
@@ -471,11 +453,9 @@ class SettingsController extends _$SettingsController {
     }
   }
 
-  /// Sets the MCP server port, clamped to the valid TCP range.
   void setMcpPort(int port) =>
       _update(state.copyWith(mcpPort: port.clamp(1, 65535)));
 
-  /// Regenerates the MCP bearer token.
   void regenerateMcpToken() =>
       _update(state.copyWith(mcpToken: _generateToken()));
 
@@ -505,15 +485,12 @@ class SettingsController extends _$SettingsController {
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
-  /// Enables/disables the startup update check.
   void setAutoUpdateCheck(bool enabled) =>
       _update(state.copyWith(autoUpdateCheck: enabled));
 
-  /// Records the release [version] the user permanently skipped.
   void setSkippedUpdateVersion(String version) =>
       _update(state.copyWith(skippedUpdateVersion: version));
 
-  /// Stamps the time (unix millis) of the last successful update check.
   void setLastUpdateCheckMs(int millis) =>
       _update(state.copyWith(lastUpdateCheckMs: millis));
 

@@ -30,10 +30,14 @@ class SettingsBackupSection extends ConsumerWidget {
         bytes: bytes,
       );
     } catch (_) {
-      if (context.mounted) _toast(context, 'Could not save the settings file.');
+      if (context.mounted) {
+        showInfoSnack(context, 'Could not save the settings file.');
+      }
       return;
     }
-    if (path != null && context.mounted) _toast(context, 'Settings exported.');
+    if (path != null && context.mounted) {
+      showInfoSnack(context, 'Settings exported.');
+    }
   }
 
   Future<void> _import(BuildContext context, WidgetRef ref) async {
@@ -46,7 +50,9 @@ class SettingsBackupSection extends ConsumerWidget {
         withData: true,
       );
     } catch (_) {
-      if (context.mounted) _toast(context, 'Could not open the settings file.');
+      if (context.mounted) {
+        showInfoSnack(context, 'Could not open the settings file.');
+      }
       return;
     }
     if (picked == null || picked.files.isEmpty) return; // cancelled
@@ -61,19 +67,17 @@ class SettingsBackupSection extends ConsumerWidget {
     }
     if (map == null) {
       if (context.mounted) {
-        _toast(context, 'That file is not a valid settings export.');
+        showInfoSnack(context, 'That file is not a valid settings export.');
       }
       return;
     }
     final ok = ref.read(settingsControllerProvider.notifier).importJson(map);
     if (context.mounted) {
-      _toast(context, ok ? 'Settings imported.' : 'Could not import settings.');
+      showInfoSnack(
+        context,
+        ok ? 'Settings imported.' : 'Could not import settings.',
+      );
     }
-  }
-
-  void _toast(BuildContext context, String message) {
-    if (!context.mounted) return;
-    showInfoSnack(context, message);
   }
 
   @override

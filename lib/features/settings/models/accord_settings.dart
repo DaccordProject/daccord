@@ -126,7 +126,6 @@ class AccordSettings {
   static const double minChannelListWidth = 180;
   static const double maxChannelListWidth = 420;
 
-  /// Selected colour theme.
   final AppThemePreset themePreset;
 
   /// Optional accent (primary) override as an ARGB int; null = preset default.
