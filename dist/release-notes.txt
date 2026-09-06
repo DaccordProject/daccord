@@ -1,9 +1,11 @@
-# Release version: 0.2.17
+# Release version: 0.2.18
 
-• Fixed a first-run issue that could show a blank screen shortly after signing
-  in.
-• Direct messages now include more of the conversation tools available in
-  channels, including replies, reactions, pins, search and improved call and
-  group controls.
-• Improved account security, connection reliability, media safety and
-  cross-server data isolation.
+• Improved message reporting and user blocking across conversations, threads
+  and forums.
+• Fixed requests that could leave screens loading indefinitely and added
+  clearer feedback when an action fails.
+• Improved iPad layouts and mobile channel navigation, including swiping to
+  open the channel drawer.
+• Made app and server terms clearer during sign-in and registration.
+• Fixed incomplete settings and conversation controls and improved message
+  and voice state handling.
