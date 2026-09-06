@@ -1,0 +1,152 @@
+# On-demand signed iOS .ipa, as a downloadable artifact.
+#
+# The release lane hands its .ipa straight to App Store Connect inside fastlane
+# (`fastlane ios appstore`), so the file never leaves the runner and no release
+# asset carries it — every published asset is Android/desktop/web. That leaves
+# nothing to install when the app has to be filmed on hardware nobody in the
+# project owns: guideline 1.2 asks for the UGC precautions recorded on a
+# physical device (#293), and both routes to one — TestFlight to a borrowed
+# phone, or a device farm that resigns uploaded apps — need a binary in hand.
+#
+# This runs the same build and the same signing as the release job and stops
+# before delivery, so what you install is what Apple reviews. It is
+# workflow_dispatch only, uploads nothing to Apple, and touches no release
+# state.
+#
+# Secrets: the signing set only (APPLE_DIST_CERT_P12, CERT_P12_PASSWORD,
+# IOS_PROFILE_BASE64, IOS_PROFILE_NAME, APPLE_TEAM_ID). No App Store Connect
+# API key — the :ipa lane never talks to their API.
+name: iOS .ipa artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: 'CFBundleVersion. Leave empty to use the run number.'
+        required: false
+        default: ''
+
+env:
+  # Keep in sync with ci.yml / release.yml / .fvmrc.
+  FLUTTER_CHANNEL: beta
+  PUB_CACHE: ${{ github.workspace }}/.pub-cache
+
+jobs:
+  ipa:
+    name: Signed .ipa
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Select latest stable Xcode
+        # The same selection the release job makes, so this signs against the
+        # SDK the reviewed binary is built against.
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: latest-stable
+
+      - name: Cache pub + native deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache CocoaPods
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cocoapods
+            ~/Library/Caches/CocoaPods
+          key: pods-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'packages/livekit_client/**/*.podspec') }}
+          restore-keys: |
+            pods-${{ runner.os }}-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Install dependencies
+        # Retried for the same reason the release job retries it: `pub get`
+        # fetches git dependencies, and a reset connection there is transient.
+        shell: bash
+        run: |
+          set -uo pipefail
+          n=0
+          max=3
+          until flutter pub get; do
+            n=$((n + 1))
+            if [ "$n" -ge "$max" ]; then
+              echo "::error::flutter pub get failed after $max attempts" >&2
+              exit 1
+            fi
+            echo "::warning::flutter pub get attempt $n failed; retrying in $((n * 15))s"
+            sleep $((n * 15))
+          done
+
+      - name: Update CocoaPods spec repo
+        run: pod repo update
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Import Apple Distribution certificate
+        uses: apple-actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
+        with:
+          p12-file-base64: ${{ secrets.APPLE_DIST_CERT_P12 }}
+          p12-password: ${{ secrets.CERT_P12_PASSWORD }}
+
+      - name: Install provisioning profile
+        env:
+          PROFILE_B64: ${{ secrets.IOS_PROFILE_BASE64 }}
+        run: |
+          DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$DIR"
+          echo "$PROFILE_B64" | base64 --decode > "$DIR/daccord_ios_appstore.mobileprovision"
+
+      - name: Build iOS (Flutter, unsigned)
+        # APP_STORE=true for the same reason the release job sets it: without
+        # it the Settings → Updates entry is present, and a self-updater on
+        # camera invites the guideline 2.2 finding back.
+        shell: bash
+        env:
+          # Routed through env rather than interpolated into the script below —
+          # a workflow_dispatch input is attacker-influenceable by whoever can
+          # dispatch the workflow, and untrusted expressions must never be
+          # spliced directly into a run: block (see the website-rebuild job in
+          # release.yml for the same reasoning).
+          INPUT_BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          BUILD_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/[-+].*//')
+          BUILD_NUMBER="${INPUT_BUILD_NUMBER:-${{ github.run_number }}}"
+          echo "Marketing version: $BUILD_NAME (build $BUILD_NUMBER)"
+          flutter build ios --release --no-codesign \
+            --build-name="$BUILD_NAME" \
+            --build-number="$BUILD_NUMBER" \
+            --dart-define=APP_STORE=true
+
+      - name: Archive, sign & export
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_BUNDLE_ID: com.cattrall.daccord
+          IOS_PROFILE_NAME: ${{ secrets.IOS_PROFILE_NAME }}
+        run: bundle exec fastlane ios ipa
+
+      - name: Upload the .ipa
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: daccord-ios-ipa
+          path: build/appstore/Daccord-iOS.ipa
+          if-no-files-found: error
+          retention-days: 14
