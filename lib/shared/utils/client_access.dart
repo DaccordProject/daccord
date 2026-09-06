@@ -19,13 +19,8 @@ String? _homeDomainFromState(AccordAuthState s) =>
 bool _isAdminFromState(AccordAuthState s) =>
     s is AccordAuthLoggedIn && s.session.isAdmin;
 
-/// The currently authenticated [AccordClient], or `null` when logged out.
-///
-/// Centralizes the `accordAuthProvider.select(...)` lookup that was otherwise
-/// copy-pasted into ~20 `ConsumerState` getters across the app. The
-/// `watch*`/`read*` pairs cover the same authenticated-session fields (user id,
-/// CDN base, instance-admin flag) that were likewise inlined at ~40 sites; use
-/// the `watch*` variant in `build`/widgets and the `read*` variant in callbacks.
+/// Active client and session access for widgets.
+/// Use `watch*` in builds and `read*` in callbacks.
 extension AccordClientWidgetRef on WidgetRef {
   AccordClient? get accordClient =>
       read(accordAuthProvider.select(_clientFromState));
@@ -49,7 +44,7 @@ extension AccordClientWidgetRef on WidgetRef {
   bool readIsAdmin() => read(accordAuthProvider.select(_isAdminFromState));
 }
 
-/// Same as [AccordClientWidgetRef], for provider/notifier `Ref` contexts.
+/// Client access for provider/notifier `Ref` contexts.
 extension AccordClientRef on Ref {
   AccordClient? get accordClient =>
       read(accordAuthProvider.select(_clientFromState));
@@ -57,11 +52,7 @@ extension AccordClientRef on Ref {
   String? readActiveServerKey() =>
       read(connectionsControllerProvider).activeKey;
 
-  /// The currently authenticated client, re-read on every auth change.
-  ///
-  /// Use in a controller `build` so the controller rebuilds (and reloads) when
-  /// the active account/session changes. Replaces the copy-pasted
-  /// `ref.watch(accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null))`.
+  /// Watches the active client so controller builds reload on account changes.
   AccordClient? watchAccordClient() =>
       watch(accordAuthProvider.select(_clientFromState));
 
@@ -84,16 +75,4 @@ extension AccordClientRef on Ref {
         (state.session.key == serverKey || serverKey.isEmpty) &&
         identical(state.client, client);
   }
-
-  String? watchUserId() => watch(accordAuthProvider.select(_userIdFromState));
-  String? readUserId() => read(accordAuthProvider.select(_userIdFromState));
-
-  String? watchCdnUrl() => watch(accordAuthProvider.select(_cdnUrlFromState));
-  String? readCdnUrl() => read(accordAuthProvider.select(_cdnUrlFromState));
-
-  String? watchHomeDomain() =>
-      watch(accordAuthProvider.select(_homeDomainFromState));
-
-  bool watchIsAdmin() => watch(accordAuthProvider.select(_isAdminFromState));
-  bool readIsAdmin() => read(accordAuthProvider.select(_isAdminFromState));
 }

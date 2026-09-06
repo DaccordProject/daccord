@@ -8,9 +8,8 @@ part of 'voice_states.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Global cache of who is in which voice channel, keyed `channel_id → {user_id
-/// → state}`. Mirrors the reference client's `_voice_state_cache` (there an
-/// `Array` per channel; a nested map here makes user moves/removals O(1)).
+/// Per-server cache of who is in which voice channel, keyed `channel_id →
+/// {user_id → state}`. User moves scan channels and copy only affected buckets.
 ///
 /// Seeded from the gateway READY payload's voice states and from
 /// `channels.fetchVoiceStates`, then kept in sync by `voice.state_update`
@@ -20,9 +19,8 @@ part of 'voice_states.dart';
 @ProviderFor(VoiceStatesController)
 const voiceStatesControllerProvider = VoiceStatesControllerFamily._();
 
-/// Global cache of who is in which voice channel, keyed `channel_id → {user_id
-/// → state}`. Mirrors the reference client's `_voice_state_cache` (there an
-/// `Array` per channel; a nested map here makes user moves/removals O(1)).
+/// Per-server cache of who is in which voice channel, keyed `channel_id →
+/// {user_id → state}`. User moves scan channels and copy only affected buckets.
 ///
 /// Seeded from the gateway READY payload's voice states and from
 /// `channels.fetchVoiceStates`, then kept in sync by `voice.state_update`
@@ -34,9 +32,8 @@ final class VoiceStatesControllerProvider
           VoiceStatesController,
           Map<String, Map<String, AccordVoiceState>>
         > {
-  /// Global cache of who is in which voice channel, keyed `channel_id → {user_id
-  /// → state}`. Mirrors the reference client's `_voice_state_cache` (there an
-  /// `Array` per channel; a nested map here makes user moves/removals O(1)).
+  /// Per-server cache of who is in which voice channel, keyed `channel_id →
+  /// {user_id → state}`. User moves scan channels and copy only affected buckets.
   ///
   /// Seeded from the gateway READY payload's voice states and from
   /// `channels.fetchVoiceStates`, then kept in sync by `voice.state_update`
@@ -88,11 +85,10 @@ final class VoiceStatesControllerProvider
 }
 
 String _$voiceStatesControllerHash() =>
-    r'4ef41d5e68b3300356e7f6c380f3c0352ffbf420';
+    r'6c7f0dac2cb0a090a49395dcb93f4553fbf55591';
 
-/// Global cache of who is in which voice channel, keyed `channel_id → {user_id
-/// → state}`. Mirrors the reference client's `_voice_state_cache` (there an
-/// `Array` per channel; a nested map here makes user moves/removals O(1)).
+/// Per-server cache of who is in which voice channel, keyed `channel_id →
+/// {user_id → state}`. User moves scan channels and copy only affected buckets.
 ///
 /// Seeded from the gateway READY payload's voice states and from
 /// `channels.fetchVoiceStates`, then kept in sync by `voice.state_update`
@@ -117,9 +113,8 @@ final class VoiceStatesControllerFamily extends $Family
         isAutoDispose: false,
       );
 
-  /// Global cache of who is in which voice channel, keyed `channel_id → {user_id
-  /// → state}`. Mirrors the reference client's `_voice_state_cache` (there an
-  /// `Array` per channel; a nested map here makes user moves/removals O(1)).
+  /// Per-server cache of who is in which voice channel, keyed `channel_id →
+  /// {user_id → state}`. User moves scan channels and copy only affected buckets.
   ///
   /// Seeded from the gateway READY payload's voice states and from
   /// `channels.fetchVoiceStates`, then kept in sync by `voice.state_update`
@@ -133,9 +128,8 @@ final class VoiceStatesControllerFamily extends $Family
   String toString() => r'voiceStatesControllerProvider';
 }
 
-/// Global cache of who is in which voice channel, keyed `channel_id → {user_id
-/// → state}`. Mirrors the reference client's `_voice_state_cache` (there an
-/// `Array` per channel; a nested map here makes user moves/removals O(1)).
+/// Per-server cache of who is in which voice channel, keyed `channel_id →
+/// {user_id → state}`. User moves scan channels and copy only affected buckets.
 ///
 /// Seeded from the gateway READY payload's voice states and from
 /// `channels.fetchVoiceStates`, then kept in sync by `voice.state_update`

@@ -71,7 +71,6 @@ class VoiceSession {
   Room? get room => _room;
   VoiceSessionState get state => _state;
   String? get lastError => _lastError;
-  bool get isDeafened => _deafened;
 
   LocalParticipant? get localParticipant => _room?.localParticipant;
 

@@ -315,10 +315,9 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// Appends a newly-received message, ignoring duplicates (e.g. the gateway
   /// echo of a message we just sent).
   void addMessage(AccordMessage message) {
-    final current = [...(state ?? const <AccordMessage>[])];
+    final current = state ?? const <AccordMessage>[];
     if (current.any((m) => m.id == message.id)) return;
-    current.add(message);
-    state = current;
+    state = [...current, message];
   }
 
   void updateMessage(AccordMessage message) {
@@ -329,7 +328,7 @@ class AccordMessagesController extends _$AccordMessagesController {
   void removeMessage(String messageId) {
     final current = state;
     if (current == null) return;
-    state = current.where((m) => m.id != messageId).toList();
+    state = current.removeById(messageId, (m) => m.id);
   }
 
   // ── Reactions ──────────────────────────────────────────────────────────────
