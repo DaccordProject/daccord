@@ -7,11 +7,8 @@ String _attachmentUrl(AccordAttachment attachment, String? cdnUrl) =>
 /// How an attachment renders inline, resolved through the shared extension →
 /// MIME → preview table so it can't drift from the type we upload it with.
 ///
-/// This used to be three near-identical predicates, each with its own hardcoded
-/// extension list maintained separately from `_mimeType()`; the lists disagreed
-/// (`.mov`/`.mkv`/`.m4a`/`.flac` previewed but had no MIME mapping, so they
-/// uploaded as `application/octet-stream`) and `image/*` matched SVG and TIFF,
-/// which Flutter can't decode and which therefore rendered as a broken image.
+/// Notably `image/*` is not enough on its own: it matches SVG and TIFF, which
+/// Flutter can't decode and which therefore render as a broken image.
 AttachmentPreview _previewOf(AccordAttachment attachment) =>
     attachmentPreviewFor(
       contentType: attachment.contentType,

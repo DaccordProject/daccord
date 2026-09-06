@@ -327,13 +327,9 @@ class _Ban {
   String? displayName;
 
   /// displayName → username → "Unknown". Never the raw snowflake (#25).
-  String get name {
-    final d = displayName;
-    if (d != null && d.isNotEmpty) return d;
-    final u = username;
-    if (u != null && u.isNotEmpty) return u;
-    return 'Unknown';
-  }
+  String get name => accordUserName(
+    AccordUser(id: userId, username: username ?? '', displayName: displayName),
+  );
 
   String get initial => accordInitial(name);
 

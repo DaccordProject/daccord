@@ -102,21 +102,6 @@ void main() {
     });
   });
 
-  group('AccordApplication', () {
-    test('reads owner.id over owner_id', () {
-      final a = AccordApplication.fromJson({
-        'id': '1',
-        'owner': {'id': '99'},
-      });
-      expect(a.ownerId, '99');
-    });
-
-    test('falls back to owner_id', () {
-      final a = AccordApplication.fromJson({'id': '1', 'owner_id': '42'});
-      expect(a.ownerId, '42');
-    });
-  });
-
   group('AccordChannel', () {
     test('parses space_id from guild_id alias and overwrites', () {
       final c = AccordChannel.fromJson({
@@ -401,21 +386,6 @@ void main() {
     });
   });
 
-  group('AccordInteraction', () {
-    test('member.user.id and message', () {
-      final it = AccordInteraction.fromJson({
-        'id': '1',
-        'application_id': '9',
-        'member': {
-          'user': {'id': '2'},
-        },
-        'message': {'id': '10', 'channel_id': '5'},
-      });
-      expect(it.memberId, '2');
-      expect(it.message!.id, '10');
-    });
-  });
-
   group('AccordActivity', () {
     test('roundtrip', () {
       final a = AccordActivity.fromJson({'name': 'g', 'type': 'streaming'});
@@ -423,7 +393,7 @@ void main() {
     });
   });
 
-  group('AccordAuditLogEntry / AccordCommand / AccordRole / AccordSound', () {
+  group('AccordAuditLogEntry / AccordRole / AccordSound', () {
     test('audit log entry', () {
       final e = AccordAuditLogEntry.fromJson({
         'id': '1',
@@ -431,11 +401,6 @@ void main() {
         'action_type': 'ban',
       });
       expect(e.toJson()['action_type'], 'ban');
-    });
-
-    test('command guild_id alias', () {
-      final c = AccordCommand.fromJson({'id': '1', 'guild_id': '7'});
-      expect(c.spaceId, '7');
     });
 
     test('role permissions list', () {

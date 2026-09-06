@@ -32,7 +32,7 @@ class AccordPluginManifest {
   String format;
   int bundleSize;
 
-  /// "sha256:<hex>" (native plugins).
+  /// `"sha256:<hex>"` (native plugins).
   String bundleHash;
 
   /// 0 = unlimited.

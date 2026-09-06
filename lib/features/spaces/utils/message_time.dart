@@ -1,11 +1,26 @@
 const _weekdays = [
-  'Monday', 'Tuesday', 'Wednesday', 'Thursday',
-  'Friday', 'Saturday', 'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
 ];
 
 const _months = [
-  'January', 'February', 'March', 'April', 'May', 'June', 'July',
-  'August', 'September', 'October', 'November', 'December',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ];
 
 /// Bare `HH:MM` string for a local [DateTime].
@@ -43,6 +58,23 @@ String messageTimeString(DateTime local, {DateTime? now}) {
   return '$dd/$mo/${local.year} $clock';
 }
 
+/// [messageTimeString] for a raw ISO-8601 [iso] timestamp (the form carried on
+/// `AccordMessage.timestamp`), converted to local time. Empty when [iso]
+/// doesn't parse.
+String messageTimeFromIso(String iso, {DateTime? now}) {
+  final dt = DateTime.tryParse(iso);
+  if (dt == null) return '';
+  return messageTimeString(dt.toLocal(), now: now);
+}
+
+/// [messageClockString] for a raw ISO-8601 [iso] timestamp, converted to local
+/// time. Empty when [iso] doesn't parse.
+String messageClockFromIso(String iso) {
+  final dt = DateTime.tryParse(iso);
+  if (dt == null) return '';
+  return messageClockString(dt.toLocal());
+}
+
 /// Full, unabbreviated timestamp for tooltips, e.g.
 /// `Monday, 5 June 2026 at 14:30`. `intl` isn't a dependency, so the weekday and
 /// month names are spelled out by hand here rather than re-inlined per caller.
@@ -51,4 +83,12 @@ String messageTimestampString(DateTime local) {
   final month = _months[local.month - 1];
   return '$weekday, ${local.day} $month ${local.year} at '
       '${messageClockString(local)}';
+}
+
+/// [messageTimestampString] for a raw ISO-8601 [iso] timestamp, converted to
+/// local time. Empty when [iso] doesn't parse.
+String messageTimestampFromIso(String iso) {
+  final dt = DateTime.tryParse(iso);
+  if (dt == null) return '';
+  return messageTimestampString(dt.toLocal());
 }

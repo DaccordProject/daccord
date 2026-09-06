@@ -6,7 +6,6 @@ import '../gateway/gateway_socket.dart';
 import '../models/accord_relationship.dart';
 import '../models/call_signal.dart';
 import '../models/channel.dart';
-import '../models/interaction.dart';
 import '../models/invite.dart';
 import '../models/member.dart';
 import '../models/message.dart';
@@ -18,7 +17,6 @@ import '../models/voice_server_update.dart';
 import '../models/voice_state.dart';
 import '../rest/accord_rest.dart';
 import '../rest/endpoints/admin_api.dart';
-import '../rest/endpoints/applications_api.dart';
 import '../rest/endpoints/audit_logs_api.dart';
 import '../rest/endpoints/auth_api.dart';
 import '../rest/endpoints/bans_api.dart';
@@ -26,7 +24,6 @@ import '../rest/endpoints/channels_api.dart';
 import '../rest/endpoints/directory_api.dart';
 import '../rest/endpoints/emojis_api.dart';
 import '../rest/endpoints/federation_api.dart';
-import '../rest/endpoints/interactions_api.dart';
 import '../rest/endpoints/invites_api.dart';
 import '../rest/endpoints/members_api.dart';
 import '../rest/endpoints/messages_api.dart';
@@ -38,11 +35,10 @@ import '../rest/endpoints/soundboard_api.dart';
 import '../rest/endpoints/spaces_api.dart';
 import '../rest/endpoints/users_api.dart';
 import '../rest/endpoints/voice_api.dart';
-import '../voice/voice_manager.dart';
 import 'accord_config.dart';
 
 /// The top-level AccordKit entry point. Bundles the REST client, the gateway
-/// socket, every namespaced endpoint API, and the voice manager.
+/// socket, and every namespaced endpoint API.
 ///
 /// Gateway events are exposed both via the [gateway] field and as forwarding
 /// getters on the client itself (e.g. [onMessageCreate]).
@@ -68,16 +64,13 @@ class AccordClient {
   late final EmojisApi emojis;
   late final SoundboardApi soundboard;
   late final ReactionsApi reactions;
-  late final InteractionsApi interactions;
   late final PluginsApi plugins;
-  late final ApplicationsApi applications;
   late final AuthApi auth;
   late final VoiceApi voice;
   late final AuditLogsApi auditLogs;
   late final AdminApi adminApi;
   late final DirectoryApi directory;
   late final FederationApi federation;
-  late final VoiceManager voiceManager;
 
   AccordClient({
     this.token = '',
@@ -121,9 +114,7 @@ class AccordClient {
     emojis = EmojisApi(rest);
     soundboard = SoundboardApi(rest);
     reactions = ReactionsApi(rest);
-    interactions = InteractionsApi(rest);
     plugins = PluginsApi(rest);
-    applications = ApplicationsApi(rest);
     auth = AuthApi(rest);
     voice = VoiceApi(rest);
     auditLogs = AuditLogsApi(rest);
@@ -136,8 +127,6 @@ class AccordClient {
       sleep: sleep,
     );
     gateway.setup(config, token, tknType: tokenType, intentList: this.intents);
-
-    voiceManager = VoiceManager(voice, gateway);
   }
 
   /// Opens the gateway connection.
@@ -150,11 +139,6 @@ class AccordClient {
   /// [GatewaySocket.ensureConnected]). Call when the app returns to the
   /// foreground on platforms that suspend background processes.
   void ensureConnected() => gateway.ensureConnected();
-
-  /// Sends a presence update through the gateway.
-  void updatePresence(String status,
-          {Map<String, dynamic> activity = const {}}) =>
-      gateway.updatePresence(status, activity: activity);
 
   /// Sends a voice state update through the gateway. [spaceId] is null for DM
   /// and group DM calls, which have no parent space.
@@ -175,18 +159,8 @@ class AccordClient {
         selfStream: selfStream,
       );
 
-  /// Requests the member list for a space through the gateway.
-  void requestMembers(String spaceId, {String query = '', int limit = 0}) =>
-      gateway.requestMembers(spaceId, query: query, limit: limit);
-
-  /// Sends a voice signalling payload through the gateway.
-  void sendVoiceSignal(String spaceId, String channelId, String signalType,
-          Map<String, dynamic> payload) =>
-      gateway.sendVoiceSignal(spaceId, channelId, signalType, payload);
-
-  /// Releases the REST client, gateway, and voice manager.
+  /// Releases the REST client and gateway.
   Future<void> dispose() async {
-    await voiceManager.dispose();
     await gateway.dispose();
     rest.close();
   }
@@ -245,7 +219,6 @@ class AccordClient {
   Stream<AccordVoiceState> get onVoiceStateUpdate => gateway.onVoiceStateUpdate;
   Stream<AccordVoiceServerUpdate> get onVoiceServerUpdate =>
       gateway.onVoiceServerUpdate;
-  Stream<Map<String, dynamic>> get onVoiceSignal => gateway.onVoiceSignal;
 
   Stream<AccordCallSignal> get onCallRing => gateway.onCallRing;
   Stream<AccordCallSignal> get onCallDecline => gateway.onCallDecline;
@@ -259,9 +232,6 @@ class AccordClient {
 
   Stream<AccordInvite> get onInviteCreate => gateway.onInviteCreate;
   Stream<Map<String, dynamic>> get onInviteDelete => gateway.onInviteDelete;
-
-  Stream<AccordInteraction> get onInteractionCreate =>
-      gateway.onInteractionCreate;
 
   Stream<Map<String, dynamic>> get onPluginInstalled =>
       gateway.onPluginInstalled;

@@ -25,9 +25,7 @@ String accordUserName(AccordUser? user, {String fallback = 'Unknown'}) {
 }
 
 /// The single uppercase initial drawn on an imageless avatar, or `?` when the
-/// name is empty/whitespace. Consolidates the
-/// `name.isEmpty ? '?' : name[0].toUpperCase()` expression (and its
-/// `.substring(0, 1)` / `.trim()` variants) duplicated across ~24 avatar sites.
+/// name is empty/whitespace.
 String accordInitial(String? name) {
   final trimmed = name?.trim() ?? '';
   if (trimmed.isEmpty) return '?';
@@ -158,8 +156,6 @@ String? accordMemberAvatarUrl(AccordMember? member, String? cdnUrl) {
 /// `origin`) resolves against its home server's CDN, and an absolute `imageUrl`
 /// is honoured only when it points at that home server. Returns null when there
 /// is nothing safe to show (callers render the emoji name/placeholder).
-/// Centralizes the `imageUrl`-or-CDN-by-id logic previously inlined in the emoji
-/// picker, message markup, and emoji-management views.
 String? accordEmojiUrl(AccordEmoji emoji, String? cdnUrl) {
   final domain = emoji.origin;
   final remote = domain != null && domain.isNotEmpty;

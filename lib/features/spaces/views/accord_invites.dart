@@ -155,7 +155,7 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog>
 
   String _usesLabel(AccordInvite invite) {
     final max = invite.maxUses;
-    final maxInt = max is int ? max : int.tryParse('$max') ?? 0;
+    final maxInt = asInt(max);
     if (maxInt <= 0) return '${invite.uses} uses';
     return '${invite.uses}/$maxInt uses';
   }

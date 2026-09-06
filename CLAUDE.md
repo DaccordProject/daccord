@@ -114,11 +114,11 @@ final client = AccordClient(
 client.login(); // opens the gateway
 ```
 
-- **REST:** namespaced APIs on the client — `client.spaces`, `client.channels`, `client.messages`, `client.members`, `client.roles`, `client.users`, `client.invites`, `client.reactions`, `client.emojis`, `client.auth`, etc. Each call returns a `RestResult` with `.ok`, `.data`, `.error`, `.statusCode`, `.cursor` (cursor pagination). Rate-limit (429) retry is built in, as is a per-attempt request timeout (`AccordConfig.defaultRequestTimeout`, overridable via `AccordClient(requestTimeout: …)`) that surfaces as a normal `RestResult` failure. Endpoint paths are bare — the `/api/v1` prefix lives on the `AccordRest` base URL.
+- **REST:** namespaced APIs on the client — `client.spaces`, `client.channels`, `client.messages`, `client.members`, `client.roles`, `client.users`, `client.invites`, `client.reactions`, `client.emojis`, `client.auth`, etc. Each call returns a `RestResult` with `.ok`, `.data`, `.error` and `.statusCode`. Rate-limit (429) retry is built in, as is a per-attempt request timeout (`AccordConfig.defaultRequestTimeout`, overridable via `AccordClient(requestTimeout: …)`) that surfaces as a normal `RestResult` failure. Endpoint paths are bare — the `/api/v1` prefix lives on the `AccordRest` base URL.
 - **Gateway:** ~50 typed `Stream` properties — `client.onMessageCreate`, `onMessageUpdate`, `onMessageDelete`, `onPresenceUpdate`, `onTypingStart`, `onMemberJoin`, `onChannelCreate`, `onReady`, `onReconnecting`, … plus `onRawEvent`. Wire these into Riverpod controllers the same way Bonfire wires firebridge cache events today (see `lib/features/events/`).
 - **Voice:** `client.voice.join(channelId)` / `client.voice.leave(channelId)` return LiveKit credentials (`AccordVoiceServerUpdate` with `livekitUrl` + `token`); the `livekit_client` SDK (`packages/livekit_client`) is the actual transport. State lives in `VoiceConnection` (Riverpod) over a `VoiceSession` that wraps a LiveKit `Room`. Gateway `voice.server_update` events drive credential-refresh reconnects. See `lib/features/voice/`.
 
-The actual wiring: a single gateway dispatcher (`lib/features/events/controllers/accord_event_handler.dart`) subscribes to every gateway stream and calls imperative mutators on the per-feature Riverpod cache controllers (`accord_messages`, `accord_members`, `accord_channels`, …). Those same controllers own the REST reads/writes for their domain, and screens `watch` them. A dedicated per-feature `repositories/` layer exists only for `authentication` (`AccordAuth`, which owns the clients) — elsewhere data access lives in the controllers (and, for some admin/moderation screens, directly in the views).
+The actual wiring: a single gateway dispatcher (`lib/features/events/services/accord_event_handler.dart`, which delegates the message domain to `accord_message_events.dart` and the READY bootstrap to `accord_ready_sync.dart`) subscribes to every gateway stream and calls imperative mutators on the per-feature Riverpod cache controllers (`accord_messages`, `accord_members`, `accord_channels`, …). Those same controllers own the REST reads/writes for their domain, and screens `watch` them. A dedicated per-feature `repositories/` layer exists only for `authentication` (`AccordAuth`, which owns the clients) — elsewhere data access lives in the controllers (and, for some admin/moderation screens, directly in the views).
 
 ## Build / run / test
 
@@ -148,6 +148,8 @@ CI lives in `.github/workflows/` and is Daccord-native (no OpenBonfire infra):
 - `ci.yml` — blocking jobs cover root codegen/analyze/tests, vendored `accordkit`, the full `markdown_viewer` suite, and LiveKit's Android native unit tests. Broader server/UI scenarios remain advisory. The `build` job is a Web (JavaScript)/Android/Linux/Windows matrix.
 - `release.yml` — tag-driven (`v*`); validates the tag matches `pubspec.yaml` version, gates on `ci.yml`, builds all platforms, publishes a GitHub Release.
 - `windows-signing-smoke.yml` — manual, non-publishing validation of the real Certum SimplySign login, timestamping, and Authenticode trust path.
+- `ios-simulator.yml` — manual iPad/iPhone simulator screenshot run for checking real iOS rendering (no signing or secrets needed).
+- `release-recovery.yml` — manual re-publish of a completed tagged Release run's verified artifacts when the original publish step failed part-way.
 
 ## Migration status
 

@@ -2,6 +2,7 @@ import 'package:bonfire/features/developer/services/mcp_server.dart';
 import 'package:bonfire/features/developer/services/mcp_tools.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/shared/app_info.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'mcp_server_controller.g.dart';
@@ -60,13 +61,24 @@ class McpServerController extends _$McpServerController {
 
   @override
   McpServerState build() {
-    final settings = ref.watch(settingsControllerProvider);
+    // Select only the fields that drive the lifecycle so unrelated settings
+    // writes don't re-run the reconcile.
+    final settings = ref.watch(
+      settingsControllerProvider.select(
+        (s) => (
+          developerMode: s.developerMode,
+          mcpEnabled: s.mcpEnabled,
+          hasToken: s.mcpToken.trim().isNotEmpty,
+          port: s.mcpPort,
+        ),
+      ),
+    );
     final shouldRun =
         isDeveloperModeAvailable &&
         settings.developerMode &&
         settings.mcpEnabled &&
-        settings.mcpToken.trim().isNotEmpty;
-    final port = settings.mcpPort;
+        settings.hasToken;
+    final port = settings.port;
     ref.onDispose(() {
       _server?.stop();
       _server = null;

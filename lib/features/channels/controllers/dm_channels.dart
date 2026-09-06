@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/shared/utils/list_ext.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -23,6 +24,32 @@ Map<String, dynamic> dmCreateBody(String recipientId) => isRemoteId(recipientId)
 bool isValidRemoteHandle(String value) {
   final v = value.trim();
   return isRemoteId(v) && domainOf(v) != null && localPart(v).isNotEmpty;
+}
+
+/// Title for a DM/group channel: its custom name, else the other participants'
+/// names (everyone but [selfId]) joined with commas, else [fallback]. When
+/// [users] (the on-demand user cache) is given, a cached entry is preferred
+/// over the recipient object embedded in the channel.
+String dmChannelTitle(
+  AccordChannel channel,
+  String? selfId, {
+  required String fallback,
+  Map<String, AccordUser>? users,
+}) {
+  final name = channel.name;
+  if (name != null && name.isNotEmpty) return name;
+  final others = (channel.recipients ?? const <AccordUser>[]).where(
+    (u) => u.id != selfId,
+  );
+  if (others.isEmpty) return fallback;
+  return others
+      .map((u) {
+        final cached = users?[u.id] ?? u;
+        // Fall back to the raw id, not "Unknown", so an unhydrated recipient is
+        // still distinguishable from any other unhydrated one.
+        return accordUserName(cached, fallback: cached.id);
+      })
+      .join(', ');
 }
 
 /// Per-server cache of the current user's direct-message and group-DM channels

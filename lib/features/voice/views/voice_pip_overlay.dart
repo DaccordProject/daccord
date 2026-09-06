@@ -1,7 +1,5 @@
-import 'package:accordkit/accordkit.dart' show AccordUser;
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/channels/controllers/dm_channels.dart';
-import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
@@ -174,14 +172,13 @@ class _VoicePipOverlayState extends ConsumerState<VoicePipOverlay> {
     final channel = ref
         .read(dmChannelsControllerProvider(serverKey))
         ?.firstWhereOrNull((c) => c.id == channelId);
-    final name = channel?.name;
-    if (name != null && name.isNotEmpty) return name;
-    final myId = ref.readUserId();
-    final users = ref.read(accordUsersControllerProvider(serverKey));
-    final others = (channel?.recipients ?? const <AccordUser>[])
-        .where((u) => u.id != myId)
-        .map((u) => accordUserName(users[u.id] ?? u, fallback: 'Someone'));
-    return others.isEmpty ? 'Call' : others.join(', ');
+    if (channel == null) return 'Call';
+    return dmChannelTitle(
+      channel,
+      ref.readUserId(),
+      fallback: 'Call',
+      users: ref.read(accordUsersControllerProvider(serverKey)),
+    );
   }
 
   /// The PiP's content: the first available video track, or null when there's

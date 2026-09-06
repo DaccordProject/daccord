@@ -40,12 +40,9 @@ const _none = AttachmentPreview.none;
 
 /// **The** extension → MIME → preview-capability table for attachments.
 ///
-/// Before this existed the same knowledge was spread over three lists that
-/// drifted apart: a `_mimeType()` switch with ~15 extensions, a separate
-/// hardcoded extension list per preview kind, and (implicitly) whatever the
-/// picker happened to allow. Everything now derives from this map — the MIME
-/// sent on upload, the inline preview chosen on render, and the icon shown on
-/// the composer chip — so the three cannot disagree.
+/// Everything derives from this map — the MIME sent on upload, the inline
+/// preview chosen on render, and the icon shown on the composer chip — so the
+/// three cannot disagree.
 ///
 /// Keys are lowercase, dot-less extensions. The Accord server does **not**
 /// enforce a type allow-list on message attachments (only size and count, see

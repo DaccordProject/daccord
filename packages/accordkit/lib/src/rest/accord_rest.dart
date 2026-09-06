@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -328,19 +327,7 @@ class AccordRest {
 
     // Success envelope with "data" key.
     if (map.containsKey('data')) {
-      var cursor = <String, dynamic>{};
-      final rawCursor = map['cursor'];
-      final rawPagination = map['pagination'];
-      if (rawCursor is Map) {
-        cursor = rawCursor.cast<String, dynamic>();
-      } else if (rawPagination is Map) {
-        cursor = rawPagination.cast<String, dynamic>();
-      }
-      // Normalise cursor to always carry has_more.
-      if (cursor.isNotEmpty && !cursor.containsKey('has_more')) {
-        cursor['has_more'] = (cursor['after'] ?? '') != '';
-      }
-      return RestResult.success(status, map['data'], cursor);
+      return RestResult.success(status, map['data']);
     }
 
     // Plain dictionary response (no envelope).
@@ -387,6 +374,3 @@ class AccordRest {
     return AccordError(code: 'INTERNAL', message: msg);
   }
 }
-
-/// Exposed for tests: convert raw bytes to a UTF-8 string.
-String decodeBytes(Uint8List bytes) => utf8.decode(bytes);

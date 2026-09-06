@@ -25,10 +25,10 @@ void main() {
   });
 
   group('RestResult', () {
-    test('success/failure factories and hasMore', () {
-      final ok = RestResult.success(200, {'a': 1}, {'has_more': true});
+    test('success/failure factories', () {
+      final ok = RestResult.success(200, {'a': 1});
       expect(ok.ok, isTrue);
-      expect(ok.hasMore, isTrue);
+      expect(ok.data, {'a': 1});
       final err = RestResult.failure(400, AccordError(message: 'x'));
       expect(err.ok, isFalse);
       expect(err.error!.message, 'x');
@@ -50,13 +50,9 @@ void main() {
 
   group('AccordError', () {
     test('fromJson', () {
-      final e = AccordError.fromJson({
-        'code': 'BAD',
-        'message': 'nope',
-        'details': {'k': 'v'}
-      });
+      final e = AccordError.fromJson({'code': 'BAD', 'message': 'nope'});
       expect(e.code, 'BAD');
-      expect(e.details['k'], 'v');
+      expect(e.message, 'nope');
     });
   });
 
@@ -87,7 +83,7 @@ void main() {
       expect(log.single.jsonBody, {'a': 1});
     });
 
-    test('parses data envelope with cursor normalisation', () async {
+    test('parses data envelope', () async {
       final rest = mockRest(
         log: [],
         responder: (_) => http.Response(
@@ -102,8 +98,9 @@ void main() {
       );
       final result = await rest.makeRequest('GET', '/x');
       expect(result.ok, isTrue);
-      expect(result.hasMore, isTrue); // derived from non-empty after
-      expect(result.cursor['after'], '99');
+      expect(result.data, [
+        {'id': '1'}
+      ]);
     });
 
     test('parses error envelope', () async {

@@ -5,46 +5,6 @@ import 'package:accordkit/accordkit.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('AccordSnowflake', () {
-    test('decodeTimestampMs of zero-low-bits id', () {
-      final sf =
-          AccordSnowflake.fromTimestampMs(AccordSnowflake.epochMs + 1000);
-      expect(AccordSnowflake.decodeTimestampMs(sf),
-          AccordSnowflake.epochMs + 1000);
-    });
-
-    test('decodeTimestamp returns seconds', () {
-      final sf =
-          AccordSnowflake.fromTimestampMs(AccordSnowflake.epochMs + 2000);
-      expect(AccordSnowflake.decodeTimestamp(sf),
-          (AccordSnowflake.epochMs + 2000) / 1000.0);
-    });
-
-    test('empty snowflake decodes to 0', () {
-      expect(AccordSnowflake.decodeTimestampMs(''), 0);
-    });
-
-    test('decodeToDateTime is UTC', () {
-      final sf = AccordSnowflake.fromTimestampMs(AccordSnowflake.epochMs);
-      final dt = AccordSnowflake.decodeToDateTime(sf);
-      expect(dt.isUtc, isTrue);
-      expect(dt.millisecondsSinceEpoch, AccordSnowflake.epochMs);
-    });
-
-    test('generateNonce is numeric and unique-ish', () {
-      final a = AccordSnowflake.generateNonce();
-      expect(int.tryParse(a), isNotNull);
-    });
-
-    test('decodeTimestampMs tolerates qualified federation ids', () {
-      final sf =
-          AccordSnowflake.fromTimestampMs(AccordSnowflake.epochMs + 3000);
-      // A qualified `<snowflake>@<domain>` decodes the same as the bare id.
-      expect(AccordSnowflake.decodeTimestampMs('$sf@b.example'),
-          AccordSnowflake.decodeTimestampMs(sf));
-    });
-  });
-
   group('AccordCDN', () {
     test('avatar url', () {
       expect(
@@ -76,20 +36,13 @@ void main() {
       expect(uri.endsWith(base64Encode(bytes)), isTrue);
     });
 
-    test('default avatar and emoji', () {
-      expect(AccordCDN.defaultAvatar(3, cdnUrl: 'https://cdn'),
-          'https://cdn/embed/avatars/3.png');
+    test('emoji', () {
       expect(AccordCDN.emoji('9', cdnUrl: 'https://cdn'),
           'https://cdn/emojis/9.png');
     });
   });
 
   group('GatewayIntents', () {
-    test('all is union of privileged and unprivileged', () {
-      expect(GatewayIntents.all().toSet(),
-          {...GatewayIntents.unprivileged(), ...GatewayIntents.privileged()});
-    });
-
     test('defaults and guest sets', () {
       expect(GatewayIntents.defaults(), contains(GatewayIntents.messages));
       expect(GatewayIntents.guest(), contains(GatewayIntents.members));

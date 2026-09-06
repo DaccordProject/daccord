@@ -13,6 +13,7 @@ class _MessageRow extends ConsumerStatefulWidget {
     required this.selecting,
     required this.selected,
     required this.onToggleSelected,
+    required this.messagesById,
     this.onLongPressSelect,
     this.grouped = false,
     this.narrow = false,
@@ -64,6 +65,10 @@ class _MessageRow extends ConsumerStatefulWidget {
 
   /// Toggles this message's selection (used while [selecting]).
   final VoidCallback onToggleSelected;
+
+  /// The channel's loaded messages by id, built once per pane build, so the
+  /// reply preview finds its target without scanning the list per row.
+  final Map<String, AccordMessage> messagesById;
 
   /// Enters bulk-select mode with this message selected. Null when the current
   /// user lacks `manage_messages` (long-press then does nothing).
@@ -123,28 +128,16 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
 
   // Bare HH:MM. Used in the grouped-message gutter, a fixed narrow slot where a
   // full date wouldn't fit (grouped rows are within minutes of their header).
-  String get _clock {
-    final dt = DateTime.tryParse(_message.timestamp);
-    if (dt == null) return '';
-    return messageClockString(dt.toLocal());
-  }
+  String get _clock => messageClockFromIso(_message.timestamp);
 
   // The header time is date-aware so a message from days ago isn't mistaken for
   // a recent one: today shows just the time, yesterday is prefixed, earlier this
   // week shows the weekday, and older messages get the calendar date. intl isn't
   // a dependency, so this is formatted by hand.
-  String get _time {
-    final dt = DateTime.tryParse(_message.timestamp);
-    if (dt == null) return '';
-    return messageTimeString(dt.toLocal());
-  }
+  String get _time => messageTimeFromIso(_message.timestamp);
 
   // Full timestamp shown in the tooltip, e.g. "Monday, 5 June 2026 at 14:30".
-  String get _fullTime {
-    final dt = DateTime.tryParse(_message.timestamp);
-    if (dt == null) return '';
-    return messageTimestampString(dt.toLocal());
-  }
+  String get _fullTime => messageTimestampFromIso(_message.timestamp);
 
   /// Nickname → user display name → username → "Unknown". Falls back to the
   /// on-demand user cache when the author isn't in the loaded member page, and
@@ -685,9 +678,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   }
 
   /// Resolves a custom reaction's image URL. Reactions only carry `{id, name}`,
-  /// so the authoritative `image_url` (with the space segment and real
-  /// extension) is looked up from the space's emoji catalog by id; the bare CDN
-  /// path is a last resort. Null for unicode reactions.
+  /// so the emoji is looked up from the space's catalog by id and resolved via
+  /// the shared, federation-aware [accordEmojiUrl] (remote emoji resolve
+  /// against their home CDN, as in message markup). A *qualified* id missing
+  /// from the catalog resolves to nothing rather than the local CDN, because
+  /// stripping its domain would request an unrelated local emoji with the same
+  /// local id. Null for unicode reactions.
   String? _reactionEmojiUrl(
     AccordReaction reaction,
     List<AccordEmoji> customEmoji,
@@ -698,14 +694,8 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         rawId ?? parseEmojiToken(reaction.emoji['name']?.toString() ?? '').id;
     if (id == null) return null;
     final match = customEmoji.firstWhereOrNull((e) => e.id == id);
-    if (match != null && match.imageUrl.isNotEmpty) {
-      return AccordCDN.resolvePath(match.imageUrl, cdnUrl: cdnUrl ?? '');
-    }
-    return AccordCDN.emoji(
-      id,
-      format: match?.animated ?? false ? 'gif' : 'png',
-      cdnUrl: cdnUrl ?? '',
-    );
+    if (match == null && isRemoteId(id)) return null;
+    return accordEmojiUrl(match ?? AccordEmoji(id: id), cdnUrl);
   }
 
   /// A compact "↩ Name preview" line above a reply message, resolving the
@@ -715,15 +705,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     BonfireThemeExtension colors,
   ) {
     final theme = Theme.of(context);
-    final messages = ref.read(
-      accordMessagesControllerProvider(
-        ref.readActiveServerKey() ?? '',
-        widget.channelId,
-      ),
-    );
-    final referenced = messages?.firstWhereOrNull(
-      (m) => m.id == message.replyTo,
-    );
+    final referenced = widget.messagesById[message.replyTo];
     String name = 'Unknown';
     String preview = '';
     if (referenced != null) {

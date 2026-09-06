@@ -79,6 +79,65 @@ class MarkdownViewer extends StatefulWidget {
 }
 
 class _MarkdownViewerState extends State<MarkdownViewer> {
+  /// The parsed AST, kept across rebuilds. Parsing depends only on the input
+  /// text, the syntax extensions and the parser flags — none of which change
+  /// on the hover/selection rebuilds a message row goes through — so it is
+  /// redone in [didUpdateWidget] only when one of those inputs does. Rendering
+  /// (which needs the build context) still happens every build.
+  late List<md.Node> _astNodes = _parse();
+
+  @override
+  void didUpdateWidget(MarkdownViewer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_parseInputsChanged(oldWidget)) _astNodes = _parse();
+  }
+
+  bool _parseInputsChanged(MarkdownViewer old) =>
+      widget.data != old.data ||
+      !identical(widget.syntaxExtensions, old.syntaxExtensions) ||
+      widget.nodesFilter != old.nodesFilter ||
+      widget.enableTaskList != old.enableTaskList ||
+      widget.enableSubscript != old.enableSubscript ||
+      widget.enableSuperscript != old.enableSuperscript ||
+      widget.enableKbd != old.enableKbd ||
+      widget.enableFootnote != old.enableFootnote ||
+      widget.enableAutolinkExtension != old.enableAutolinkExtension ||
+      widget.forceTightList != old.forceTightList;
+
+  List<md.Node> _parse() {
+    final markdown = md.Markdown(
+      enableHtmlBlock: false,
+      enableRawHtml: false,
+      enableHighlight: true,
+      enableStrikethrough: true,
+      enableTaskList: widget.enableTaskList,
+      enableSubscript: widget.enableSubscript,
+      enableSuperscript: widget.enableSuperscript,
+      enableKbd: widget.enableKbd,
+      enableFootnote: widget.enableFootnote,
+      enableAutolinkExtension: widget.enableAutolinkExtension,
+      forceTightList: widget.forceTightList,
+      extensions: widget.syntaxExtensions,
+    );
+    try {
+      var nodes = markdown.parse(widget.data);
+      final filter = widget.nodesFilter;
+      if (filter != null) nodes = filter(nodes);
+      return nodes;
+    } catch (_) {
+      // Render the entire text as a paragraph if parse fails.
+      final textNode = md.Text.fromString(widget.data);
+      return [
+        md.BlockElement(
+          'paragraph',
+          start: textNode.start,
+          end: textNode.end,
+          children: [textNode],
+        ),
+      ];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.selectable == false) {
@@ -95,21 +154,6 @@ class _MarkdownViewerState extends State<MarkdownViewer> {
   }
 
   Widget _buildMarkdown({SelectionRegistrar? selectionRegistrar}) {
-    final markdown = md.Markdown(
-      enableHtmlBlock: false,
-      enableRawHtml: false,
-      enableHighlight: true,
-      enableStrikethrough: true,
-      enableTaskList: widget.enableTaskList,
-      enableSubscript: widget.enableSubscript,
-      enableSuperscript: widget.enableSuperscript,
-      enableKbd: widget.enableKbd,
-      enableFootnote: widget.enableFootnote,
-      enableAutolinkExtension: widget.enableAutolinkExtension,
-      forceTightList: widget.forceTightList,
-      extensions: widget.syntaxExtensions,
-    );
-
     final renderer = MarkdownRenderer(
       context: context,
       styleSheet: widget.styleSheet ?? const MarkdownStyle(),
@@ -125,26 +169,7 @@ class _MarkdownViewerState extends State<MarkdownViewer> {
       copyIconBuilder: widget.copyIconBuilder,
     );
 
-    List<md.Node> astNodes;
-    try {
-      astNodes = markdown.parse(widget.data);
-      if (widget.nodesFilter != null) {
-        astNodes = widget.nodesFilter!(astNodes);
-      }
-    } catch (_) {
-      // Render the entire text as a paragraph if parse fails.
-      final textNode = md.Text.fromString(widget.data);
-      astNodes = [
-        md.BlockElement(
-          'paragraph',
-          start: textNode.start,
-          end: textNode.end,
-          children: [textNode],
-        ),
-      ];
-    }
-
-    final children = renderer.render(astNodes);
+    final children = renderer.render(_astNodes);
 
     Widget markdownWidget;
     if (children.length > 1) {

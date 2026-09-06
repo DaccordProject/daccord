@@ -2,10 +2,6 @@ import 'package:accordkit/accordkit.dart';
 import 'package:flutter/material.dart';
 
 /// Error-message helpers for accordkit's [RestResult].
-///
-/// Consolidates the `result.error?.toString() ?? 'Failed to …'` idiom and the
-/// `'Failed: ${result.error ?? 'unknown error'}'` SnackBar that were repeated at
-/// ~50 call sites across the admin, moderation, settings and DM screens.
 extension RestResultErrorText on RestResult {
   /// The error rendered as text, or [fallback] when there is none.
   String errorOr(String fallback) => error?.toString() ?? fallback;
@@ -20,11 +16,8 @@ extension RestResultErrorText on RestResult {
   }
 }
 
-/// Payload-parsing helpers for the self-loading cache controllers.
-///
-/// Fold the `if (!result.ok) { debugPrint('Failed to load …'); return; }` +
-/// `result.data is List ? …whereType<T>() : …` idiom that every list/object
-/// loader (`accord_channels`, `accord_emojis`, `accord_members`, …) repeated.
+/// Payload-parsing helpers for the self-loading cache controllers: log a
+/// failed request and hand back the typed payload (or `null`) in one step.
 extension RestResultParse on RestResult {
   /// The payload as a typed list, or `null` (logged) on failure or non-list
   /// data. [describe] names the resource for the failure log, e.g.
@@ -35,7 +28,11 @@ extension RestResultParse on RestResult {
       return null;
     }
     final payload = data;
-    return payload is List ? payload.whereType<T>().toList() : null;
+    if (payload is! List) {
+      debugPrint('Failed to load $describe: $error');
+      return null;
+    }
+    return payload.whereType<T>().toList();
   }
 
   /// The payload as a single typed value, or `null` (logged) on failure or a
@@ -62,12 +59,12 @@ void showErrorSnack(
 }
 
 /// Shows a SnackBar with an informational [message] (success/confirmation).
-///
-/// Companion to [showErrorSnack] for the non-error toasts that were otherwise
-/// hand-inlined as `ScaffoldMessenger.maybeOf(context)?.showSnackBar(...)`
-/// across the moderation, settings and DM screens.
+/// Companion to [showErrorSnack].
 void showInfoSnack(BuildContext context, String message) {
-  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-    SnackBar(content: Text(message)),
-  );
+  // Guarded here rather than at each of the call sites, several of which reach
+  // this after an await.
+  if (!context.mounted) return;
+  ScaffoldMessenger.maybeOf(
+    context,
+  )?.showSnackBar(SnackBar(content: Text(message)));
 }

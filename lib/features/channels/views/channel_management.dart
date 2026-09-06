@@ -119,19 +119,11 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
   late String _type = widget.channel?.type ?? 'text';
   late String? _parentId = widget.channel?.parentId ?? widget.parentId;
   late bool _nsfw = widget.channel?.nsfw ?? false;
-  late int _rateLimit = _rateLimitOf(widget.channel);
+  late int _rateLimit = asInt(widget.channel?.rateLimit);
   bool _busy = false;
   String? _error;
 
   bool get _isEdit => widget.channel != null;
-
-  static int _rateLimitOf(AccordChannel? c) {
-    final raw = c?.rateLimit;
-    if (raw is int) return raw;
-    if (raw is num) return raw.toInt();
-    if (raw is String) return int.tryParse(raw) ?? 0;
-    return 0;
-  }
 
   @override
   void dispose() {

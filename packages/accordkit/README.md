@@ -15,14 +15,12 @@ surface and wire behaviour.
 
 - **REST client** covering every endpoint group: users, spaces, channels,
   messages, members, roles, bans, reports, invites, emojis, soundboard,
-  reactions, interactions, plugins, applications, auth, voice, audit logs,
-  admin, and the master-server directory.
+  reactions, plugins, auth, voice, audit logs, admin, federation, and the
+  master-server directory.
 - **Gateway client** with IDENTIFY/RESUME handshake, heartbeating, exponential
   backoff reconnect, and ~50 typed event streams.
 - **Typed models** with lenient JSON parsing (`fromJson`) and `toJson`.
-- **Voice manager** that ties the voice REST endpoints to gateway voice events.
-- **Helpers** for snowflakes, CDN URLs, permissions, intents, multipart
-  uploads, and cursor pagination.
+- **Helpers** for CDN URLs, permissions, intents, and multipart uploads.
 - **Testable by design** — inject an `http.Client` for REST and a connection
   factory for the gateway.
 
@@ -92,20 +90,7 @@ rather than an instance — point it elsewhere by building an `AccordRest` for
 `<master>` + `AccordConfig.apiBasePath`.
 
 `RestResult.data` is the deserialized model (or list of models) on success, and
-`RestResult.error` is an `AccordError` on failure. Cursor-paginated endpoints
-expose `RestResult.hasMore` and `RestResult.cursor`; wrap them with
-`AccordPaginator` to page through results:
-
-```dart
-final first = await client.messages.list('channel_id', query: {'limit': 50});
-var page = AccordPaginator.fromResult(
-  first, client.rest, '/channels/channel_id/messages', {'limit': 50},
-  fromJson: AccordMessage.fromJson,
-);
-while (page.hasMore) {
-  page = await page.next();
-}
-```
+`RestResult.error` is an `AccordError` on failure.
 
 ### Timeouts
 
@@ -170,7 +155,7 @@ Lifecycle and presence:
 
 ```dart
 client.login();                       // open the gateway
-client.updatePresence('online', activity: {'name': 'a game'});
+client.gateway.updatePresence('online', activity: {'name': 'a game'});
 await client.logout();                // close the gateway
 ```
 
@@ -180,21 +165,23 @@ reconnection.
 
 ## Voice
 
-```dart
-final vm = client.voiceManager;
-vm.onVoiceConnected.listen((info) => print('joined ${info.channelId}'));
-vm.onVoiceDisconnected.listen((channelId) => print('left $channelId'));
+`client.voice.join` / `client.voice.leave` return LiveKit credentials
+(`AccordVoiceServerUpdate`); `client.onVoiceStateUpdate` and
+`client.onVoiceServerUpdate` carry the gateway side. The media transport itself
+(LiveKit) lives outside this package.
 
-await vm.join('voice_channel_id', selfMute: false);
-await vm.leave();
+```dart
+final joined = await client.voice.join('voice_channel_id');
+if (joined.ok) {
+  final creds = joined.data as AccordVoiceServerUpdate;
+  print('connect to ${creds.livekitUrl}');
+}
+await client.voice.leave('voice_channel_id');
 ```
 
 ## Helpers
 
 ```dart
-// Snowflakes
-final created = AccordSnowflake.decodeToDateTime(message.id);
-
 // CDN URLs
 final url = AccordCDN.avatar(user.id, user.avatar!, cdnUrl: client.config.cdnUrl);
 

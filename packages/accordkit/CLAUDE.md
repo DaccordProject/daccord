@@ -25,10 +25,9 @@ lib/
     rest/
       accord_rest.dart           # HTTP client: requests, envelope parsing, 429 retry
       accord_error.dart          # AccordError
-      rest_result.dart           # RestResult (ok/data/error/cursor)
+      rest_result.dart           # RestResult (ok/data/error)
       endpoint_base.dart         # base class for endpoint groups
       multipart_form.dart        # multipart/form-data builder
-      paginator.dart             # cursor pagination
       endpoints/*.dart           # one class per endpoint group
     gateway/
       gateway_opcodes.dart       # opcode constants
@@ -36,13 +35,10 @@ lib/
       gateway_connection.dart    # GatewayConnection abstraction + WS impl
       gateway_events.dart        # DisconnectInfo / ReconnectInfo / RawGatewayEvent
       gateway_socket.dart        # handshake, heartbeat, reconnect, dispatch
-    voice/
-      voice_manager.dart         # voice REST + gateway glue
     models/*.dart                # data models (fromJson / toJson)
     utils/
       json_utils.dart            # lenient coercion helpers (asString/asInt/...)
       cdn.dart                   # CDN URL builders
-      snowflake.dart             # snowflake decode/encode
 test/
   support/                       # test helpers (mock REST, fake gateway connection)
   *_test.dart

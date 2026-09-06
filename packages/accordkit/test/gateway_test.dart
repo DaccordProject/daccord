@@ -270,8 +270,7 @@ void main() {
   });
 
   group('outbound helpers', () {
-    test('updatePresence / updateVoiceState / requestMembers / voiceSignal',
-        () async {
+    test('updatePresence / updateVoiceState', () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
       socket.connectToGateway('wss://x');
@@ -299,14 +298,6 @@ void main() {
       expect(lastSent(conn)['data']['channel_id'], '5');
       expect(lastSent(conn)['data']['self_mute'], true);
       expect(lastSent(conn)['data']['self_deaf'], true);
-
-      socket.requestMembers('7', query: 'al', limit: 5);
-      expect(lastSent(conn)['op'], GatewayOpcodes.requestMembers);
-      expect(lastSent(conn)['data']['limit'], 5);
-
-      socket.sendVoiceSignal('7', '5', 'offer', {'sdp': 'x'});
-      expect(lastSent(conn)['op'], GatewayOpcodes.voiceSignal);
-      expect(lastSent(conn)['data']['type'], 'offer');
 
       await socket.dispose();
     });

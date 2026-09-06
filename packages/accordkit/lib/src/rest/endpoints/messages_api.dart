@@ -35,7 +35,7 @@ class MessagesApi extends EndpointBase {
   /// Creates a message with file attachments via multipart/form-data.
   ///
   /// Each entry in [files] is a map with `filename` (String),
-  /// `content` (List<int>/Uint8List), and `content_type` (String).
+  /// `content` (`List<int>`/`Uint8List`), and `content_type` (String).
   Future<RestResult> createWithAttachments(
     String channelId,
     Map<String, dynamic> data,

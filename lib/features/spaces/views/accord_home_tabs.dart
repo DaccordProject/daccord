@@ -95,7 +95,7 @@ class _TabStripState extends ConsumerState<_TabStrip> {
         final conn = connections.connectionFor(tab.serverKey);
         final space = conn?.spaces.firstWhereOrNull((s) => s.id == tab.spaceId);
         final iconUrl = (nameCounts[tab.name] ?? 0) > 1 && space != null
-            ? _spaceIconUrl(space, conn?.session.server.cdnUrl)
+            ? accordSpaceIconUrl(space, conn?.session.server.cdnUrl)
             : null;
         return ReorderableDragStartListener(
           key: ValueKey(tab.key),

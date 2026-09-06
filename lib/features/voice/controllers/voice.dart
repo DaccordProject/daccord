@@ -13,6 +13,7 @@ import 'package:bonfire/features/voice/utils/afk_logic.dart';
 import 'package:bonfire/features/voice/utils/voice_logic.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'voice.g.dart';
@@ -152,25 +153,36 @@ class VoiceController extends _$VoiceController {
   VoiceConnection build() {
     // Push live audio device/volume changes to the active session so the voice
     // settings page takes effect without a reconnect.
-    ref.listen(settingsControllerProvider, (prev, next) {
-      if (prev?.voiceAfkTimeoutMinutes != next.voiceAfkTimeoutMinutes) {
-        _syncAfk();
-      }
-      final session = _session;
-      if (session == null || !state.isConnected) return;
-      if (prev?.audioInputDeviceId != next.audioInputDeviceId) {
-        session.setAudioInputDevice(next.audioInputDeviceId);
-      }
-      if (prev?.audioOutputDeviceId != next.audioOutputDeviceId) {
-        session.setAudioOutputDevice(next.audioOutputDeviceId);
-      }
-      if (prev?.outputVolume != next.outputVolume) {
-        session.setOutputVolume(next.outputVolume);
-      }
-      if (prev?.inputVolume != next.inputVolume) {
-        session.setInputVolume(next.inputVolume);
-      }
-    });
+    ref.listen(
+      settingsControllerProvider.select(
+        (s) => (
+          afkTimeoutMinutes: s.voiceAfkTimeoutMinutes,
+          audioInputDeviceId: s.audioInputDeviceId,
+          audioOutputDeviceId: s.audioOutputDeviceId,
+          outputVolume: s.outputVolume,
+          inputVolume: s.inputVolume,
+        ),
+      ),
+      (prev, next) {
+        if (prev?.afkTimeoutMinutes != next.afkTimeoutMinutes) {
+          _syncAfk();
+        }
+        final session = _session;
+        if (session == null || !state.isConnected) return;
+        if (prev?.audioInputDeviceId != next.audioInputDeviceId) {
+          session.setAudioInputDevice(next.audioInputDeviceId);
+        }
+        if (prev?.audioOutputDeviceId != next.audioOutputDeviceId) {
+          session.setAudioOutputDevice(next.audioOutputDeviceId);
+        }
+        if (prev?.outputVolume != next.outputVolume) {
+          session.setOutputVolume(next.outputVolume);
+        }
+        if (prev?.inputVolume != next.inputVolume) {
+          session.setInputVolume(next.inputVolume);
+        }
+      },
+    );
     ref.onDispose(() {
       _afkMonitor?.dispose();
       _afkMonitor = null;

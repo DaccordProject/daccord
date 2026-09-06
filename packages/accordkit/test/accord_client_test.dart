@@ -37,7 +37,6 @@ void main() {
     expect(client.rest.tokenType, 'Bearer');
     expect(client.users, isA<UsersApi>());
     expect(client.directory, isA<DirectoryApi>());
-    expect(client.voiceManager, isA<VoiceManager>());
   });
 
   test('applies the default request timeout, and an override', () {

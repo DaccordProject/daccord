@@ -85,9 +85,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
       _tosEnabled = d['tos_enabled'] == true;
       _tosText.text = d['tos_text']?.toString() ?? '';
       _tosUrl.text = d['tos_url']?.toString() ?? '';
-      _tosVersion = (d['tos_version'] is num)
-          ? (d['tos_version'] as num).toInt()
-          : int.tryParse(d['tos_version']?.toString() ?? '') ?? 1;
+      _tosVersion = asInt(d['tos_version'], 1);
     });
   }
 

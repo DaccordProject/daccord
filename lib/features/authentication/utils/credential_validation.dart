@@ -14,12 +14,8 @@ String? validateRegistrationCredentials({
   required bool tosRequired,
   required bool tosAccepted,
 }) {
-  // Usernames are the public login identifier (login looks up by username,
-  // not email), so reject email-like input rather than silently accepting a
-  // misleading account name.
-  if (username.contains('@')) {
-    return "Username can't be an email address.";
-  }
+  final usernameError = validateRegistrationUsername(username);
+  if (usernameError != null) return usernameError;
   if (password.length < 8) {
     return 'Password must be at least 8 characters.';
   }
@@ -28,6 +24,14 @@ String? validateRegistrationCredentials({
   }
   return null;
 }
+
+/// The username rule on its own, for the `AccordAuth` register paths that
+/// take already-validated forms but still guard callers that bypass the UI.
+/// Usernames are the public login identifier (login looks up by username, not
+/// email), so email-like input is rejected rather than silently accepted as a
+/// misleading account name.
+String? validateRegistrationUsername(String username) =>
+    username.contains('@') ? "Username can't be an email address." : null;
 
 /// Client-side validation shared by both forced-password-reset surfaces.
 String? validatePasswordChangeCredentials({

@@ -4,10 +4,12 @@ import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/shared/components/ticker_aware_circle_avatar.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
+import 'package:bonfire/features/spaces/utils/space_display.dart';
 import 'package:bonfire/features/spaces/views/accord_audit_log.dart';
 import 'package:bonfire/features/spaces/views/accord_ban_list.dart';
 import 'package:bonfire/features/spaces/views/accord_emoji_management.dart';
@@ -37,41 +39,6 @@ Future<void> showAccordSpaceSettings(
 }) {
   return Navigator.of(context).push<void>(
     MaterialPageRoute(builder: (_) => _SpaceSettings(spaceId: spaceId)),
-  );
-}
-
-/// Resolves a space's `banner` reference to an absolute CDN URL, or null when
-/// unset. The field is either a bare asset hash or a server-relative/absolute
-/// path; both are handled (mirrors [accordMemberAvatarUrl]).
-String? accordSpaceBannerUrl(AccordSpace space, String? cdnUrl) {
-  final banner = space.banner;
-  if (banner is! String || banner.isEmpty) return null;
-  final cdn = cdnUrl ?? '';
-  if (banner.contains('/') || banner.startsWith('http')) {
-    return AccordCDN.resolvePath(banner, cdnUrl: cdn);
-  }
-  return AccordCDN.spaceBanner(
-    space.id,
-    banner,
-    format: AccordCDN.autoFormat(banner),
-    cdnUrl: cdn,
-  );
-}
-
-/// Resolves a space's `icon` reference to an absolute CDN URL, or null when
-/// unset. Mirrors [accordSpaceBannerUrl].
-String? accordSpaceIconUrl(AccordSpace space, String? cdnUrl) {
-  final icon = space.icon;
-  if (icon is! String || icon.isEmpty) return null;
-  final cdn = cdnUrl ?? '';
-  if (icon.contains('/') || icon.startsWith('http')) {
-    return AccordCDN.resolvePath(icon, cdnUrl: cdn);
-  }
-  return AccordCDN.spaceIcon(
-    space.id,
-    icon,
-    format: AccordCDN.autoFormat(icon),
-    cdnUrl: cdn,
   );
 }
 
@@ -345,36 +312,14 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     final members = ref.read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId));
     final me = members?[currentUserId];
     final initial = me?.nickname ?? '';
-    final controller = TextEditingController(text: initial);
-    final next = await showDialog<String?>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Change nickname'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Nickname',
-            hintText: 'Leave empty to reset to your display name',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          if (initial.isNotEmpty)
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(''),
-              child: const Text('Reset'),
-            ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
+    final next = (await showTextPromptDialog(
+      context,
+      title: 'Change nickname',
+      label: 'Nickname',
+      hintText: 'Leave empty to reset to your display name',
+      initial: initial,
+      resetLabel: initial.isNotEmpty ? 'Reset' : null,
+    ))?.trim();
     if (next == null || !mounted) return;
     setState(() {
       _busy = true;

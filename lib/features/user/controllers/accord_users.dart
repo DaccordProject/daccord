@@ -20,8 +20,16 @@ part 'accord_users.g.dart';
 class AccordUsersController extends _$AccordUsersController {
   static const int maxConcurrentFetches = 8;
 
+  /// How long a failed fetch keeps [resolve] from retrying that id.
+  static const Duration failedRetryWindow = Duration(minutes: 5);
+
   final Map<String, AccordUser> _cache = {};
   final Map<String, Future<AccordUser?>> _inFlight = {};
+
+  /// Ids whose last fetch failed (deleted account, 404, network), by when.
+  /// Without this every pane rebuild re-issued `GET /users/{id}` for an author
+  /// that no longer exists, since a failure leaves nothing in [_cache].
+  final Map<String, DateTime> _failedAt = {};
   final Queue<_UserResolutionRequest> _pending = Queue();
   int _activeFetches = 0;
 
@@ -48,6 +56,13 @@ class AccordUsersController extends _$AccordUsersController {
     if (requestClient == null) return Future.value();
     final cached = _cache[userId];
     if (cached != null) return Future.value(cached);
+    final failedAt = _failedAt[userId];
+    if (failedAt != null) {
+      if (DateTime.now().difference(failedAt) < failedRetryWindow) {
+        return Future.value();
+      }
+      _failedAt.remove(userId);
+    }
     final existing = _inFlight[userId];
     if (existing != null) return existing;
 
@@ -74,10 +89,16 @@ class AccordUsersController extends _$AccordUsersController {
 
   Future<void> _resolveRequest(_UserResolutionRequest request) async {
     AccordUser? user;
+    var definitiveMiss = false;
     try {
-      user = (await request.client.users.fetch(
-        request.userId,
-      )).dataOrLog<AccordUser>('fetch user ${request.userId}');
+      final result = await request.client.users.fetch(request.userId);
+      user = result.dataOrLog<AccordUser>('fetch user ${request.userId}');
+      // Only remember a miss the server actually answered (404 for a deleted
+      // account). A transport failure keeps statusCode 0 and must stay
+      // retryable, or a brief outage would blank every author it touched for
+      // the whole retry window.
+      definitiveMiss =
+          user == null && result.statusCode >= 400 && result.statusCode < 500;
       if (user != null &&
           (!request.requireCurrentClient ||
               ref.isCurrentAccordClient(serverKey, request.client))) {
@@ -87,6 +108,7 @@ class AccordUsersController extends _$AccordUsersController {
     } catch (error) {
       debugPrint('Failed to fetch user ${request.userId}: $error');
     } finally {
+      if (definitiveMiss) _failedAt[request.userId] = DateTime.now();
       _inFlight.remove(request.userId);
       _activeFetches -= 1;
       request.completer.complete(user);
@@ -100,6 +122,7 @@ class AccordUsersController extends _$AccordUsersController {
   void upsert(AccordUser user, {AccordClient? client}) {
     final target = client ?? ref.accordClient;
     if (target == null) return;
+    _failedAt.remove(user.id);
     _cache[user.id] = user;
     state = {..._cache};
   }

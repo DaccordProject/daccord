@@ -1,6 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
-import 'package:bonfire/features/events/services/accord_event_handler.dart';
+import 'package:bonfire/features/events/services/accord_ready_sync.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

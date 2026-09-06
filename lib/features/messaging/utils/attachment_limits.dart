@@ -67,9 +67,8 @@ class AttachmentScreening {
 
 /// Screens [files] for attachability.
 ///
-/// Three things disqualify a file, and the first two used to be dropped
-/// silently — the composer kept any file with bytes and said nothing about the
-/// rest:
+/// Three things disqualify a file — the first two would otherwise be dropped
+/// silently, leaving the composer to say nothing about the missing files:
 ///
 /// - the picker returned no bytes (a cloud- or provider-backed file the
 ///   platform couldn't read into memory);

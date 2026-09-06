@@ -482,7 +482,7 @@ class _PostRow extends ConsumerWidget {
   }
 
   String _metaLine(String author) {
-    final created = _relativeOrDate(post.timestamp);
+    final created = messageTimeFromIso(post.timestamp);
     final parts = <String>['by $author'];
     if (created.isNotEmpty) parts.add(created);
     final last = _lastReplyText(post);
@@ -525,14 +525,7 @@ String? _lastReplyText(AccordMessage post) {
   if (post.replyCount <= 0) return null;
   final last = post.lastReplyAt;
   if (last is! String || last.isEmpty) return null;
-  final when = _relativeOrDate(last);
+  final when = messageTimeFromIso(last);
   return when.isEmpty ? null : 'last reply $when';
 }
 
-/// A short date-aware label for an ISO timestamp (reusing the message-time
-/// formatter), or empty when unparseable.
-String _relativeOrDate(String iso) {
-  final dt = DateTime.tryParse(iso);
-  if (dt == null) return '';
-  return messageTimeString(dt.toLocal());
-}

@@ -551,11 +551,7 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
 
   bool get _canDelete => widget.isOwn || widget.canManageMessages;
 
-  String get _time {
-    final dt = DateTime.tryParse(_message.timestamp);
-    if (dt == null) return '';
-    return messageTimeString(dt.toLocal());
-  }
+  String get _time => messageTimeFromIso(_message.timestamp);
 
   Future<void> _edit(AccordMessage message) async {
     if (widget.isRoot) {

@@ -1,7 +1,7 @@
 import 'accord_error.dart';
 
 /// The outcome of a REST call: either parsed [data] on success or an [error]
-/// on failure. [cursor] carries pagination state for cursor-based endpoints.
+/// on failure.
 class RestResult {
   bool ok;
   int statusCode;
@@ -10,31 +10,15 @@ class RestResult {
   Object? data;
   AccordError? error;
 
-  /// Pagination info, e.g. `{ "after": "id", "has_more": bool }`.
-  Map<String, dynamic> cursor;
-
   RestResult({
     this.ok = false,
     this.statusCode = 0,
     this.data,
     this.error,
-    Map<String, dynamic>? cursor,
-  }) : cursor = cursor ?? {};
+  });
 
-  /// Whether the endpoint reported another page is available.
-  bool get hasMore => cursor['has_more'] == true;
-
-  static RestResult success(
-    int status,
-    Object? data, [
-    Map<String, dynamic> cursor = const {},
-  ]) {
-    return RestResult(
-      ok: true,
-      statusCode: status,
-      data: data,
-      cursor: Map<String, dynamic>.from(cursor),
-    );
+  static RestResult success(int status, Object? data) {
+    return RestResult(ok: true, statusCode: status, data: data);
   }
 
   static RestResult failure(int status, AccordError? err) {

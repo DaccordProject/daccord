@@ -33,6 +33,7 @@ import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/controllers/role_preview.dart';
 import 'package:bonfire/features/spaces/models/home_layout.dart';
 import 'package:bonfire/features/spaces/models/space_folder.dart';
+import 'package:bonfire/features/spaces/utils/space_display.dart';
 import 'package:bonfire/features/spaces/views/role_preview_banner.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
 import 'package:bonfire/features/spaces/views/accord_gates.dart';
@@ -77,9 +78,11 @@ import 'package:go_router/go_router.dart';
 
 part 'accord_home_rail.dart';
 part 'accord_home_rail_tiles.dart';
+part 'accord_home_rail_folders.dart';
 part 'accord_home_space_actions.dart';
 part 'accord_home_tabs.dart';
 part 'accord_home_channels.dart';
+part 'accord_home_channel_drag.dart';
 
 /// The primary Accord screen: a three-pane view (space rail → channel list →
 /// message history) wired to the Accord controllers.
@@ -364,9 +367,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       }
       if (!mounted || ref.readActiveServerKey() != serverKey) return;
       if (root == null) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          const SnackBar(content: Text('The linked message is unavailable.')),
-        );
+        showInfoSnack(context, 'The linked message is unavailable.');
         return;
       }
       showAccordThread(
@@ -388,9 +389,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
         _pendingChannelName = null;
         _pendingMessageId = null;
       });
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text('The linked channel is unavailable.')),
-      );
+      showInfoSnack(context, 'The linked channel is unavailable.');
     });
   }
 

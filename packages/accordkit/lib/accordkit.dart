@@ -13,12 +13,10 @@ export 'src/rest/accord_error.dart';
 export 'src/rest/accord_rest.dart';
 export 'src/rest/endpoint_base.dart';
 export 'src/rest/multipart_form.dart';
-export 'src/rest/paginator.dart';
 export 'src/rest/rest_result.dart';
 
 // REST endpoints
 export 'src/rest/endpoints/admin_api.dart';
-export 'src/rest/endpoints/applications_api.dart';
 export 'src/rest/endpoints/audit_logs_api.dart';
 export 'src/rest/endpoints/auth_api.dart';
 export 'src/rest/endpoints/bans_api.dart';
@@ -26,7 +24,6 @@ export 'src/rest/endpoints/channels_api.dart';
 export 'src/rest/endpoints/directory_api.dart';
 export 'src/rest/endpoints/emojis_api.dart';
 export 'src/rest/endpoints/federation_api.dart';
-export 'src/rest/endpoints/interactions_api.dart';
 export 'src/rest/endpoints/invites_api.dart';
 export 'src/rest/endpoints/members_api.dart';
 export 'src/rest/endpoints/messages_api.dart';
@@ -46,21 +43,15 @@ export 'src/gateway/gateway_intents.dart';
 export 'src/gateway/gateway_opcodes.dart';
 export 'src/gateway/gateway_socket.dart';
 
-// Voice
-export 'src/voice/voice_manager.dart';
-
 // Models
 export 'src/models/accord_relationship.dart';
 export 'src/models/activity.dart';
-export 'src/models/application.dart';
 export 'src/models/attachment.dart';
 export 'src/models/audit_log_entry.dart';
 export 'src/models/call_signal.dart';
 export 'src/models/channel.dart';
-export 'src/models/command.dart';
 export 'src/models/embed.dart';
 export 'src/models/emoji.dart';
-export 'src/models/interaction.dart';
 export 'src/models/invite.dart';
 export 'src/models/member.dart';
 export 'src/models/message.dart';
@@ -81,6 +72,6 @@ export 'src/models/voice_state.dart';
 // Utils
 export 'src/utils/cdn.dart';
 export 'src/utils/host.dart';
+export 'src/utils/json_utils.dart';
 export 'src/utils/qualified_id.dart';
-export 'src/utils/snowflake.dart';
 export 'src/utils/transport_security.dart';

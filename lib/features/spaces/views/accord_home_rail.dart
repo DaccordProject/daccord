@@ -59,7 +59,17 @@ class _SpaceRail extends ConsumerWidget {
     final connections = ref.watch(connectionsControllerProvider);
     final activeKey = connections.activeKey;
     final liveActiveSpaces = ref.watch(spacesControllerProvider);
-    final settings = ref.watch(settingsControllerProvider);
+    // Watch only the rail's own slices so an unrelated settings write (a draft
+    // keystroke, a last-selection save) doesn't rebuild the whole rail.
+    final spaceOrder = ref.watch(
+      settingsControllerProvider.select((s) => s.spaceOrder),
+    );
+    final spaceFolders = ref.watch(
+      settingsControllerProvider.select((s) => s.spaceFolders),
+    );
+    final hiddenSpaces = ref.watch(
+      settingsControllerProvider.select((s) => s.hiddenSpaces),
+    );
     final settingsCtl = ref.read(settingsControllerProvider.notifier);
 
     // Spaces are a single flat, user-curated list across every connected
@@ -78,7 +88,7 @@ class _SpaceRail extends ConsumerWidget {
       for (final s in spaces) {
         final entityKey = ServerEntityKey(conn.key, s.id).encoded;
         connOf[entityKey] = _SpaceConn(conn.key, cdnUrl, isActive);
-        if (settings.isSpaceHidden(conn.key, s.id)) {
+        if (hiddenSpaces.contains(entityKey)) {
           hidden.add(_RailSpace(entityKey, s));
         } else {
           byId[entityKey] = s;
@@ -88,8 +98,8 @@ class _SpaceRail extends ConsumerWidget {
 
     // The effective global order, used when persisting a reorder so dragged
     // spaces keep a stable position.
-    final globalOrder = _orderedIds(byId.keys.toList(), settings.spaceOrder);
-    final units = _buildUnits(globalOrder, byId, settings.spaceFolders);
+    final globalOrder = _orderedIds(byId.keys.toList(), spaceOrder);
+    final units = _buildUnits(globalOrder, byId, spaceFolders);
 
     final railItems = <Widget>[
       Padding(
@@ -109,14 +119,14 @@ class _SpaceRail extends ConsumerWidget {
     Widget gapFor(String? anchorId) => _InsertionGap(
       onDropSpace: (spaceId) => _dropSpaceBefore(
         settingsCtl,
-        settings,
+        spaceFolders,
         globalOrder,
         spaceId,
         anchorId,
       ),
       onDropFolder: (folderId) => _moveFolderBefore(
         settingsCtl,
-        settings,
+        spaceFolders,
         globalOrder,
         folderId,
         anchorId,
@@ -139,7 +149,7 @@ class _SpaceRail extends ConsumerWidget {
             ),
             onReorderFolderBefore: (folderId) => _moveFolderBefore(
               settingsCtl,
-              settings,
+              spaceFolders,
               globalOrder,
               folderId,
               unit.spaces.first.key,
@@ -174,7 +184,7 @@ class _SpaceRail extends ConsumerWidget {
             ),
             onDropFolderBefore: (folderId) => _moveFolderBefore(
               settingsCtl,
-              settings,
+              spaceFolders,
               globalOrder,
               folderId,
               entityKey,
@@ -328,15 +338,13 @@ class _SpaceRail extends ConsumerWidget {
   /// the folder and lands at that position).
   void _dropSpaceBefore(
     SettingsController ctl,
-    AccordSettings settings,
+    List<SpaceFolder> folders,
     List<String> globalOrder,
     String movedId,
     String? targetId,
   ) {
     if (movedId == targetId) return;
-    final inFolder = settings.spaceFolders.any(
-      (f) => f.spaceIds.contains(movedId),
-    );
+    final inFolder = folders.any((f) => f.spaceIds.contains(movedId));
     if (inFolder) {
       ctl.moveSpaceToFolder(ServerEntityKey.tryDecode(movedId)!, null);
     }
@@ -348,13 +356,13 @@ class _SpaceRail extends ConsumerWidget {
   /// so this relocates the folder's member ids as a contiguous block.
   void _moveFolderBefore(
     SettingsController ctl,
-    AccordSettings settings,
+    List<SpaceFolder> folders,
     List<String> globalOrder,
     String folderId,
     String? anchorId,
   ) {
     SpaceFolder? folder;
-    for (final f in settings.spaceFolders) {
+    for (final f in folders) {
       if (f.id == folderId) {
         folder = f;
         break;

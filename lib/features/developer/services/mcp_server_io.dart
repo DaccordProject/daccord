@@ -20,6 +20,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bonfire/features/developer/services/mcp_tools.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 class McpServer {
   McpServer({
@@ -54,20 +55,19 @@ class McpServer {
     if (_server != null) return true;
     if (_tokenGetter().trim().isEmpty) {
       // Never expose a bearer-authenticated service without a bearer secret.
-      // ignore: avoid_print
-      print('McpServer: refused to start without an authentication token');
+      debugPrint('McpServer: refused to start without an authentication token');
       return false;
     }
     try {
       _server = await HttpServer.bind(_loopbackAddr, port);
     } on SocketException catch (e) {
-      // ignore: avoid_print
-      print('McpServer: failed to bind $_loopbackAddr:$port — ${e.message}');
+      debugPrint(
+        'McpServer: failed to bind $_loopbackAddr:$port — ${e.message}',
+      );
       return false;
     }
     _server!.listen(_handleRequest, onError: (_) {});
-    // ignore: avoid_print
-    print('McpServer: listening on $_loopbackAddr:${_server!.port}');
+    debugPrint('McpServer: listening on $_loopbackAddr:${_server!.port}');
     return true;
   }
 
