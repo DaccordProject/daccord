@@ -126,9 +126,13 @@ const Map<String, AttachmentType> kAttachmentTypes = {
   ),
   'odt': AttachmentType('application/vnd.oasis.opendocument.text', _none),
   'ods': AttachmentType(
-      'application/vnd.oasis.opendocument.spreadsheet', _none),
+    'application/vnd.oasis.opendocument.spreadsheet',
+    _none,
+  ),
   'odp': AttachmentType(
-      'application/vnd.oasis.opendocument.presentation', _none),
+    'application/vnd.oasis.opendocument.presentation',
+    _none,
+  ),
   // ---- Archives ----------------------------------------------------------
   'zip': AttachmentType('application/zip', _none),
   'rar': AttachmentType('application/vnd.rar', _none),
@@ -243,8 +247,7 @@ String? sniffMimeType(List<int>? bytes) {
     return true;
   }
 
-  bool ascii(int offset, String text) =>
-      at(offset, text.codeUnits);
+  bool ascii(int offset, String text) => at(offset, text.codeUnits);
 
   // Images.
   if (at(0, const [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])) {
@@ -255,10 +258,8 @@ String? sniffMimeType(List<int>? bytes) {
   // "BM" alone is two bytes and would claim any text starting "BMW…", so the
   // header's own little-endian file-size field has to agree with the buffer.
   if (ascii(0, 'BM') && bytes.length >= 6) {
-    final declared = bytes[2] |
-        (bytes[3] << 8) |
-        (bytes[4] << 16) |
-        (bytes[5] << 24);
+    final declared =
+        bytes[2] | (bytes[3] << 8) | (bytes[4] << 16) | (bytes[5] << 24);
     if (declared == bytes.length) return 'image/bmp';
   }
   if (at(0, const [0x49, 0x49, 0x2A, 0x00]) ||
@@ -283,8 +284,12 @@ String? sniffMimeType(List<int>? bytes) {
     if (brand.startsWith('m4a')) return 'audio/mp4';
     if (brand.startsWith('qt')) return 'video/quicktime';
     if (brand.startsWith('3g')) return 'video/3gpp';
-    if (brand.startsWith('heic') || brand.startsWith('heix')) return 'image/heic';
-    if (brand.startsWith('mif1') || brand.startsWith('msf1')) return 'image/heif';
+    if (brand.startsWith('heic') || brand.startsWith('heix')) {
+      return 'image/heic';
+    }
+    if (brand.startsWith('mif1') || brand.startsWith('msf1')) {
+      return 'image/heif';
+    }
     if (brand.startsWith('avif')) return 'image/avif';
     return 'video/mp4';
   }
@@ -369,19 +374,6 @@ String resolveAttachmentMimeType(
   return byExtension ?? kFallbackMimeType;
 }
 
-/// Image MIME types that are real images but that this client has no decoder
-/// for. Kept explicit so the `image/*` catch-all below stays forward-compatible
-/// without re-introducing the broken-image box for these.
-const Set<String> _unrenderableImageMimes = {
-  'image/svg+xml',
-  'image/tiff',
-  'image/avif',
-  'image/heic',
-  'image/heif',
-  'image/x-icon',
-  'image/vnd.adobe.photoshop',
-};
-
 /// How to render an attachment inline, given whatever the server told us.
 ///
 /// [contentType] leads because it survives the filename being sanitised or
@@ -397,11 +389,7 @@ AttachmentPreview attachmentPreviewFor({
     final mime = contentType!.trim().toLowerCase().split(';').first.trim();
     final known = _previewByMime[mime];
     if (known != null) return known;
-    if (mime.startsWith('image/')) {
-      return _unrenderableImageMimes.contains(mime)
-          ? AttachmentPreview.none
-          : AttachmentPreview.image;
-    }
+    if (mime.startsWith('image/')) return AttachmentPreview.image;
     if (mime.startsWith('video/')) return AttachmentPreview.video;
     if (mime.startsWith('audio/')) return AttachmentPreview.audio;
   }
@@ -423,16 +411,10 @@ class PendingAttachment {
     required Uint8List bytes,
     String? path,
     String? platformMimeType,
-  }) =>
-      PendingAttachment(
-        PlatformFile(
-          name: name,
-          size: bytes.length,
-          bytes: bytes,
-          path: path,
-        ),
-        platformMimeType: platformMimeType,
-      );
+  }) => PendingAttachment(
+    PlatformFile(name: name, size: bytes.length, bytes: bytes, path: path),
+    platformMimeType: platformMimeType,
+  );
 
   final PlatformFile file;
 
@@ -465,10 +447,10 @@ class PendingAttachment {
 
   /// The multipart part for `messages.createWithAttachments`.
   Map<String, dynamic> toUploadPart() => {
-        'filename': name,
-        'content': bytes!,
-        'content_type': contentType,
-      };
+    'filename': name,
+    'content': bytes!,
+    'content_type': contentType,
+  };
 }
 
 /// Names a pasted image after sniffing it, instead of assuming PNG.
@@ -478,8 +460,9 @@ class PendingAttachment {
 /// JPEG called `.png` is a mislabelled file on every client that receives it.
 String pastedImageFilename(List<int> bytes, {DateTime? now}) {
   final mime = sniffMimeType(bytes);
-  final extension =
-      mime == null ? 'png' : (extensionForMimeType(mime) ?? 'png');
+  final extension = mime == null
+      ? 'png'
+      : (extensionForMimeType(mime) ?? 'png');
   final stamp = (now ?? DateTime.now()).millisecondsSinceEpoch;
   return 'pasted-$stamp.$extension';
 }

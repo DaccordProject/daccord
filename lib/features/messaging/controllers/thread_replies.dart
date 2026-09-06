@@ -101,10 +101,9 @@ class ThreadRepliesController extends _$ThreadRepliesController {
   /// (e.g. the gateway echo of a reply we just sent).
   void addReply(AccordMessage message) {
     if (message.id == rootId) return;
-    final current = [...(state ?? const <AccordMessage>[])];
+    final current = state ?? const <AccordMessage>[];
     if (current.any((m) => m.id == message.id)) return;
-    current.add(message);
-    state = current;
+    state = [...current, message];
   }
 
   /// Replaces an existing reply (edit result / gateway echo); unknown ids are
@@ -120,6 +119,6 @@ class ThreadRepliesController extends _$ThreadRepliesController {
   void removeReply(String messageId) {
     final current = state;
     if (current == null || !current.any((m) => m.id == messageId)) return;
-    state = current.where((m) => m.id != messageId).toList();
+    state = current.removeById(messageId, (m) => m.id);
   }
 }

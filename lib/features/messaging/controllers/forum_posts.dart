@@ -99,10 +99,9 @@ class ForumPostsController extends _$ForumPostsController {
   /// by id). Replies (`thread_id` set) never belong on the board.
   void addPost(AccordMessage post) {
     if (post.threadId != null) return;
-    final current = [...(state ?? const <AccordMessage>[])];
+    final current = state ?? const <AccordMessage>[];
     if (current.any((m) => m.id == post.id)) return;
-    current.insert(0, post);
-    state = current;
+    state = [post, ...current];
   }
 
   /// Replaces an existing post (edit result / thread-root edit / gateway
@@ -117,6 +116,6 @@ class ForumPostsController extends _$ForumPostsController {
   void removePost(String postId) {
     final current = state;
     if (current == null || !current.any((m) => m.id == postId)) return;
-    state = current.where((m) => m.id != postId).toList();
+    state = current.removeById(postId, (m) => m.id);
   }
 }
