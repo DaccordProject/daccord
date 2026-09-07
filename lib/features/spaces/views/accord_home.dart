@@ -165,6 +165,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   @override
   void dispose() {
     mcpHomeBridge.clear();
+    accordVisibleChannel = null;
     super.dispose();
   }
 
@@ -203,7 +204,12 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       final channelId = args['channel_id'] as String;
       final messageId = args['message_id'] as String;
       final root = ref
-          .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', channelId))
+          .read(
+            accordMessagesControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              channelId,
+            ),
+          )
           ?.firstWhereOrNull((m) => m.id == messageId);
       if (root == null) return {'error': 'Message not loaded'};
       showAccordThread(context, channelId: channelId, root: root);
@@ -514,7 +520,12 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
 
     final channels = effectiveSpaceId == null
         ? null
-        : ref.watch(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', effectiveSpaceId));
+        : ref.watch(
+            accordChannelsControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              effectiveSpaceId,
+            ),
+          );
 
     final firstText = channels?.where((c) => c.type == 'text').firstOrNull;
 
@@ -561,9 +572,11 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     }
 
     // Let the notification layer skip the channel that's on screen.
-    accordVisibleChannel = activeKey == null || shownChannelId == null
-        ? null
-        : (serverKey: activeKey, channelId: shownChannelId);
+    if (ModalRoute.of(context)?.isCurrent != false) {
+      accordVisibleChannel = activeKey == null || shownChannelId == null
+          ? null
+          : (serverKey: activeKey, channelId: shownChannelId);
+    }
 
     mcpHomeBridge.setStateReader(
       () => (

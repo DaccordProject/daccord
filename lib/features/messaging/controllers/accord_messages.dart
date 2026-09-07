@@ -5,7 +5,7 @@ import 'package:bonfire/shared/controllers/load_failed.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:collection/collection.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'accord_messages.g.dart';
@@ -22,6 +22,12 @@ final Set<ServerChannelKey> activeMessageChannels = <ServerChannelKey>{};
 /// consults this to avoid raising a notification for a message in the channel
 /// that's already on screen. Set by the home screen as the selection changes.
 ServerChannelKey? accordVisibleChannel;
+
+bool isAccordChannelVisible(String serverKey, String channelId) {
+  final lifecycle = WidgetsBinding.instance.lifecycleState;
+  return (lifecycle == null || lifecycle == AppLifecycleState.resumed) &&
+      accordVisibleChannel == (serverKey: serverKey, channelId: channelId);
+}
 
 /// Whether this channel's history fetch failed, so the message pane can offer a
 /// retry instead of spinning forever. The [LoadFailed] flag for this cache —

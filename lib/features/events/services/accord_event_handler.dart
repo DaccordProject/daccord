@@ -96,6 +96,9 @@ VoidCallback handleAccordEvents(
       // and on every reconnect — this is what persists badges across a cold
       // start and what lights up servers the user hasn't opened yet.
       _hydrateReadState(ref, data, serverKey: serverKey);
+      ref
+          .read(readStateControllerProvider(serverKey).notifier)
+          .retryPending(client);
       // Presence is keyed by [serverKey] like read state, so seed it for every
       // connection too — a background server that READYs while you're looking at
       // another one used to be left permanently showing its whole roster as
@@ -422,9 +425,7 @@ VoidCallback handleAccordEvents(
       final isOwn = isSelf(message.authorId);
       final mentionsMe = mentionsSelf(message.mentions);
       final isVisibleChannel =
-          active &&
-          accordVisibleChannel ==
-              (serverKey: serverKey, channelId: message.channelId);
+          active && isAccordChannelVisible(serverKey, message.channelId);
       final settings = ref.read(settingsControllerProvider);
       final countsAsMention = MessageNotificationGate.countsAsMention(
         mentionsMe: mentionsMe,
@@ -514,15 +515,21 @@ VoidCallback handleAccordEvents(
       // and the rail/channel indicators apply [UnreadIndicatorGate] when they
       // render (see `ReadStateSnapshot.spaceShowsUnread`), so unmuting a space
       // reveals what arrived while it was muted without waiting for a reconnect.
-      if (!isOwn && !isVisibleChannel) {
-        ref
-            .read(readStateControllerProvider(serverKey).notifier)
-            .markUnread(
-              message.channelId,
-              spaceId: message.spaceId,
-              isMention: countsAsMention,
-            );
+      final tracker = ref.read(readStateControllerProvider(serverKey).notifier);
+      final fresh = tracker.receiveMessage(message.channelId, message.id);
+      if (isVisibleChannel) {
+        tracker.acknowledge(client, message.channelId, message.id);
+      } else if (!isOwn && fresh) {
+        tracker.markUnread(
+          message.channelId,
+          spaceId: message.spaceId,
+          isMention: countsAsMention,
+          messageId: message.id,
+        );
       }
+
+      // Cache updates still run for replays; alerts and mention deltas don't.
+      if (!fresh) return;
 
       // Mention notifications: fire for *any* mentioning message, even in
       // channels the UI hasn't opened and on servers that aren't currently
@@ -550,6 +557,9 @@ VoidCallback handleAccordEvents(
         final name = accordUserName(author, fallback: 'New mention');
         final body = message.content.trim();
         showMentionNotification(
+          serverKey: serverKey,
+          channelId: message.channelId,
+          messageId: message.id,
           title: name,
           body: body.isEmpty ? 'mentioned you' : body,
         );
@@ -560,7 +570,11 @@ VoidCallback handleAccordEvents(
       // focus, and never chimes for our own messages, a muted space (which stays
       // silent like its suppressed banner), or the channel that's on screen
       // (only the active connection owns the visible-channel pointer).
-      if (settings.soundsEnabled && !spaceMuted && !isOwn) {
+      if (settings.soundsEnabled &&
+          !spaceMuted &&
+          !isOwn &&
+          settings.channelNotificationLevel(serverKey, message.channelId) !=
+              'nothing') {
         soundManager.playForMessage(
           isMention: countsAsMention,
           isVisibleChannel: isVisibleChannel,
@@ -687,9 +701,11 @@ VoidCallback handleAccordEvents(
     client.onReadStateUpdate.listen((data) {
       final channelId = data['channel_id']?.toString();
       if (channelId == null || channelId.isEmpty) return;
+      final messageId = data['last_read_message_id']?.toString();
+      if (messageId == null || messageId.isEmpty) return;
       ref
           .read(readStateControllerProvider(serverKey).notifier)
-          .markRead(channelId);
+          .applyRemoteRead(channelId, messageId);
     }),
   );
 
@@ -960,6 +976,8 @@ void _hydrateReadState(
         channelId: channelId,
         spaceId: (spaceId != null && spaceId.isNotEmpty) ? spaceId : null,
         mentions: mentions,
+        lastMessageId: e['last_message_id']?.toString(),
+        lastReadMessageId: e['last_read_message_id']?.toString(),
       ),
     );
   }

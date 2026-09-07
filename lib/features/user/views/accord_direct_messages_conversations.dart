@@ -621,18 +621,6 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
         }
       },
     );
-    ref.listen<List<AccordMessage>?>(
-      accordMessagesControllerProvider(_serverKey, _channel.id),
-      (previous, next) {
-        if (next == null || next.isEmpty) return;
-        markChannelRead(
-          ref,
-          _channel.id,
-          serverKey: _serverKey,
-          fallbackMessageId: next.last.id,
-        );
-      },
-    );
     // The home route remains mounted beneath this dialog and may rebuild while
     // it is open. Reassert the modal conversation as the visible channel so its
     // incoming messages do not produce unread badges/notifications.
