@@ -1,3 +1,4 @@
+import 'package:bonfire/shared/models/server_entity_key.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/channels/controllers/global_unread.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
@@ -32,9 +33,9 @@ void main() {
     calls = [];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(taskbarBadgeChannel, (call) async {
-      calls.add(call);
-      return null;
-    });
+          calls.add(call);
+          return null;
+        });
   });
 
   tearDown(() {
@@ -134,10 +135,9 @@ void main() {
 
       // A second unread channel with no mention leaves the badge identical, so
       // the platform is not touched again.
-      c.read(readStateControllerProvider(key).notifier).markUnread(
-            'c2',
-            spaceId: 's1',
-          );
+      c
+          .read(readStateControllerProvider(key).notifier)
+          .markUnread('c2', spaceId: 's1');
       await settle();
       expect(calls.length, 1);
 
@@ -156,7 +156,9 @@ void main() {
     test('muted spaces never reach the platform', () async {
       if (!taskbarBadgeSupported) return;
       final c = container(
-        settings: const AccordSettings(mutedSpaces: ['s1']),
+        settings: AccordSettings(
+          mutedSpaces: [ServerEntityKey('u1@https://a.test', 's1').encoded],
+        ),
       );
       final key = connect(c);
       c.listen(taskbarBadgeControllerProvider, (_, _) {});

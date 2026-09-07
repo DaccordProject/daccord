@@ -76,6 +76,8 @@ void hydrateReadStateFromReady(
         channelId: channelId,
         spaceId: (spaceId != null && spaceId.isNotEmpty) ? spaceId : null,
         mentions: mentions,
+        lastMessageId: e['last_message_id']?.toString(),
+        lastReadMessageId: e['last_read_message_id']?.toString(),
       ),
     );
   }

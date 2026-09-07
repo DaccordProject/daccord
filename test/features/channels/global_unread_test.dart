@@ -1,3 +1,4 @@
+import 'package:bonfire/shared/models/server_entity_key.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/channels/controllers/global_unread.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
@@ -12,9 +13,8 @@ import 'package:flutter_test/flutter_test.dart';
 // Helpers
 // ---------------------------------------------------------------------------
 
-ReadStateSnapshot _snapshot(List<ReadEntry> entries) => ReadStateSnapshot(
-      entries: {for (final e in entries) e.channelId: e},
-    );
+ReadStateSnapshot _snapshot(List<ReadEntry> entries) =>
+    ReadStateSnapshot(entries: {for (final e in entries) e.channelId: e});
 
 /// Keeps the aggregator off Hive (the real settings controller reads the
 /// `accord-settings` box in `build`) while still allowing mid-test mutes.
@@ -42,11 +42,11 @@ ProviderContainer _container({AccordSettings? settings}) {
 }
 
 AccordSession _session(String userId, String baseUrl) => AccordSession(
-      server: AccordServer.fromBaseUrl(baseUrl),
-      token: 't',
-      userId: userId,
-      username: userId,
-    );
+  server: AccordServer.fromBaseUrl(baseUrl),
+  token: 't',
+  userId: userId,
+  username: userId,
+);
 
 /// Registers [baseUrl] as a connection and returns its `serverKey`.
 String _connect(ProviderContainer c, String userId, String baseUrl) {
@@ -79,7 +79,10 @@ void _markUnread(
 void main() {
   group('foldGlobalUnread', () {
     test('nothing unread anywhere is empty', () {
-      final unread = foldGlobalUnread([_snapshot(const []), _snapshot(const [])]);
+      final unread = foldGlobalUnread([
+        _snapshot(const []),
+        _snapshot(const []),
+      ]);
       expect(unread, GlobalUnread.none);
       expect(unread.isEmpty, isTrue);
     });
@@ -243,7 +246,9 @@ void main() {
       _markUnread(container, key, 'c2', spaceId: 's1');
       expect(container.read(globalUnreadProvider).isEmpty, isFalse);
 
-      final notifier = container.read(readStateControllerProvider(key).notifier);
+      final notifier = container.read(
+        readStateControllerProvider(key).notifier,
+      );
       notifier.markRead('c1');
       expect(
         container.read(globalUnreadProvider),
@@ -255,10 +260,12 @@ void main() {
     });
 
     test('honours the mute settings live, in both directions', () {
-      final container = _container(
-        settings: const AccordSettings(mutedSpaces: ['s1']),
+      final key = _session('u1', 'a.test').key;
+      final muted = AccordSettings(
+        mutedSpaces: [ServerEntityKey(key, 's1').encoded],
       );
-      final key = _connect(container, 'u1', 'a.test');
+      final container = _container(settings: muted);
+      _connect(container, 'u1', 'a.test');
       // Kept alive so the provider recomputes on settings changes rather than
       // only when read.
       container.listen(globalUnreadProvider, (_, _) {});
@@ -277,8 +284,28 @@ void main() {
         const GlobalUnread(hasUnread: true, mentionCount: 4),
       );
 
-      settings.set(const AccordSettings(mutedSpaces: ['s1']));
+      settings.set(muted);
       expect(container.read(globalUnreadProvider), GlobalUnread.none);
+    });
+
+    test('mute overrides apply only to the owning server', () {
+      final a = _session('u1', 'a.test').key;
+      final b = _session('u2', 'b.test').key;
+      final container = _container(
+        settings: AccordSettings(
+          channelNotifications: {ServerEntityKey(a, 'c1').encoded: 'nothing'},
+          mutedSpaces: [ServerEntityKey(b, 's2').encoded],
+        ),
+      );
+      _connect(container, 'u1', 'a.test');
+      _connect(container, 'u2', 'b.test');
+      _markUnread(container, a, 'c1', spaceId: 's1', mentions: 2);
+      _markUnread(container, b, 'c1', spaceId: 's1', mentions: 3);
+      _markUnread(container, b, 'c2', spaceId: 's2', mentions: 4);
+      expect(
+        container.read(globalUnreadProvider),
+        const GlobalUnread(hasUnread: true, mentionCount: 3),
+      );
     });
 
     test('a disconnected server stops contributing', () {

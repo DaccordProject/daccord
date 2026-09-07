@@ -172,6 +172,13 @@ When in doubt about Accord behaviour, read `packages/accordkit` (the vendored SD
 - Keep changes minimal and reuse-first; this is a port, not a rewrite.
 - Don't reintroduce Discord endpoints, Discord branding, or Firebase push without explicit instruction.
 
+## Read state
+
+Read-state updates live in `accord_message_events.dart`; READY cursors are
+parsed in `accord_ready_sync.dart`. Use `ReadStateController.acknowledge` for
+local reads so retries, monotonic cursors and notification dismissal stay
+consistent. Details: `docs/notification-read-state-audit.md`.
+
 ## AutoMod
 
 `lib/features/automod/` owns the policy/review UI and block-before-delete flow.
