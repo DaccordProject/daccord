@@ -28,6 +28,12 @@ daccord automatically attempts to reconnect when the connection drops. If you se
 - Make sure you aren't muted or deafened (check the voice bar icons).
 - Ensure the server's voice backend (LiveKit) is running -- contact the server admin if voice isn't working for anyone.
 
+## Video Playback on Linux
+
+Inline videos use software decoding on Linux to avoid an NVIDIA driver crash
+in hardware decoding. Rendering still uses the GPU, but playing large videos
+can use more CPU.
+
 ## Messages Not Loading
 
 - Check your connection status. A banner at the top of the message area indicates connection issues.

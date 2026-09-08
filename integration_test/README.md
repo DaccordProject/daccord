@@ -24,6 +24,18 @@ holding it. Each file passes on its own; CI loops.
 
 `flutter test` on its own does **not** pick these up — it only walks `test/`.
 
+The standalone video regression test needs Linux desktop build dependencies
+and `ffmpeg` (with the `libx264` encoder) on `PATH`, but no Accord server:
+
+```bash
+flutter test integration_test/video_playback_test.dart -d linux
+```
+
+It generates a temporary H.264 clip and exercises inline playback, seeking,
+disposal, and reopening through the native renderer. Run on an NVIDIA desktop
+to cover the driver path that previously crashed during hardware decoding;
+headless runs still check playback but do not reproduce that driver setup.
+
 ## How it works
 
 The server fixture and account harness are shared with layer 1

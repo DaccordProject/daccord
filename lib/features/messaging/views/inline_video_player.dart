@@ -149,7 +149,17 @@ class _MediaKitVideo extends StatefulWidget {
 
 class _MediaKitVideoState extends State<_MediaKitVideo> {
   late final Player _player = Player();
-  late final VideoController _controller = VideoController(_player);
+  late final VideoController _controller = VideoController(
+    _player,
+    configuration: VideoControllerConfiguration(
+      // Linux's automatic decoding can select NVDEC and crash in libcuda's
+      // cuGraphicsUnregisterResource during mpv rendering. Decode on the CPU
+      // there, while retaining GPU texture rendering.
+      hwdec: !kIsWeb && defaultTargetPlatform == TargetPlatform.linux
+          ? 'no'
+          : null,
+    ),
+  );
 
   @override
   void initState() {

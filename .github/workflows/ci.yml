@@ -409,7 +409,7 @@ jobs:
             libgtk-3-dev liblzma-dev libsecret-1-dev \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             libunwind-dev libdw-dev \
-            libmpv-dev mpv \
+            libmpv-dev mpv ffmpeg \
             xvfb
 
       - name: Set up Flutter
