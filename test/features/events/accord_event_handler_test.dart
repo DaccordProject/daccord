@@ -137,9 +137,6 @@ void main() {
     final state = container.read(readStateControllerProvider(_serverKey));
     expect(state.isUnread('c1'), isFalse);
     // The ack is what stops READY's `unread` array from re-lighting the channel.
-    expect(
-      acked,
-      contains('POST /api/v1/channels/c1/ack {"message_id":"m7"}'),
-    );
+    expect(acked, contains('POST /api/v1/channels/c1/ack {"message_id":"m7"}'));
   });
 }
