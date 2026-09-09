@@ -12,6 +12,7 @@ import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/voice/controllers/missed_calls.dart';
 import 'package:bonfire/features/events/services/accord_connection_coordinator.dart';
+import 'package:bonfire/features/notifications/services/notification.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/utils/space_cache.dart';
@@ -815,6 +816,12 @@ class AccordAuth extends _$AccordAuth {
     ref
         .read(connectionsControllerProvider.notifier)
         .register(session, status: ConnectionStatus.connecting);
+
+    // First point at which notifications mean anything: there is an account
+    // whose mentions we could post. Asking at startup instead put the OS
+    // permission alert over the terms gate. Fire-and-forget — the prompt must
+    // not delay the connection, and it no-ops after the first call.
+    unawaited(requestNotificationPermissions());
 
     // Seed the rail from the last-known cache so this server's spaces show
     // immediately (dimmed, while connecting/unreachable) instead of waiting on
