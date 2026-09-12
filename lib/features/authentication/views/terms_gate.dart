@@ -1,9 +1,10 @@
 import 'package:bonfire/features/authentication/models/app_terms.dart';
+import 'package:bonfire/features/onboarding/views/onboarding_help.dart'
+    show openOnboardingHelpUrl;
 import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// The app's own terms gate, shown before the signed-out flow can be used.
 ///
@@ -48,10 +49,7 @@ class TermsGateView extends StatelessWidget {
         Align(
           alignment: Alignment.center,
           child: TextButton.icon(
-            onPressed: () => launchUrl(
-              Uri.parse(kDaccordPrivacyPolicyUrl),
-              mode: LaunchMode.externalApplication,
-            ),
+            onPressed: () => openOnboardingHelpUrl(kDaccordPrivacyPolicyUrl),
             icon: const Icon(Icons.privacy_tip_outlined, size: 18),
             label: const Text('Privacy Policy'),
           ),
@@ -191,10 +189,8 @@ Future<void> showAppTermsDialog(BuildContext context) {
                 overflowSpacing: 8,
                 children: [
                   TextButton.icon(
-                    onPressed: () => launchUrl(
-                      Uri.parse(kDaccordPrivacyPolicyUrl),
-                      mode: LaunchMode.externalApplication,
-                    ),
+                    onPressed: () =>
+                        openOnboardingHelpUrl(kDaccordPrivacyPolicyUrl),
                     icon: const Icon(Icons.privacy_tip_outlined, size: 18),
                     label: const Text('Privacy Policy'),
                   ),
