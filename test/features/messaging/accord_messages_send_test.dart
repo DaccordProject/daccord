@@ -5,6 +5,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/features/messaging/controllers/pending_uploads.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -103,23 +104,25 @@ void main() {
     // sendWithAttachments falls back to the same messages.create call `send`
     // makes, but needs the server's own failure reason rather than `send`'s
     // bare bool — that's what the composer shows above the message box.
-    test('surfaces the server error message on failure, not a generic one',
-        () async {
-      final n = _makeContainer().read(
-        accordMessagesControllerProvider('', 'ch1').notifier,
-      );
-      final client = _clientWith(
-        (_) async => _errorResponse(
-          403,
-          'FORBIDDEN',
-          'Missing Attach Files permission',
-        ),
-      );
+    test(
+      'surfaces the server error message on failure, not a generic one',
+      () async {
+        final n = _makeContainer().read(
+          accordMessagesControllerProvider('', 'ch1').notifier,
+        );
+        final client = _clientWith(
+          (_) async => _errorResponse(
+            403,
+            'FORBIDDEN',
+            'Missing Attach Files permission',
+          ),
+        );
 
-      final error = await n.sendWithAttachments(client, 'hi', const []);
+        final error = await n.sendWithAttachments(client, 'hi', const []);
 
-      expect(error, 'Missing Attach Files permission');
-    });
+        expect(error, 'Missing Attach Files permission');
+      },
+    );
 
     test('returns null on success', () async {
       final n = _makeContainer().read(
@@ -137,6 +140,108 @@ void main() {
   });
 
   group('sendWithAttachments — with files', () {
+    final file = <String, dynamic>{
+      'filename': 'pic.png',
+      'content': <int>[1, 2, 3],
+    };
+
+    test(
+      'a 202 with pending attachments is one message and one POST',
+      () async {
+        final container = _makeContainer();
+        final n = container.read(
+          accordMessagesControllerProvider('', 'ch1').notifier,
+        );
+        var posts = 0;
+        final client = _clientWith((request) async {
+          posts += 1;
+          return http.Response(
+            jsonEncode({
+              'data': {
+                'id': 'm1',
+                'channel_id': 'ch1',
+                'content': 'hi',
+                'attachments': <Object>[],
+              },
+              'pending_attachments': ['u1', 'u2'],
+            }),
+            202,
+          );
+        });
+
+        final error = await n.sendWithAttachments(client, 'hi', [file]);
+
+        expect(error, isNull);
+        expect(posts, 1);
+        final messages = container.read(
+          accordMessagesControllerProvider('', 'ch1'),
+        );
+        expect(messages?.map((m) => m.id), ['m1']);
+        expect(messages!.single.attachments, isEmpty);
+        // The held uploads are tracked against the message for the placeholder.
+        final pending = container.read(pendingUploadsControllerProvider(''));
+        expect(pending.forMessage('m1').map((u) => u.id), ['u1', 'u2']);
+        expect(pending.forMessage('m1').every((u) => u.isOutstanding), isTrue);
+      },
+    );
+
+    test('a 200 with the attachments delivered tracks nothing', () async {
+      final container = _makeContainer();
+      final n = container.read(
+        accordMessagesControllerProvider('', 'ch1').notifier,
+      );
+      final client = _clientWith(
+        (_) async => http.Response(
+          jsonEncode({
+            'data': {
+              'id': 'm1',
+              'channel_id': 'ch1',
+              'attachments': [
+                {'id': 'a1', 'filename': 'pic.png', 'url': '/cdn/a1.png'},
+              ],
+            },
+          }),
+          200,
+        ),
+      );
+
+      expect(await n.sendWithAttachments(client, 'hi', [file]), isNull);
+
+      final messages = container.read(
+        accordMessagesControllerProvider('', 'ch1'),
+      );
+      expect(messages!.single.attachments.single.id, 'a1');
+      expect(
+        container.read(pendingUploadsControllerProvider('')).uploads,
+        isEmpty,
+      );
+    });
+
+    test(
+      'a deterministic AutoMod rejection (400) shows the server reason',
+      () async {
+        final container = _makeContainer();
+        final n = container.read(
+          accordMessagesControllerProvider('', 'ch1').notifier,
+        );
+        final client = _clientWith(
+          (_) async => _errorResponse(
+            400,
+            'BAD_REQUEST',
+            'attachment blocked by rule blocked-file',
+          ),
+        );
+
+        final error = await n.sendWithAttachments(client, 'hi', [file]);
+
+        expect(error, 'attachment blocked by rule blocked-file');
+        expect(
+          container.read(accordMessagesControllerProvider('', 'ch1')),
+          isNull,
+        );
+      },
+    );
+
     test('surfaces the server error message on failure', () async {
       final n = _makeContainer().read(
         accordMessagesControllerProvider('', 'ch1').notifier,
@@ -146,31 +251,39 @@ void main() {
       );
 
       final error = await n.sendWithAttachments(client, 'hi', [
-        {'filename': 'song.mp3', 'content': <int>[1, 2, 3]},
+        {
+          'filename': 'song.mp3',
+          'content': <int>[1, 2, 3],
+        },
       ]);
 
       expect(error, 'File too large');
     });
 
-    test('falls back to a generic message when the server sends none',
-        () async {
-      final n = _makeContainer().read(
-        accordMessagesControllerProvider('', 'ch1').notifier,
-      );
-      final client = _clientWith(
-        (_) async => http.Response(
-          jsonEncode({
-            'error': {'code': 'INTERNAL'},
-          }),
-          500,
-        ),
-      );
+    test(
+      'falls back to a generic message when the server sends none',
+      () async {
+        final n = _makeContainer().read(
+          accordMessagesControllerProvider('', 'ch1').notifier,
+        );
+        final client = _clientWith(
+          (_) async => http.Response(
+            jsonEncode({
+              'error': {'code': 'INTERNAL'},
+            }),
+            500,
+          ),
+        );
 
-      final error = await n.sendWithAttachments(client, 'hi', [
-        {'filename': 'song.mp3', 'content': <int>[1, 2, 3]},
-      ]);
+        final error = await n.sendWithAttachments(client, 'hi', [
+          {
+            'filename': 'song.mp3',
+            'content': <int>[1, 2, 3],
+          },
+        ]);
 
-      expect(error, 'Failed to send attachments.');
-    });
+        expect(error, 'Failed to send attachments.');
+      },
+    );
   });
 }

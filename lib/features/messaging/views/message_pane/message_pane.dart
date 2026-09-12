@@ -19,10 +19,13 @@ import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/member/views/accord_member_popout.dart';
 import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/features/messaging/controllers/pending_uploads.dart';
+import 'package:bonfire/features/messaging/models/pending_upload.dart';
 import 'package:bonfire/features/messaging/utils/message_visibility.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/messaging/utils/attachment_limits.dart';
 import 'package:bonfire/features/messaging/utils/attachment_types.dart';
+import 'package:bonfire/features/messaging/utils/attachment_withdrawal.dart';
 import 'package:bonfire/features/messaging/utils/dropped_entity.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/messaging/views/box/accord_embed_box.dart';
@@ -285,9 +288,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
         ref
             .read(messagesLoadFailedProvider(serverKey, channelId).notifier)
             .set(false);
-        ref.invalidate(
-          accordMessagesControllerProvider(serverKey, channelId),
-        );
+        ref.invalidate(accordMessagesControllerProvider(serverKey, channelId));
       },
     );
   }

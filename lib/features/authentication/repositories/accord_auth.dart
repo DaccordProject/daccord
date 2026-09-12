@@ -15,6 +15,8 @@ import 'package:bonfire/features/events/services/accord_connection_coordinator.d
 import 'package:bonfire/features/notifications/services/notification.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
+import 'package:bonfire/features/messaging/controllers/pending_uploads.dart';
+import 'package:bonfire/features/messaging/utils/pending_upload_store.dart';
 import 'package:bonfire/features/server/utils/space_cache.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -227,11 +229,7 @@ class AccordAuth extends _$AccordAuth {
           'Failed to read ${server.baseUrl} settings '
           '(${result.statusCode}): $message',
         );
-        return (
-          settings: null,
-          error: message,
-          statusCode: result.statusCode,
-        );
+        return (settings: null, error: message, statusCode: result.statusCode);
       }
       final map = Map<String, dynamic>.from(result.data as Map);
       final inner = map['data'];
@@ -359,6 +357,8 @@ class AccordAuth extends _$AccordAuth {
     ref.read(missedCallsControllerProvider.notifier).clearAll();
     ref.read(openTabsControllerProvider.notifier).clear();
     unawaited(SpaceCache.clear());
+    unawaited(PendingUploadStore.clear());
+    ref.invalidate(pendingUploadsControllerProvider);
     ref.read(spacesControllerProvider.notifier).setSpaces(const []);
     state = const AccordAuthLoggedOut();
   }
@@ -743,6 +743,8 @@ class AccordAuth extends _$AccordAuth {
     ref.invalidate(presenceControllerProvider(key));
     ref.read(openTabsControllerProvider.notifier).removeForServer(key);
     unawaited(SpaceCache.remove(key));
+    unawaited(PendingUploadStore.remove(key));
+    ref.invalidate(pendingUploadsControllerProvider(key));
 
     if (wasActive) {
       final next = _connections.keys.isNotEmpty
@@ -789,6 +791,8 @@ class AccordAuth extends _$AccordAuth {
     ref.invalidate(presenceControllerProvider(key));
     ref.read(openTabsControllerProvider.notifier).removeForServer(key);
     unawaited(SpaceCache.remove(key));
+    unawaited(PendingUploadStore.remove(key));
+    ref.invalidate(pendingUploadsControllerProvider(key));
   }
 
   /// Connects [session] as a live server (or, if already connected, optionally

@@ -4,6 +4,7 @@ import '../gateway/gateway_connection.dart';
 import '../gateway/gateway_events.dart';
 import '../gateway/gateway_socket.dart';
 import '../models/accord_relationship.dart';
+import '../models/automod_upload.dart';
 import '../models/call_signal.dart';
 import '../models/channel.dart';
 import '../models/invite.dart';
@@ -19,6 +20,7 @@ import '../rest/accord_rest.dart';
 import '../rest/endpoints/admin_api.dart';
 import '../rest/endpoints/audit_logs_api.dart';
 import '../rest/endpoints/auth_api.dart';
+import '../rest/endpoints/automod_api.dart';
 import '../rest/endpoints/bans_api.dart';
 import '../rest/endpoints/channels_api.dart';
 import '../rest/endpoints/directory_api.dart';
@@ -71,6 +73,7 @@ class AccordClient {
   late final AdminApi adminApi;
   late final DirectoryApi directory;
   late final FederationApi federation;
+  late final AutomodApi automod;
 
   AccordClient({
     this.token = '',
@@ -121,6 +124,7 @@ class AccordClient {
     adminApi = AdminApi(rest);
     directory = DirectoryApi(rest);
     federation = FederationApi(rest);
+    automod = AutomodApi(rest);
 
     gateway = GatewaySocket(
       connectionFactory: connectionFactory,
@@ -264,5 +268,10 @@ class AccordClient {
   Stream<Map<String, dynamic>> get onAuditLogCreate => gateway.onAuditLogCreate;
   Stream<Map<String, dynamic>> get onAnonymousCountUpdated =>
       gateway.onAnonymousCountUpdated;
+
+  Stream<AccordAutomodUploadStatus> get onAutomodUploadStatus =>
+      gateway.onAutomodUploadStatus;
+  Stream<AccordAutomodUploadStatus> get onAutomodUploadUpdate =>
+      gateway.onAutomodUploadUpdate;
   Stream<RawGatewayEvent> get onRawEvent => gateway.onRawEvent;
 }

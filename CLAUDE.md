@@ -30,7 +30,7 @@ The Accord server backend is [`accordserver`](https://github.com/DaccordProject/
 - **State management:** Riverpod 3 (`flutter_riverpod`, `riverpod_annotation` with codegen → `*.g.dart`).
 - **Models / serialization:** primarily provided by `accordkit` (`Accord*` types). The handful of client-local models (server config, session, device profile, space folders, settings) hand-roll `fromJson`/`toJson` — they're small and Hive-backed, so codegen serializers aren't used. The only generated files in `lib/` are Riverpod's `*.g.dart` files.
 - **Routing:** `go_router`.
-- **Local storage:** `hive_ce` — boxes opened in `setupHive()`: `auth`, `last-location`, `added-accounts`, `accord-session`, `accord-settings`.
+- **Local storage:** `hive_ce` — boxes opened in `setupHive()`: `auth`, `last-location`, `added-accounts`, `space-cache`, `window-state`, `pending-uploads` (per-connection AutoMod-held upload IDs), plus the per-profile `accord-session` and `accord-settings`.
 - **Networking:** `accordkit` (vendored in-tree at `packages/accordkit`, maintained here). **The firebridge → accordkit swap is complete** — `packages/firebridge` and `firebridge_extensions` no longer exist and nothing in `lib/` imports them (a few doc comments still mention "firebridge" to describe what a controller replaced). Do not try to re-add firebridge.
 - **Voice/video/screen share:** `livekit_client` (a local fork at `packages/livekit_client`, see #68) over WebRTC; credentials fetched via accordkit's `client.voice`. See `lib/features/voice/`.
 - **Media:** `media_kit` (+ `media_kit_video`, `video_player_media_kit`, pinned git forks) / `cached_network_image` / `file_picker` — re-point CDN URLs at the Accord server.

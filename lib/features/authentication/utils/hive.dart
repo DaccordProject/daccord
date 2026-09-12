@@ -1,3 +1,4 @@
+import 'package:bonfire/features/messaging/utils/pending_upload_store.dart';
 import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:path_provider/path_provider.dart';
@@ -24,6 +25,9 @@ Future<void> setupHive() async {
   // Device-global desktop window geometry (size/position/maximized), restored
   // before the first frame by `setupDesktopWindow`.
   await Hive.openBox("window-state");
+  // Per-connection AutoMod-held upload IDs, so a "processing" placeholder
+  // survives a restart and READY can ask the server how each one ended.
+  await Hive.openBox(PendingUploadStore.boxName);
   // The active local device profile owns the `accord-session` (persisted
   // server + token + user for session restore) and `accord-settings` (client
   // preferences) boxes — bootstrap opens them from the active profile's

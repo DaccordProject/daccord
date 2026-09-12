@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../../models/message.dart';
+import '../../models/message_upload.dart';
 import '../endpoint_base.dart';
 import '../multipart_form.dart';
 import '../rest_result.dart';
@@ -36,6 +37,17 @@ class MessagesApi extends EndpointBase {
   ///
   /// Each entry in [files] is a map with `filename` (String),
   /// `content` (`List<int>`/`Uint8List`), and `content_type` (String).
+  ///
+  /// On success [RestResult.data] is an [AccordMessageUpload]: the created
+  /// message plus the upload IDs an AutoMod-enabled server is still holding
+  /// (a `202 Accepted` with `pending_attachments`). A server that published
+  /// everything immediately — or predates AutoMod — yields an empty list.
+  /// Either way exactly one message was created; callers must not re-send
+  /// because the returned attachment list is shorter than what they uploaded.
+  ///
+  /// A deterministic AutoMod rejection (blocked hash, `reject` rule) is an
+  /// ordinary failure (HTTP 400) whose [RestResult.error] carries the
+  /// server's reason.
   Future<RestResult> createWithAttachments(
     String channelId,
     Map<String, dynamic> data,
@@ -54,7 +66,21 @@ class MessagesApi extends EndpointBase {
     }
     final result = await rest.makeMultipartRequest(
         'POST', '/channels/$channelId/messages/upload', form);
-    return result.deserialize(AccordMessage.fromJson);
+    return _asUpload(result);
+  }
+
+  /// Wraps a multipart response's message in an [AccordMessageUpload],
+  /// carrying over the envelope's `pending_attachments` and HTTP status.
+  static RestResult _asUpload(RestResult result) {
+    final d = result.data;
+    if (result.ok && d is Map<String, dynamic>) {
+      result.data = AccordMessageUpload(
+        message: AccordMessage.fromJson(d),
+        pendingAttachmentIds: result.pendingAttachments,
+        statusCode: result.statusCode,
+      );
+    }
+    return result;
   }
 
   /// Edits an existing message.

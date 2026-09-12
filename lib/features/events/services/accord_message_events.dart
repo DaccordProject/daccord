@@ -6,14 +6,18 @@ import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/controllers/forum_posts.dart';
+import 'package:bonfire/features/messaging/controllers/pending_uploads.dart';
 import 'package:bonfire/features/messaging/controllers/thread_replies.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
+import 'package:bonfire/features/messaging/controllers/withdrawn_attachments.dart';
+import 'package:bonfire/features/messaging/utils/attachment_withdrawal.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/notifications/services/notification.dart';
 import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:bonfire/features/notifications/utils/notification_gate.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// The message-domain half of `handleAccordEvents`: incoming messages, the
@@ -200,17 +204,114 @@ void bindMessageEvents(
     }),
   );
 
+  // ── Withdrawn attachments ────────────────────────────────────────────────
+  // AutoMod withdrawing a published file (or any edit that drops one) reaches
+  // us as a `message.update` with the shorter list — and, for our own uploads,
+  // an `automod.upload_status`. Replacing the cached message is what the
+  // fan-out below already does; what it can't do by itself is tell the image
+  // cache and an open lightbox that the bytes they hold are gone. These two
+  // helpers do that.
+  final withdrawn = ref.read(
+    withdrawnAttachmentsControllerProvider(serverKey).notifier,
+  );
+  final pendingUploads = ref.read(
+    pendingUploadsControllerProvider(serverKey).notifier,
+  );
+  final cdnUrl = client.config.cdnUrl;
+
+  /// The cached copy of a message, from whichever open cache holds it.
+  AccordMessage? cachedMessage(
+    String channelId,
+    String messageId, {
+    String? threadId,
+  }) {
+    final key = (serverKey: serverKey, channelId: channelId);
+    if (activeMessageChannels.contains(key)) {
+      final hit = ref
+          .read(accordMessagesControllerProvider(serverKey, channelId))
+          ?.firstWhereOrNull((m) => m.id == messageId);
+      if (hit != null) return hit;
+    }
+    for (final t in activeThreadReplies) {
+      if (t.serverKey != serverKey || t.channelId != channelId) continue;
+      if (threadId != null && t.rootId != threadId) continue;
+      final hit = ref
+          .read(threadRepliesControllerProvider(serverKey, channelId, t.rootId))
+          ?.firstWhereOrNull((m) => m.id == messageId);
+      if (hit != null) return hit;
+    }
+    if (activeForumChannels.contains(key)) {
+      return ref
+          .read(forumPostsControllerProvider(serverKey, channelId))
+          ?.firstWhereOrNull((m) => m.id == messageId);
+    }
+    return null;
+  }
+
+  /// Pushes [message] (already stripped of an attachment) back through every
+  /// cache that holds it, so each re-emits its list.
+  void reapplyToCaches(AccordMessage message) {
+    if (message.spaceId == null) {
+      ref
+          .read(dmChannelsControllerProvider(serverKey).notifier)
+          .updateMessagePreview(message);
+    }
+    final key = (serverKey: serverKey, channelId: message.channelId);
+    if (activeMessageChannels.contains(key)) {
+      ref
+          .read(
+            accordMessagesControllerProvider(
+              serverKey,
+              message.channelId,
+            ).notifier,
+          )
+          .updateMessage(message);
+    }
+    for (final t in activeThreadReplies) {
+      if (t.serverKey != serverKey || t.channelId != message.channelId) {
+        continue;
+      }
+      ref
+          .read(
+            threadRepliesControllerProvider(
+              serverKey,
+              message.channelId,
+              t.rootId,
+            ).notifier,
+          )
+          .updateReply(message);
+    }
+    if (activeForumChannels.contains(key)) {
+      ref
+          .read(
+            forumPostsControllerProvider(serverKey, message.channelId).notifier,
+          )
+          .updatePost(message);
+    }
+  }
+
   // ── Message cache (per channel) ──────────────────────────────────────────
   // Edits and deletes follow the same opened-channels rule as the cache block
   // above.
   subs.add(
     client.onMessageUpdate.listen((message) {
+      // A tracked upload turning up as a real attachment is its publication,
+      // whether or not the `published` status event has arrived yet.
+      pendingUploads.applyPublishedAttachments(message);
       if (message.spaceId == null) {
         ref
             .read(dmChannelsControllerProvider(serverKey).notifier)
             .updateMessagePreview(message);
       }
       if (!isActive()) return;
+      // Compare against the copy we hold *before* the caches replace it.
+      final previous = cachedMessage(
+        message.channelId,
+        message.id,
+        threadId: message.threadId,
+      );
+      final gone = withdrawnAttachments(previous, message);
+      if (gone.isNotEmpty) withdrawn.withdraw(gone, cdnUrl: cdnUrl);
       if (activeMessageChannels.contains((
         serverKey: serverKey,
         channelId: message.channelId,
@@ -266,6 +367,8 @@ void bindMessageEvents(
       final messageId =
           data['id']?.toString() ?? data['message_id']?.toString();
       if (channelId == null || messageId == null) return;
+      // A deleted message can't show a placeholder; drop its held uploads.
+      pendingUploads.clearForMessage(messageId);
       final dmChannels = ref.read(
         dmChannelsControllerProvider(serverKey).notifier,
       );
@@ -307,6 +410,47 @@ void bindMessageEvents(
             .removePost(messageId);
       }
     }),
+  );
+
+  // ── AutoMod upload status ────────────────────────────────────────────────
+  // `automod.upload_status` (uploader only, `messages` intent) advances the
+  // placeholders on our own messages; every ID it names is ours, so one we
+  // don't know yet is buffered until the composer's 202 lands. Reasons are
+  // fetched from `automod.getUpload` for those — and only those — uploads.
+  // `automod.upload_update` (`moderation` intent) is subscribed for parity but
+  // the client doesn't request that intent by default; when a moderator
+  // session does receive it, only IDs already tracked (a moderator's own
+  // upload) touch the placeholders — a stranger's upload is never a
+  // placeholder here — and a refusal shrinks the cached message like the
+  // server's `message.update` does.
+  void applyUploadStatus(
+    AccordAutomodUploadStatus status, {
+    required bool own,
+  }) {
+    pendingUploads.applyStatus(status, client: client, bufferUnknown: own);
+    if (!AutomodUploadStatus.isRefused(status.status)) return;
+    if (!isActive()) return;
+    // A published-then-withdrawn file: the attachment carries the upload's ID.
+    // Strip it from whichever cache holds the message so the row, any open
+    // viewer and the image cache let go of it even if the `message.update`
+    // is delayed.
+    final cached = cachedMessage(status.channelId, status.messageId);
+    if (cached == null) return;
+    final removed = removeAttachmentInPlace(cached, status.id);
+    if (removed == null) return;
+    withdrawn.withdraw([removed], cdnUrl: cdnUrl);
+    reapplyToCaches(cached);
+  }
+
+  subs.add(
+    client.onAutomodUploadStatus.listen(
+      (status) => applyUploadStatus(status, own: true),
+    ),
+  );
+  subs.add(
+    client.onAutomodUploadUpdate.listen(
+      (status) => applyUploadStatus(status, own: false),
+    ),
   );
 
   // ── Read-state sync (multi-device) ───────────────────────────────────────

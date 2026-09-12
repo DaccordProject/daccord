@@ -37,6 +37,7 @@ void main() {
     expect(client.rest.tokenType, 'Bearer');
     expect(client.users, isA<UsersApi>());
     expect(client.directory, isA<DirectoryApi>());
+    expect(client.automod, isA<AutomodApi>());
   });
 
   test('applies the default request timeout, and an override', () {

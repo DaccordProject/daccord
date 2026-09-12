@@ -339,6 +339,13 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     final avatarRadius = compact ? 14.0 : 18.0;
     final gutter = compact ? 8.0 : 12.0;
     final cdnUrl = ref.watchCdnUrl();
+    // Attachments AutoMod is holding back (or refused) on this message — ours
+    // only; the tracker is fed by our own 202s and uploader-only events.
+    final pendingUploads = ref.watch(
+      pendingUploadsControllerProvider(
+        ref.watchActiveServerKey() ?? '',
+      ).select((s) => s.forMessage(message.id)),
+    );
     final avatarUrl = widget.author != null
         ? accordMemberAvatarUrl(widget.author, cdnUrl)
         : accordAvatarUrl(widget.authorUser, cdnUrl);
@@ -494,6 +501,11 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: _buildAttachment(attachment, cdnUrl, theme),
+                        ),
+                      for (final upload in pendingUploads)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: _PendingAttachmentTile(upload: upload),
                         ),
                       for (final embed in message.embeds)
                         AccordEmbedBox(embed: embed, cdnUrl: cdnUrl),
@@ -776,7 +788,11 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
           builder: (_, safeUrl) => MouseRegion(
             cursor: SystemMouseCursors.click,
             child: GestureDetector(
-              onTap: () => showImageLightbox(context, safeUrl),
+              onTap: () => showImageLightbox(
+                context,
+                safeUrl,
+                attachmentId: attachmentKey(attachment),
+              ),
               child: _ImageAttachment(
                 url: safeUrl,
                 width: _asDouble(attachment.width),

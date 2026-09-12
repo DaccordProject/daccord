@@ -11,6 +11,7 @@ import 'package:bonfire/features/events/services/accord_ready_sync.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/controllers/forum_posts.dart';
+import 'package:bonfire/features/messaging/controllers/pending_uploads.dart';
 import 'package:bonfire/features/messaging/controllers/thread_replies.dart';
 import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
@@ -98,6 +99,16 @@ VoidCallback handleAccordEvents(
         ref
             .read(blockedUsersControllerProvider(serverKey).notifier)
             .refresh(client),
+      );
+      // Uploads AutoMod was still holding when we last disconnected (or when
+      // the app was last closed — they're persisted per connection) may have
+      // been decided meanwhile, and a fresh session replays nothing. Ask the
+      // server about each outstanding one, once, for every connection: they're
+      // this account's own uploads (#329).
+      unawaited(
+        ref
+            .read(pendingUploadsControllerProvider(serverKey).notifier)
+            .reconcile(client),
       );
       if (isActive()) {
         seedVoiceStatesFromReady(ref, data, serverKey: serverKey);
@@ -505,14 +516,14 @@ String? _channelOf(
 /// `WidgetRef`.
 final retryLoadSpacesProvider =
     Provider<Future<void> Function(AccordClient, String)>((ref) {
-  return (client, serverKey) {
-    ref.read(spacesLoadFailedProvider(serverKey).notifier).set(false);
-    return loadSpaces(
-      ref,
-      client,
-      serverKey: serverKey,
-      isActive: () =>
-          ref.read(connectionsControllerProvider).activeKey == serverKey,
-    );
-  };
-});
+      return (client, serverKey) {
+        ref.read(spacesLoadFailedProvider(serverKey).notifier).set(false);
+        return loadSpaces(
+          ref,
+          client,
+          serverKey: serverKey,
+          isActive: () =>
+              ref.read(connectionsControllerProvider).activeKey == serverKey,
+        );
+      };
+    });
