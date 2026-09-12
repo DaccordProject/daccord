@@ -144,6 +144,7 @@ End-user documentation lives in [`docs/`](docs/index.md):
 
 Maintainer-facing notes: [release signing](docs/release-signing.md) and [store deployment](docs/app-store-deploy.md).
 CI checks Mac upload metadata isolation before release builds; see the store deployment guide for retrying a failed Mac upload.
+Manual CI includes platform build checks by default (`build_artifacts=true`); store recovery runs the test gates and its selected store build.
 
 ---
 

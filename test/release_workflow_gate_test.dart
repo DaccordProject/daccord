@@ -3,6 +3,37 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('reusable CI requires an explicit opt-in to artifact builds', () {
+    final workflow = File('.github/workflows/ci.yml').readAsStringSync();
+    final callable = workflow.split('  workflow_call:')[1].split(
+      '  workflow_dispatch:',
+    )[0];
+    final manual = workflow.split('  workflow_dispatch:')[1].split(
+      '\nconcurrency:',
+    )[0];
+    expect(callable, contains('build_artifacts:'));
+    expect(callable, contains('default: false'));
+    expect(manual, contains('build_artifacts:'));
+    expect(manual, contains('default: true'));
+    expect(
+      _jobBlock(workflow, 'build'),
+      contains(r'if: ${{ inputs.build_artifacts }}'),
+    );
+  });
+
+  test('both Linux build matrices install secure-storage headers', () {
+    for (final path in [
+      '.github/workflows/ci.yml',
+      '.github/workflows/release.yml',
+    ]) {
+      final build = _jobBlock(File(path).readAsStringSync(), 'build');
+      final dependencies = build
+          .split('- name: Install Linux build dependencies')[1]
+          .split('\n      - name:')[0];
+      expect(dependencies, contains('libsecret-1-dev'), reason: path);
+    }
+  });
+
   test('every store deployment requires verified tags and CI', () {
     final workflow = File('.github/workflows/release.yml').readAsStringSync();
 

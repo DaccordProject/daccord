@@ -233,6 +233,9 @@ the Release workflow on `master` with `deploy_mac=true`, `deploy_ios=false`, and
 `deploy_android=false`. This rebuilds the same marketing version with a new
 build number and uploads only the Mac package. A rerun of the old tagged run
 still uses the old Fastfile.
+The reusable CI call runs all test gates; artifact smoke builds are off unless
+the caller sets `build_artifacts=true`. Direct manual CI runs default that input
+to true. This keeps store recovery scoped to the requested store build.
 
 To turn macOS on, in App Store Connect → Daccord → macOS App:
 
