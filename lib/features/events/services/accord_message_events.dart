@@ -83,7 +83,7 @@ void bindMessageEvents(
             )
             .addMessage(message);
       }
-      if (message.spaceId == null) {
+      if (isDirectMessage) {
         ref
             .read(dmChannelsControllerProvider(serverKey).notifier)
             .applyMessage(message);
