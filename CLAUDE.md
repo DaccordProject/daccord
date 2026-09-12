@@ -41,6 +41,8 @@ The Accord server backend is [`accordserver`](https://github.com/DaccordProject/
 
 ### Layout
 
+- Universal Links use `https://www.daccord.gg/open/`. Before releasing the iOS entitlement, verify the website association file, regenerated signing profile and physical-device launch; see `docs/app-store-deploy.md`.
+
 ```
 lib/
   features/        # feature modules: authentication, spaces, channels, messaging,
@@ -170,7 +172,6 @@ When in doubt about Accord behaviour, read `packages/accordkit` (the vendored SD
   should verify commands against `pubspec.yaml` and workflows rather than copy
   volatile dependency versions or test counts.
 - Keep changes minimal and reuse-first; this is a port, not a rewrite.
-- Universal Links use `https://www.daccord.gg/open/`. Before releasing the iOS entitlement, verify the website association file, regenerated signing profile and physical-device launch; see `docs/app-store-deploy.md`.
 - Don't reintroduce Discord endpoints, Discord branding, or Firebase push without explicit instruction.
 
 ## AutoMod
