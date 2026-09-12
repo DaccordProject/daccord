@@ -1,3 +1,4 @@
+import 'package:bonfire/features/automod/views/automod_panel.dart';
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
@@ -309,7 +310,12 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     final client = _client;
     final currentUserId = ref.readUserId();
     if (client == null || currentUserId == null) return;
-    final members = ref.read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId));
+    final members = ref.read(
+      accordMembersControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        widget.spaceId,
+      ),
+    );
     final me = members?[currentUserId];
     final initial = me?.nickname ?? '';
     final next = (await showTextPromptDialog(
@@ -337,7 +343,12 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     final updated = result.data;
     if (updated is AccordMember) {
       ref
-          .read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier)
+          .read(
+            accordMembersControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              widget.spaceId,
+            ).notifier,
+          )
           .upsertMember(updated);
     }
   }
@@ -390,7 +401,12 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     // Text channels usable as rules/system targets. Reconcile the drafted ids
     // against the live list so a stale id falls back to "None".
     final textChannels =
-        (ref.watch(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId)) ??
+        (ref.watch(
+                  accordChannelsControllerProvider(
+                    ref.readActiveServerKey() ?? '',
+                    widget.spaceId,
+                  ),
+                ) ??
                 const <AccordChannel>[])
             .where((c) => c.type == 'text')
             .toList();
@@ -466,6 +482,14 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
         ],
         actions: [
           _MembershipSection(onEditNickname: _editOwnNickname),
+          if (accordHasPermission(perms, AccordPermission.manageSpace) ||
+              accordHasPermission(perms, AccordPermission.moderateMembers))
+            ListTile(
+              leading: const Icon(Icons.shield_outlined),
+              title: const Text('AutoMod'),
+              subtitle: const Text('Attachment rules and moderation review'),
+              onTap: () => showAutomodPanel(context, widget.spaceId),
+            ),
           if (canManageRoles ||
               canViewAuditLog ||
               canModerate ||

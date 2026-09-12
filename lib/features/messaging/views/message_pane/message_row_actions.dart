@@ -124,6 +124,7 @@ class _HoverActions extends StatelessWidget {
     required this.pinned,
     required this.onEdit,
     required this.onDelete,
+    this.onBlock,
     required this.onTogglePin,
     required this.onReport,
     required this.onMenuStateChanged,
@@ -140,6 +141,7 @@ class _HoverActions extends StatelessWidget {
   final bool pinned;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onBlock;
   final VoidCallback onTogglePin;
   final VoidCallback onReport;
 
@@ -177,6 +179,7 @@ class _HoverActions extends StatelessWidget {
               pinned: pinned,
               onEdit: onEdit,
               onDelete: onDelete,
+              onBlock: onBlock,
               onTogglePin: onTogglePin,
               onReport: onReport,
               onMenuStateChanged: onMenuStateChanged,
@@ -196,6 +199,7 @@ class _MessageActions extends StatelessWidget {
     required this.pinned,
     required this.onEdit,
     required this.onDelete,
+    this.onBlock,
     required this.onTogglePin,
     required this.onReport,
     required this.onMenuStateChanged,
@@ -208,6 +212,7 @@ class _MessageActions extends StatelessWidget {
   final bool pinned;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onBlock;
   final VoidCallback onTogglePin;
   final VoidCallback onReport;
 
@@ -229,6 +234,8 @@ class _MessageActions extends StatelessWidget {
         switch (value) {
           case 'edit':
             onEdit();
+          case 'block':
+            onBlock?.call();
           case 'delete':
             onDelete();
           case 'pin':
@@ -241,6 +248,11 @@ class _MessageActions extends StatelessWidget {
         if (canPin)
           PopupMenuItem(value: 'pin', child: Text(pinned ? 'Unpin' : 'Pin')),
         if (canEdit) const PopupMenuItem(value: 'edit', child: Text('Edit')),
+        if (onBlock != null)
+          const PopupMenuItem(
+            value: 'block',
+            child: Text('Block files and delete'),
+          ),
         if (canDelete)
           const PopupMenuItem(value: 'delete', child: Text('Delete')),
         if (canReport)

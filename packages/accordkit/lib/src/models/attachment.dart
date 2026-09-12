@@ -7,6 +7,7 @@ class AccordAttachment {
   String? description;
   String? contentType;
   int size;
+  String? contentHash;
   String url;
   Object? width;
   Object? height;
@@ -17,6 +18,7 @@ class AccordAttachment {
     this.description,
     this.contentType,
     this.size = 0,
+    this.contentHash,
     this.url = '',
     this.width,
     this.height,
@@ -29,6 +31,7 @@ class AccordAttachment {
       description: d['description'] as String?,
       contentType: d['content_type'] as String?,
       size: asInt(d['size']),
+      contentHash: asStringOrNull(d['content_hash']),
       url: asString(d['url']),
       width: d['width'],
       height: d['height'],
@@ -42,6 +45,7 @@ class AccordAttachment {
       'size': size,
       'url': url,
     };
+    if (contentHash != null) d['content_hash'] = contentHash;
     if (description != null) d['description'] = description;
     if (contentType != null) d['content_type'] = contentType;
     if (width != null) d['width'] = width;

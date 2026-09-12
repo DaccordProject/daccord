@@ -2,11 +2,7 @@ import '../../models/automod_upload.dart';
 import '../endpoint_base.dart';
 import '../rest_result.dart';
 
-/// AutoMod attachment moderation: the uploader-facing status lookup.
-///
-/// The moderator queue, review, content download, policy and hash-denylist
-/// routes are deliberately not wrapped here — an ordinary sender must never
-/// call them, and the client's moderation UI is separate work.
+/// AutoMod APIs. Moderator/configuration methods require server authorization.
 class AutomodApi extends EndpointBase {
   AutomodApi(super.rest);
 
@@ -20,4 +16,44 @@ class AutomodApi extends EndpointBase {
     );
     return result.deserialize(AccordAutomodUpload.fromJson);
   }
+
+  String _scope(String scope) => '/automod/${Uri.encodeComponent(scope)}';
+  Future<RestResult> getPolicy(String scope) =>
+      rest.makeRequest('GET', '${_scope(scope)}/policy');
+  Future<RestResult> setPolicy(String scope, Map<String, dynamic> policy) =>
+      rest.makeRequest('PUT', '${_scope(scope)}/policy',
+          body: policy, retryOnRateLimit: false);
+  Future<RestResult> resetPolicy(String scope) =>
+      rest.makeRequest('DELETE', '${_scope(scope)}/policy',
+          retryOnRateLimit: false);
+  Future<RestResult> health() => rest.makeRequest('GET', '/automod/health');
+  Future<RestResult> listUploads(String scope,
+          {String? status, String? before}) =>
+      rest.makeRequest('GET', '${_scope(scope)}/uploads', query: {
+        if (status != null) 'status': status,
+        if (before != null) 'before': before,
+      });
+  Future<RestResult> review(String id, String action, String reason) =>
+      rest.makeRequest('PATCH', '/automod/uploads/${Uri.encodeComponent(id)}',
+          body: {'action': action, 'reason': reason}, retryOnRateLimit: false);
+  Future<RestResult> getContent(String id) =>
+      rest.makeRawRequest('/automod/uploads/${Uri.encodeComponent(id)}/content',
+          maxBytes: 64 * 1024 * 1024);
+  Future<RestResult> blockAttachment(String scope, String id, String reason) =>
+      rest.makeRequest('POST',
+          '${_scope(scope)}/attachments/${Uri.encodeComponent(id)}/block',
+          body: {'reason': reason}, retryOnRateLimit: false);
+  Future<RestResult> listHashes(String scope, {String? before}) =>
+      rest.makeRequest('GET', '${_scope(scope)}/hashes',
+          query: {if (before != null) 'before': before});
+  Future<RestResult> blockHash(String scope, String hash, String reason) =>
+      rest.makeRequest(
+          'PUT', '${_scope(scope)}/hashes/${Uri.encodeComponent(hash)}',
+          body: {'reason': reason}, retryOnRateLimit: false);
+  Future<RestResult> unblockHash(String scope, String hash) => rest.makeRequest(
+      'DELETE', '${_scope(scope)}/hashes/${Uri.encodeComponent(hash)}',
+      retryOnRateLimit: false);
+  Future<RestResult> events(String scope, {String? before}) =>
+      rest.makeRequest('GET', '${_scope(scope)}/events',
+          query: {if (before != null) 'before': before});
 }

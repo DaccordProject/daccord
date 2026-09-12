@@ -320,6 +320,28 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     if (!ok) showInfoSnack(context, 'Failed to delete message');
   }
 
+  Future<void> _blockFiles(AccordMessage message) async {
+    final client = ref.accordClient;
+    if (client == null) return;
+    final removed = await showBlockAttachmentDialog(
+      context,
+      client: client,
+      message: message,
+      isInstanceAdmin: ref.readIsAdmin(),
+      stillActive: () => mounted && identical(ref.accordClient, client),
+    );
+    if (mounted && removed == true && identical(ref.accordClient, client)) {
+      ref
+          .read(
+            accordMessagesControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              widget.channelId,
+            ).notifier,
+          )
+          .removeMessage(message.id);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -382,6 +404,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
             pinned: message.pinned,
             onEdit: () => _startEdit(message),
             onDelete: () => _delete(message.id),
+            onBlock:
+                (widget.canManageMessages || ref.readIsAdmin()) &&
+                    message.attachments.isNotEmpty &&
+                    (message.spaceId != null || ref.readIsAdmin())
+                ? () => _blockFiles(message)
+                : null,
             onTogglePin: () => _togglePin(message.id, pinned: message.pinned),
             onReport: () => _report(message),
             onMenuStateChanged: _menuStateChanged,
@@ -586,6 +614,14 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         // Pin sits between Edit and Delete in this menu; it's site-specific
         // (the thread view has no pinning) so it slots in via [beforeDelete].
         beforeDelete: [
+          if ((widget.canManageMessages || ref.readIsAdmin()) &&
+              message.attachments.isNotEmpty &&
+              (message.spaceId != null || ref.readIsAdmin()))
+            AccordMenuEntry(
+              label: 'Block files and delete',
+              icon: Icons.block,
+              onSelected: () => _blockFiles(message),
+            ),
           if (widget.canManageMessages)
             AccordMenuEntry(
               label: message.pinned ? 'Unpin' : 'Pin',

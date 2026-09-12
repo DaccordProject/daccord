@@ -170,3 +170,13 @@ When in doubt about Accord behaviour, read `packages/accordkit` (the vendored SD
   volatile dependency versions or test counts.
 - Keep changes minimal and reuse-first; this is a port, not a rewrite.
 - Don't reintroduce Discord endpoints, Discord branding, or Firebase push without explicit instruction.
+
+## AutoMod
+
+`lib/features/automod/` owns the policy/review UI and block-before-delete flow.
+Keep configuration (`manage_space`), review (`moderate_members`), and stored-file
+blocking (effective channel `manage_messages`) separate; instance scope requires
+an administrator. `docs/automod.md` documents the client contract. Private
+evidence must use the authenticated SDK endpoint and must be cleared on account
+changes. Moderator mutations opt out of automatic 429 retry. Tests live in
+`test/features/automod/` and `packages/accordkit/test/automod_management_test.dart`.
