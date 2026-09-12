@@ -115,6 +115,34 @@ void main() {
       }
     },
   );
+
+  test(
+    'a notification with an explicit null id is still acknowledged with no body',
+    () async {
+      token = ''.padLeft(64, 'e');
+      expect(await server.start(0), isTrue);
+      final client = HttpClient();
+      try {
+        final request = await client.postUrl(
+          Uri.parse('http://127.0.0.1:${server.port}/mcp'),
+        );
+        request.headers.contentType = ContentType.json;
+        request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+        request.write(
+          jsonEncode({
+            'jsonrpc': '2.0',
+            'method': 'notifications/initialized',
+            'id': null,
+          }),
+        );
+        final response = await request.close();
+        expect(response.statusCode, HttpStatus.accepted);
+        expect(await utf8.decoder.bind(response).join(), isEmpty);
+      } finally {
+        client.close(force: true);
+      }
+    },
+  );
 }
 
 Future<int> _postInitialize(int port, {String? bearerToken}) async {

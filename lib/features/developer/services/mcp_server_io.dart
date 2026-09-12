@@ -134,11 +134,16 @@ class McpServer {
 
     // Streamable HTTP acknowledges notifications without a JSON-RPC response.
     // Returning `{}` here makes strict clients reject the initialized handshake.
+    // `id == null` (rather than a containsKey check) also covers clients that
+    // send an explicit `"id": null` on a notification, matching the leniency
+    // `_dispatch` already applies to `notifications/initialized` below.
     if (parsed['jsonrpc'] == '2.0' &&
         parsed['method'] is String &&
         (parsed['method'] as String).isNotEmpty &&
-        !parsed.containsKey('id')) {
-      request.response.statusCode = HttpStatus.accepted;
+        parsed['id'] == null) {
+      request.response
+        ..statusCode = HttpStatus.accepted
+        ..headers.set(HttpHeaders.connectionHeader, 'close');
       await request.response.close();
       return;
     }
