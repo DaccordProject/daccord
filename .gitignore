@@ -58,7 +58,14 @@ app.*.map.json
 
 # Generated at release time by dist/app-store-release-notes.sh — the App Store
 # "What's New" text is derived from the commit range, not committed.
-/fastlane/metadata/
+/fastlane/metadata/*
+!/fastlane/metadata/ios/
+/fastlane/metadata/ios/*
+!/fastlane/metadata/ios/en-US/
+/fastlane/metadata/ios/en-US/*
+!/fastlane/metadata/ios/en-US/marketing_url.txt
+!/fastlane/metadata/ios/en-US/privacy_url.txt
+!/fastlane/metadata/ios/en-US/support_url.txt
 /fastlane/report.xml
 
 # Scratch output from store-media/ios-generator/render.sh.

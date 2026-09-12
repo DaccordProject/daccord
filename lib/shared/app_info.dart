@@ -99,6 +99,11 @@ bool get isBackgroundConnectionAvailable =>
 /// Godot repo). See [kGithubLatestReleaseUrl].
 const String kGithubRepo = 'DaccordProject/daccord';
 
+/// Public website surfaces used by in-app support and policy links.
+const String kDaccordWebsiteUrl = 'https://www.daccord.gg';
+const String kDaccordHelpUrl = '$kDaccordWebsiteUrl/help.html';
+const String kDaccordPrivacyPolicyUrl = '$kDaccordWebsiteUrl/privacy.html';
+
 /// GitHub REST endpoint for the latest published release of [kGithubRepo].
 const String kGithubLatestReleaseUrl =
     'https://api.github.com/repos/$kGithubRepo/releases/latest';

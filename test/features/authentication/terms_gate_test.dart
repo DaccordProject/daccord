@@ -87,6 +87,7 @@ void main() {
 
     expect(find.byType(TermsGateView), findsOneWidget);
     expect(find.text(appTermsTitle), findsOneWidget);
+    expect(find.text('Privacy Policy'), findsOneWidget);
     expect(find.textContaining('Zero tolerance'), findsOneWidget);
     // The welcome screen — and with it the server browser and the credentials
     // form behind it — stays out of reach.
@@ -163,5 +164,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(AppTermsBody), findsOneWidget);
+  });
+
+  testWidgets('the terms dialog also offers the Privacy Policy', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(AppThemePreset.dark),
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showAppTermsDialog(context),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AppTermsBody), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Privacy Policy'), findsOneWidget);
   });
 }

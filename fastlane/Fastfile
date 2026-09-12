@@ -134,10 +134,9 @@ end
 #
 # Apple's review still gates the actual go-live; nothing here can shorten that.
 #
-# Listing assets — screenshots, App Privacy answers, age rating — stay managed
-# in App Store Connect. They are per-app rather than per-version, so they are
-# set once and every later release reuses them; only the release notes change
-# per version, which is why that is the single metadata field delivered here.
+# Listing assets such as screenshots, App Privacy answers, and age rating stay
+# managed in App Store Connect. The repository delivers release notes plus the
+# stable support, privacy, and marketing URLs kept under fastlane/metadata.
 def submit_release(api_key:, platform:, metadata_path:, ipa: nil, pkg: nil)
   review_decision = app_store_review_decision(
     platform: platform,
@@ -169,9 +168,9 @@ def submit_release(api_key:, platform:, metadata_path:, ipa: nil, pkg: nil)
     # pubspec string — deliver has to target the same version record that
     # CFBundleShortVersionString declares or it edits the wrong one.
     app_version: ENV.fetch("APP_STORE_VERSION"),
-    # Only release_notes.txt lives here (written by
-    # dist/app-store-release-notes.sh); deliver uploads the fields it finds and
-    # leaves everything else in App Store Connect untouched.
+    # release_notes.txt is written by dist/app-store-release-notes.sh. The same
+    # directory also contains the stable support, privacy, and marketing URLs;
+    # deliver uploads those fields and leaves other listing data untouched.
     metadata_path: metadata_path,
     skip_binary_upload: skip_review,
     skip_metadata: skip_review,
