@@ -31,6 +31,20 @@ class VoiceSession {
   bool _deafened = false;
   bool _intentionalDisconnect = false;
 
+  /// Why the microphone is *not* live after the last [connect] (or the last
+  /// [setMicEnabled] `true`): the OS denied microphone access, no capture
+  /// device, or the publish itself failed. Null when the mic was published or
+  /// simply wasn't requested (joined muted). The controller reads this right
+  /// after `connect` to keep the UI honest — muted, with the reason — rather
+  /// than showing a live mic that isn't (#325).
+  String? _micError;
+
+  /// How long to wait for the local participant to exist after `Room.connect`
+  /// before giving up on the initial mic publish. Only ever waited on in the
+  /// rare case the join-response listener hasn't finished when `connect`
+  /// returns.
+  static const _localParticipantTimeout = Duration(seconds: 10);
+
   /// Output (remote-audio) gain as a 0–2 multiplier; applied to every remote
   /// audio track. The reference dropped to -80 dB for deafen; here LiveKit has
   /// no per-track volume so we lean on the WebRTC track volume.
@@ -71,6 +85,9 @@ class VoiceSession {
   Room? get room => _room;
   VoiceSessionState get state => _state;
   String? get lastError => _lastError;
+
+  /// See [_micError].
+  String? get micError => _micError;
 
   LocalParticipant? get localParticipant => _room?.localParticipant;
 
@@ -179,20 +196,40 @@ class VoiceSession {
 
     _setState(VoiceSessionState.connecting);
     _lastError = null;
+    _micError = null;
+
+    // Capture the microphone *before* joining the room. On mobile this is what
+    // raises the OS microphone prompt — flutter_webrtc's `getUserMedia` calls
+    // `AVCaptureDevice requestAccessForMediaType:` on iOS and requests
+    // RECORD_AUDIO on Android — so the user is asked up front, at join, rather
+    // than at whichever later toggle happens to be the first real capture. It
+    // also makes a denied/failed capture a *reported* outcome ([micError])
+    // instead of a silently skipped publish: the old path was a null-aware
+    // `localParticipant?.setMicrophoneEnabled` inside an error-swallowing
+    // guard, and when that did nothing the first `mute` was a no-op and the
+    // `unmute` created the track — and prompted — for the first time (#325).
+    LocalAudioTrack? micTrack;
+    if (!selfMute) {
+      try {
+        micTrack = await LocalAudioTrack.create(
+          AudioCaptureOptions(deviceId: captureDeviceId),
+        );
+      } catch (e) {
+        _micError = describeMicFailure(e);
+        debugPrint('LiveKit mic capture failed: $e');
+      }
+    }
+
     try {
       await room.connect(url, token);
       // The new connection is live — genuine drops from here are unintentional.
       _intentionalDisconnect = false;
-      // The SDK publishes the mic for us; honour the initial mute state and the
-      // chosen capture device (we no longer bake it into RoomOptions, since the
-      // Room outlives any single device selection).
-      await _guardMedia(
-        'mic',
-        () => room.localParticipant?.setMicrophoneEnabled(
-          !selfMute,
-          audioCaptureOptions: AudioCaptureOptions(deviceId: captureDeviceId),
-        ),
-      );
+      if (micTrack != null) {
+        // Ownership moves to the publication (or is released on failure).
+        final track = micTrack;
+        micTrack = null;
+        await _publishMic(room, track);
+      }
       if (selfDeaf) await _applyDeafen(true);
       await _applyOutputDevice(audioOutputDeviceId);
       await _applyOutputGain();
@@ -203,9 +240,57 @@ class VoiceSession {
       _lastError = '$e';
       debugPrint('LiveKit connect failed: $e');
       _setState(VoiceSessionState.failed);
+      await _releaseTrack(micTrack);
       // Soft cleanup — keep the Room so the next attempt can reuse it.
       await _softDisconnect();
     }
+  }
+
+  /// Publishes the pre-captured microphone [track]. Unlike the other media
+  /// toggles this is *not* fire-and-forget: a failure is recorded in
+  /// [micError] (and the track released) so the controller can show it.
+  Future<void> _publishMic(Room room, LocalAudioTrack track) async {
+    try {
+      final participant = await _awaitLocalParticipant(room);
+      await participant.publishAudioTrack(track);
+    } catch (e) {
+      _micError = describeMicFailure(e);
+      debugPrint('LiveKit mic publish failed: $e');
+      await _releaseTrack(track);
+    }
+  }
+
+  /// `Room.connect` resolves on the engine's join/ICE events, while the local
+  /// participant is created by an async listener on that same join response
+  /// and is only guaranteed once `RoomConnectedEvent` fires. Normally it exists
+  /// by the time `connect` returns; if not, wait for it rather than silently
+  /// skipping the publish.
+  Future<LocalParticipant> _awaitLocalParticipant(Room room) async {
+    final existing = room.localParticipant;
+    if (existing != null) return existing;
+    final listener = _listener;
+    if (listener != null) {
+      await listener.waitFor<RoomConnectedEvent>(
+        duration: _localParticipantTimeout,
+        onTimeout: () => throw TrackPublishException(
+          'Timed out waiting for the room to finish connecting',
+        ),
+      );
+    }
+    final participant = room.localParticipant;
+    if (participant == null) {
+      throw TrackPublishException('Room connected without a local participant');
+    }
+    return participant;
+  }
+
+  /// Stops and disposes a local track we created but never published.
+  Future<void> _releaseTrack(LocalTrack? track) async {
+    if (track == null) return;
+    await _guardMedia('release track', () async {
+      await track.stop();
+      await track.dispose();
+    });
   }
 
   /// Lazily creates the one [Room] this session uses for its entire lifetime,
@@ -259,11 +344,31 @@ class VoiceSession {
   /// auto-reconnect). The Room is only fully released in [dispose].
   Future<void> disconnect() => _softDisconnect();
 
-  Future<void> setMicEnabled(bool enabled) async {
-    await _guardMedia(
-      'mic',
-      () => _room?.localParticipant?.setMicrophoneEnabled(enabled),
-    );
+  /// Mutes or unmutes the microphone. An unmute with no published mic (the
+  /// initial capture failed, or we joined muted) creates and publishes the
+  /// track — on mobile that is where the OS permission prompt appears if it
+  /// hasn't yet.
+  ///
+  /// Returns null once the mic is in the requested state, or the user-facing
+  /// reason an *unmute* failed (permission denied, no capture device) so the
+  /// controller can revert to muted and say why. Muting never fails: stopping a
+  /// track the OS already tore down is harmless.
+  Future<String?> setMicEnabled(bool enabled) async {
+    final participant = _room?.localParticipant;
+    if (participant == null) return null;
+    try {
+      await participant.setMicrophoneEnabled(enabled);
+      if (enabled) {
+        _micError = null;
+        // Unmuting restarts the capture track, which drops the applied gain.
+        await _applyInputGain();
+      }
+      return null;
+    } catch (e) {
+      debugPrint('LiveKit mic toggle failed: $e');
+      if (!enabled) return null;
+      return _micError = describeMicFailure(e);
+    }
   }
 
   /// Silences (or restores) every remote participant's audio locally. LiveKit

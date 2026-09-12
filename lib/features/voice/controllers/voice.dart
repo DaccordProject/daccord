@@ -188,6 +188,7 @@ class VoiceController extends _$VoiceController {
       _afkMonitor = null;
       _session?.dispose();
       _session = null;
+      soundManager.setVoiceSessionActive(false);
     });
     return const VoiceConnection();
   }
@@ -254,12 +255,16 @@ class VoiceController extends _$VoiceController {
     _session ??= _buildSession();
     _reconnectAttempted = false;
 
-    final result = await client.voice
-        .join(channelId, selfMute: state.selfMute, selfDeaf: state.selfDeaf);
+    final result = await client.voice.join(
+      channelId,
+      selfMute: state.selfMute,
+      selfDeaf: state.selfDeaf,
+    );
     final info = result.data;
     if (!result.ok || info is! AccordVoiceServerUpdate) {
       state = state.copyWith(
-          error: result.error?.message ?? 'Failed to join voice channel');
+        error: result.error?.message ?? 'Failed to join voice channel',
+      );
       return;
     }
     final url = info.livekitUrl;
@@ -267,7 +272,8 @@ class VoiceController extends _$VoiceController {
     if (url == null || url.isEmpty || token == null || token.isEmpty) {
       await client.voice.leave(channelId);
       state = state.copyWith(
-          error: 'Voice backend unavailable — server returned no credentials');
+        error: 'Voice backend unavailable — server returned no credentials',
+      );
       return;
     }
 
@@ -279,6 +285,9 @@ class VoiceController extends _$VoiceController {
       clearError: true,
     );
     final settings = ref.read(settingsControllerProvider);
+    // Flag the live call *before* the media session comes up, so no chime can
+    // reconfigure the platform audio session underneath it (#323).
+    soundManager.setVoiceSessionActive(true);
     await _session!.connect(
       url,
       token,
@@ -289,8 +298,21 @@ class VoiceController extends _$VoiceController {
       outputVolume: settings.outputVolume,
       inputVolume: settings.inputVolume,
     );
+    _applyMicOutcome();
     soundManager.play('voice_join');
     await _refreshVoiceStates(channelId);
+  }
+
+  /// After a (re)connect: if the microphone could not be captured or
+  /// published — the OS denied access, no input device, publish failure —
+  /// reflect that honestly. We stay in the channel (you can still listen) but
+  /// as *muted*, tell the server so, and surface the reason in the voice bar
+  /// rather than showing a live mic that sends nothing (#325).
+  void _applyMicOutcome() {
+    final micError = _session?.micError;
+    if (micError == null || !state.isConnected || state.selfMute) return;
+    state = state.copyWith(selfMute: true, error: micError);
+    _sendVoiceStateUpdate();
   }
 
   /// Leaves the current voice channel and tears the session down.
@@ -304,6 +326,7 @@ class VoiceController extends _$VoiceController {
     if (channelId == null) return;
     _reconnectAttempted = false;
     await _session?.disconnect();
+    soundManager.setVoiceSessionActive(false);
     await _client?.voice.leave(channelId);
     soundManager.play('voice_leave');
     state = const VoiceConnection();
@@ -314,9 +337,22 @@ class VoiceController extends _$VoiceController {
   void setMute(bool muted) {
     _afkMonitor?.markActivity();
     if (!state.isConnected) return;
-    _session?.setMicEnabled(!muted);
     state = state.copyWith(selfMute: muted);
     soundManager.play(muted ? 'mute' : 'unmute');
+    _sendVoiceStateUpdate();
+    final session = _session;
+    if (session != null) unawaited(_applyMic(session, enabled: !muted));
+  }
+
+  /// Applies a mute toggle to the media session. An *unmute* that fails (the
+  /// OS denied the mic, no capture device) is reverted so the bar doesn't show
+  /// a live mic that isn't, and the reason is surfaced.
+  Future<void> _applyMic(VoiceSession session, {required bool enabled}) async {
+    final error = await session.setMicEnabled(enabled);
+    if (error == null || !enabled || !state.isConnected || state.selfMute) {
+      return;
+    }
+    state = state.copyWith(selfMute: true, error: error);
     _sendVoiceStateUpdate();
   }
 
@@ -397,8 +433,13 @@ class VoiceController extends _$VoiceController {
     if (url == null || url.isEmpty || token == null || token.isEmpty) return;
     final sessionState = _session?.state;
     if (sessionState == null || !needsReconnect(sessionState)) return;
-    await _session?.connect(url, token,
-        selfMute: state.selfMute, selfDeaf: state.selfDeaf);
+    await _session?.connect(
+      url,
+      token,
+      selfMute: state.selfMute,
+      selfDeaf: state.selfDeaf,
+    );
+    _applyMicOutcome();
   }
 
   /// The server removed us from voice (our gateway state's channel went null).
@@ -418,6 +459,7 @@ class VoiceController extends _$VoiceController {
     if (leftChannel != null && state.channelId != leftChannel) return;
     _reconnectAttempted = false;
     await _session?.disconnect();
+    soundManager.setVoiceSessionActive(false);
     state = const VoiceConnection();
     _syncAfk();
   }
@@ -494,8 +536,11 @@ class VoiceController extends _$VoiceController {
     if (client == null) return;
     _reconnectAttempted = true;
 
-    final result = await client.voice
-        .join(channelId, selfMute: state.selfMute, selfDeaf: state.selfDeaf);
+    final result = await client.voice.join(
+      channelId,
+      selfMute: state.selfMute,
+      selfDeaf: state.selfDeaf,
+    );
     final info = result.data;
     if (!result.ok || info is! AccordVoiceServerUpdate) {
       state = state.copyWith(
@@ -524,6 +569,7 @@ class VoiceController extends _$VoiceController {
       outputVolume: settings.outputVolume,
       inputVolume: settings.inputVolume,
     );
+    _applyMicOutcome();
   }
 
   Future<void> _refreshVoiceStates(String channelId) async {
@@ -629,13 +675,15 @@ class VoiceController extends _$VoiceController {
     );
     ref
         .read(presenceControllerProvider(serverKey).notifier)
-        .upsert(AccordPresence(
-          userId: userId,
-          status: status,
-          activities: custom == null
-              ? []
-              : [AccordActivity(name: custom, type: 'custom')],
-        ));
+        .upsert(
+          AccordPresence(
+            userId: userId,
+            status: status,
+            activities: custom == null
+                ? []
+                : [AccordActivity(name: custom, type: 'custom')],
+          ),
+        );
   }
 
   /// Moves us into the space's designated AFK channel, when it has one.
