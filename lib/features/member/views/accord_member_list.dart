@@ -58,19 +58,19 @@ class _Roster extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final members = ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId));
-    final roles = ref.watch(
-      spacesControllerProvider.select(
-        (spaces) =>
-            spaces?.firstWhereOrNull((s) => s.id == spaceId)?.roles ??
-            const <AccordRole>[],
-      ),
-    );
-    final counts = ref.watch(
+    // One selector for everything read off the cached space, so a rebuild
+    // only walks spacesControllerProvider's list once instead of twice.
+    final spaceInfo = ref.watch(
       spacesControllerProvider.select((spaces) {
         final space = spaces?.firstWhereOrNull((s) => s.id == spaceId);
-        return (members: space?.memberCount, presences: space?.presenceCount);
+        return (
+          roles: space?.roles ?? const <AccordRole>[],
+          memberCount: space?.memberCount,
+          presenceCount: space?.presenceCount,
+        );
       }),
     );
+    final roles = spaceInfo.roles;
     final cdnUrl = ref.watchCdnUrl();
     final presences = ref.watch(activePresencesProvider);
 
@@ -111,8 +111,8 @@ class _Roster extends ConsumerWidget {
       members.values.toList(),
       roles,
       presences,
-      memberCount: counts.members,
-      presenceCount: counts.presences,
+      memberCount: spaceInfo.memberCount,
+      presenceCount: spaceInfo.presenceCount,
     );
 
     // Flatten sections into one lazily-built row list so a large roster only
@@ -255,7 +255,6 @@ class _SectionHeader extends StatelessWidget {
     );
   }
 }
-
 
 class _MemberRow extends ConsumerWidget {
   const _MemberRow({
