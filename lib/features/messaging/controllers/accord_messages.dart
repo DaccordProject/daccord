@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/messaging/controllers/pending_uploads.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/shared/controllers/load_failed.dart';
@@ -283,8 +284,15 @@ class AccordMessagesController extends _$AccordMessagesController {
   ///
   /// Returns null on success, or the failure message to show the user. The
   /// server's own reason is passed through — a rejected upload (too large, no
-  /// `attach_files` permission, unsupported type) is otherwise indistinguishable
+  /// `attach_files` permission, unsupported type, or an AutoMod rule that
+  /// refuses the file up front with a 400) is otherwise indistinguishable
   /// from a dead Send button.
+  ///
+  /// A `202 Accepted` is a success: the message exists with its text, and the
+  /// attachments AutoMod is still scanning are listed by upload ID rather than
+  /// present on the message. Those IDs go to [PendingUploadsController] so the
+  /// row shows a processing placeholder; the message is never re-sent just
+  /// because its attachment list came back short.
   Future<String?> sendWithAttachments(
     AccordClient client,
     String content,
@@ -307,8 +315,17 @@ class AccordMessagesController extends _$AccordMessagesController {
       debugPrint('Failed to send attachments to $channelId: ${result.error}');
       return result.errorMessageOr('Failed to send attachments.');
     }
-    final message = result.data;
-    if (message is AccordMessage) addMessage(message);
+    final upload = result.data;
+    if (upload is AccordMessageUpload) {
+      addMessage(upload.message);
+      if (upload.hasPendingAttachments) {
+        ref
+            .read(pendingUploadsControllerProvider(serverKey).notifier)
+            .track(upload.message, upload.pendingAttachmentIds, client: client);
+      }
+    } else if (upload is AccordMessage) {
+      addMessage(upload);
+    }
     return null;
   }
 
