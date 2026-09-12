@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/channels/views/channel_member_picker_dialog.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
@@ -329,7 +330,7 @@ class _ChannelPermissionsDialogState
   Future<void> _addMemberOverwrite() async {
     final picked = await showDialog<String>(
       context: context,
-      builder: (_) => _MemberPickerDialog(
+      builder: (_) => ChannelMemberPickerDialog(
         members: _members.values
             .where((m) => _types[m.userId] != 'user')
             .toList(),
@@ -591,6 +592,7 @@ class _EntityListPane extends StatelessWidget {
     final children = [
       for (final role in roles)
         _EntityRow(
+          key: ValueKey('role-${role.id}'),
           compact: compact,
           label: role.name,
           color: roleColor(role.id) ?? colors.dirtyWhite,
@@ -620,6 +622,7 @@ class _EntityListPane extends StatelessWidget {
         ),
       for (final id in memberIds)
         _EntityRow(
+          key: ValueKey('member-$id'),
           compact: compact,
           label: memberName(id),
           color: colors.dirtyWhite,
@@ -628,6 +631,7 @@ class _EntityListPane extends StatelessWidget {
           onTap: () => onSelectMember(id),
         ),
       _EntityRow(
+        key: const ValueKey('add-member'),
         compact: compact,
         label: '+ Add Member',
         color: colors.primary,
@@ -659,6 +663,7 @@ class _EntityListPane extends StatelessWidget {
 
 class _EntityRow extends StatefulWidget {
   const _EntityRow({
+    super.key,
     this.compact = false,
     required this.label,
     required this.color,
@@ -937,84 +942,6 @@ class _TriButton extends StatelessWidget {
           ),
         ),
         child: Icon(icon, size: 16, color: selected ? color : colors.gray),
-      ),
-    );
-  }
-}
-
-class _MemberPickerDialog extends StatefulWidget {
-  const _MemberPickerDialog({required this.members});
-
-  final List<AccordMember> members;
-
-  @override
-  State<_MemberPickerDialog> createState() => _MemberPickerDialogState();
-}
-
-class _MemberPickerDialogState extends State<_MemberPickerDialog> {
-  String _query = '';
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    final theme = Theme.of(context);
-    final q = _query.trim().toLowerCase();
-    final matches = widget.members
-        .where(
-          (m) => q.isEmpty || accordMemberName(m).toLowerCase().contains(q),
-        )
-        .sortedBy((m) => accordMemberName(m).toLowerCase());
-
-    return Dialog(
-      backgroundColor: colors.foreground,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 320, maxHeight: 420),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: TextField(
-                autofocus: true,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  prefixIcon: Icon(Icons.search, size: 18),
-                  hintText: 'Search members',
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (v) => setState(() => _query = v),
-              ),
-            ),
-            Flexible(
-              child: matches.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'No members',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    )
-                  : ListView(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      children: [
-                        for (final m in matches)
-                          ListTile(
-                            dense: true,
-                            leading: Icon(
-                              Icons.person_outline,
-                              color: colors.gray,
-                            ),
-                            title: Text(accordMemberName(m)),
-                            onTap: () => Navigator.of(context).pop(m.userId),
-                          ),
-                      ],
-                    ),
-            ),
-          ],
-        ),
       ),
     );
   }

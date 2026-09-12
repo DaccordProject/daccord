@@ -28,6 +28,7 @@ const _spaceId = 'space1';
 const _channelId = 'c1';
 const _selfId = 'u1';
 const _memberId = 'u2';
+const _newMemberId = 'u3';
 
 const _phone = Size(390, 844);
 const _desktop = Size(1024, 768);
@@ -91,6 +92,13 @@ class _Harness {
             userId: _memberId,
             spaceId: _spaceId,
             user: AccordUser(id: _memberId, username: 'alice'),
+          ),
+          // No existing overwrite, so this member is the pickable candidate in
+          // the "+ Add Member" flow (alice is excluded — she already has one).
+          _newMemberId: AccordMember(
+            userId: _newMemberId,
+            spaceId: _spaceId,
+            user: AccordUser(id: _newMemberId, username: 'bob'),
           ),
         }),
       ],
@@ -275,6 +283,33 @@ void main() {
     await tester.tap(find.text('Discard'));
     await tester.pumpAndSettle();
     expect(find.text('Save'), findsNothing);
+  });
+
+  testWidgets('phone: adding a member scrolls the new chip into view', (
+    tester,
+  ) async {
+    await _open(tester, _phone);
+
+    // "+ Add Member" sits at the end of the strip and is off-screen until
+    // scrolled to, same as the trailing chips in the test above.
+    await tester.ensureVisible(find.text('+ Add Member'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('+ Add Member'));
+    await tester.pumpAndSettle();
+
+    // Pick "bob" — the only member without an existing overwrite — from the
+    // member picker dialog.
+    expect(find.text('bob'), findsOneWidget);
+    await tester.tap(find.text('bob'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    // The freshly added chip becomes the selection. Without any scrolling of
+    // our own here (contrast the manual `ensureVisible` calls above),
+    // `_EntityRowState._reveal` must have scrolled it into view on selection,
+    // as the PR describes — otherwise it would land off the trailing edge of
+    // the strip, same as "+ Add Member" did before this tap.
+    expect(find.text('bob').hitTestable(), findsOneWidget);
   });
 
   testWidgets('phone at large text scale neither overflows nor hides Save', (
