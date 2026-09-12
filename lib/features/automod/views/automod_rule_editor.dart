@@ -41,6 +41,12 @@ class _RuleEditorState extends State<_RuleEditor> {
     _id = TextEditingController(text: asString(rule['id']));
     _trigger = asString(trigger['type'], 'media');
     _action = asString(action['type'], 'quarantine');
+    // A stored rule from another client/server could pair an action with a
+    // trigger this editor doesn't offer it for; fall back rather than hand
+    // DropdownButtonFormField an initialValue absent from its items.
+    if (_action == 'timeout' && !automodAllowsTimeout(_trigger)) {
+      _action = 'quarantine';
+    }
     _scope = asString(scope['type'], 'non_nsfw');
     _channelIds = automodList(scope['ids']).map((id) => id.toString()).toSet();
     _categories = TextEditingController(

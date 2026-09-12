@@ -568,9 +568,7 @@ class _AutomodWorkbenchState extends State<AutomodWorkbench> {
           Card(
             child: ListTile(
               title: Text(asString(rules[i]['id'])),
-              subtitle: Text(
-                '${automodTriggers[rules[i]['trigger']['type']] ?? rules[i]['trigger']['type']} · ${automodActions[rules[i]['action']['type']] ?? rules[i]['action']['type']}',
-              ),
+              subtitle: Text(_ruleSummary(rules[i])),
               onTap: _busy ? null : () => _rule(i),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -797,6 +795,17 @@ class _AutomodWorkbenchState extends State<AutomodWorkbench> {
       }
     }
     return automodMap(value);
+  }
+
+  /// A rule's trigger/action, safely unwrapped: a rule shape from an
+  /// incompatible server or another client may be missing either key.
+  String _ruleSummary(Object? rule) {
+    final trigger = automodMap(rule)['trigger'];
+    final action = automodMap(rule)['action'];
+    final triggerType = automodMap(trigger)['type'];
+    final actionType = automodMap(action)['type'];
+    return '${automodTriggers[triggerType] ?? triggerType} · '
+        '${automodActions[actionType] ?? actionType}';
   }
 
   String _timestamp(Object? value) => value is num

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/automod/utils/automod_policy.dart';
 import 'package:bonfire/features/automod/views/automod_panel.dart';
+import 'package:bonfire/features/automod/views/automod_rule_editor.dart';
 import 'package:bonfire/features/automod/views/block_attachment_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -211,6 +212,72 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('Update the server.'), findsOneWidget);
       expect(find.text('Enable automatic scanning'), findsNothing);
+    },
+  );
+  testWidgets(
+    'rules tab renders a rule missing its trigger or action without crashing',
+    (tester) async {
+      final client = clientWith((r) async {
+        return data(
+          r.url.path.endsWith('/policy')
+              ? {
+                  'policy': {
+                    ...policy(),
+                    'rules': [
+                      {
+                        'id': 'legacy-rule',
+                        'action': {'type': 'flag'},
+                      },
+                    ],
+                  },
+                  'inherited': false,
+                }
+              : [],
+        );
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AutomodWorkbench(
+              client: client,
+              scope: 's',
+              canConfigure: true,
+              canReview: false,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('legacy-rule'), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'rule editor falls back to a valid action when the stored trigger/action '
+    'pairing is invalid',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => editAutomodRule(
+                context,
+                rule: {
+                  'id': 'x',
+                  'trigger': {'type': 'media'},
+                  'action': {'type': 'timeout', 'seconds': 30},
+                },
+              ),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Hold for review'), findsOneWidget);
+      expect(find.text('Hold and time out member'), findsNothing);
     },
   );
   testWidgets(

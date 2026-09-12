@@ -320,6 +320,15 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     if (!ok) showInfoSnack(context, 'Failed to delete message');
   }
 
+  /// Whether "Block files and delete" should be offered for [message]: the
+  /// viewer must manage messages (or be an instance admin), the message must
+  /// have attachments, and — outside instance-admin scope — belong to a space
+  /// (AutoMod's blocklist is space-scoped).
+  bool _canBlockFiles(AccordMessage message) =>
+      (widget.canManageMessages || ref.readIsAdmin()) &&
+      message.attachments.isNotEmpty &&
+      (message.spaceId != null || ref.readIsAdmin());
+
   Future<void> _blockFiles(AccordMessage message) async {
     final client = ref.accordClient;
     if (client == null) return;
@@ -404,10 +413,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
             pinned: message.pinned,
             onEdit: () => _startEdit(message),
             onDelete: () => _delete(message.id),
-            onBlock:
-                (widget.canManageMessages || ref.readIsAdmin()) &&
-                    message.attachments.isNotEmpty &&
-                    (message.spaceId != null || ref.readIsAdmin())
+            onBlock: _canBlockFiles(message)
                 ? () => _blockFiles(message)
                 : null,
             onTogglePin: () => _togglePin(message.id, pinned: message.pinned),
@@ -614,9 +620,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         // Pin sits between Edit and Delete in this menu; it's site-specific
         // (the thread view has no pinning) so it slots in via [beforeDelete].
         beforeDelete: [
-          if ((widget.canManageMessages || ref.readIsAdmin()) &&
-              message.attachments.isNotEmpty &&
-              (message.spaceId != null || ref.readIsAdmin()))
+          if (_canBlockFiles(message))
             AccordMenuEntry(
               label: 'Block files and delete',
               icon: Icons.block,
