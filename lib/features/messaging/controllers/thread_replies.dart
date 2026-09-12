@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/messaging/utils/send_cooldown.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/list_ext.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
@@ -68,20 +69,24 @@ class ThreadRepliesController extends _$ThreadRepliesController {
   /// Optimistically appends the created message (the gateway echo is then
   /// deduped by [addReply]). Returns true on success.
   Future<bool> send(AccordClient client, String content) async {
+    return await sendDetailed(client, content) == null;
+  }
+
+  Future<SendFailure?> sendDetailed(AccordClient client, String content) async {
     final trimmed = content.trim();
-    if (trimmed.isEmpty) return false;
+    if (trimmed.isEmpty) return const SendFailure('Reply is empty.');
     final result = await client.messages.create(channelId, {
       'content': trimmed,
       'thread_id': rootId,
     });
-    if (!ref.mounted) return false;
+    if (!ref.mounted) return const SendFailure('Thread was closed.');
     final message = result.data;
     if (!result.ok || message is! AccordMessage) {
       debugPrint('Failed to reply in thread $rootId: ${result.error}');
-      return false;
+      return SendFailure.fromResult(result, 'Failed to send reply');
     }
     addReply(message);
-    return true;
+    return null;
   }
 
   /// Deletes reply [messageId] via `messages.delete`, removing it from the

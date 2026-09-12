@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -128,6 +129,7 @@ class AccordRest {
   Future<RestResult> makeRawRequest(
     String path, {
     Map<String, dynamic> query = const {},
+    int? maxBytes,
   }) async {
     final uri = _buildUri(path, query);
     final headers = <String, String>{
@@ -138,7 +140,22 @@ class AccordRest {
     }
 
     return _executeWithRetry(
-      send: () => _client.get(uri, headers: headers),
+      send: () async {
+        if (maxBytes == null) return _client.get(uri, headers: headers);
+        final request = http.Request('GET', uri)
+          ..headers.addAll(headers)
+          ..followRedirects = false;
+        final streamed = await _client.send(request);
+        final bytes = BytesBuilder(copy: false);
+        await for (final chunk in streamed.stream) {
+          if (bytes.length + chunk.length > maxBytes) {
+            throw StateError('Private evidence exceeds the download limit');
+          }
+          bytes.add(chunk);
+        }
+        return http.Response.bytes(bytes.takeBytes(), streamed.statusCode,
+            headers: streamed.headers);
+      },
       interpret: (response) {
         if (response.statusCode >= 200 && response.statusCode < 300) {
           return RestResult.success(response.statusCode, response.bodyBytes);

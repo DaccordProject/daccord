@@ -5,6 +5,8 @@
 /// in the `part` files stays private to this library.
 library;
 
+import 'package:bonfire/features/automod/views/block_attachment_dialog.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -392,8 +394,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
       channel: channel,
       exempt: isSlowmodeExempt(
         channelPermissions: perms,
-        isSpaceOwner:
-            currentUserId != null && space?.ownerId == currentUserId,
+        isSpaceOwner: currentUserId != null && space?.ownerId == currentUserId,
         isInstanceAdmin: ref.watchIsAdmin(),
       ),
     );

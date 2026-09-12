@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/messaging/utils/send_cooldown.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/utils/emoticons.dart';
@@ -9,8 +11,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// Performs a post composer's submit with the trimmed [title]/[body]. Returns
 /// the error text to display in the dialog, or null on success — in which case
 /// the callback is responsible for popping the dialog with its result.
-typedef PostComposerSubmit = Future<String?> Function(
-    AccordClient client, String title, String body);
+typedef PostComposerSubmit =
+    Future<String?> Function(AccordClient client, String title, String body);
 
 /// The shared title+body composer dialog behind the forum's "New post" and the
 /// thread view's post/reply editor. [title] is the dialog heading;
@@ -29,12 +31,16 @@ class PostComposerDialog extends ConsumerStatefulWidget {
     this.initialTitle,
     this.initialBody = '',
     this.autofocusTitle = false,
+    this.sendFailure,
+    this.now = DateTime.now,
   });
 
   final String title;
   final String submitLabel;
   final String bodyLabel;
   final PostComposerSubmit onSubmit;
+  final SendFailure? Function()? sendFailure;
+  final DateTime Function() now;
 
   /// Initial text for the title field, or null to omit the field (and its
   /// required-validation) entirely.
@@ -43,28 +49,34 @@ class PostComposerDialog extends ConsumerStatefulWidget {
   final bool autofocusTitle;
 
   @override
-  ConsumerState<PostComposerDialog> createState() =>
-      _PostComposerDialogState();
+  ConsumerState<PostComposerDialog> createState() => _PostComposerDialogState();
 }
 
 class _PostComposerDialogState extends ConsumerState<PostComposerDialog> {
-  late final TextEditingController _title =
-      TextEditingController(text: widget.initialTitle ?? '');
-  late final TextEditingController _body =
-      TextEditingController(text: widget.initialBody);
+  late final TextEditingController _title = TextEditingController(
+    text: widget.initialTitle ?? '',
+  );
+  late final TextEditingController _body = TextEditingController(
+    text: widget.initialBody,
+  );
   bool _busy = false;
   String? _error;
+  SendCooldown? _cooldown;
+  Timer? _timer;
+  bool get _waiting => _cooldown?.isActive(widget.now()) ?? false;
 
   bool get _hasTitleField => widget.initialTitle != null;
 
   @override
   void dispose() {
+    _timer?.cancel();
     _title.dispose();
     _body.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
+    if (_busy || _waiting) return;
     final title = _title.text.trim();
     final rawBody = _body.text.trim();
     // Bodies convert emoticons like every other send path. Titles deliberately
@@ -77,8 +89,11 @@ class _PostComposerDialogState extends ConsumerState<PostComposerDialog> {
       setState(() => _error = 'Title is required');
       return;
     }
-    final client = ref.read(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+    final client = ref.read(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.client : null,
+      ),
+    );
     if (client == null) return;
     setState(() {
       _busy = true;
@@ -90,7 +105,22 @@ class _PostComposerDialogState extends ConsumerState<PostComposerDialog> {
     setState(() {
       _busy = false;
       _error = error;
+      final failure = widget.sendFailure?.call();
+      if (failure != null) {
+        _cooldown = cooldownFromFailure(
+          failure: failure,
+          slowmodeSeconds: 0,
+          now: widget.now(),
+        );
+      }
     });
+    _timer?.cancel();
+    if (_cooldown != null) {
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted || !_waiting) timer.cancel();
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   @override
@@ -134,22 +164,27 @@ class _PostComposerDialogState extends ConsumerState<PostComposerDialog> {
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
-                Text(_error!,
-                    style: theme.textTheme.bodySmall!
-                        .copyWith(color: theme.colorScheme.error)),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
               ],
+              if (_waiting) Text(sendCooldownLabel(_cooldown!, widget.now())),
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed:
-                        _busy ? null : () => Navigator.of(context).maybePop(),
+                    onPressed: _busy
+                        ? null
+                        : () => Navigator.of(context).maybePop(),
                     child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
-                    onPressed: _busy ? null : _submit,
+                    onPressed: _busy || _waiting ? null : _submit,
                     child: Text(widget.submitLabel),
                   ),
                 ],

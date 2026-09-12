@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/messaging/utils/send_cooldown.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/utils/emoticons.dart';
@@ -123,10 +125,14 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
   final FocusNode _inputFocus = FocusNode();
   late AccordMessage _root = widget.root;
   bool _sending = false;
+  SendCooldown? _cooldown;
+  Timer? _cooldownTimer;
+  bool get _waiting => _cooldown?.isActive(DateTime.now()) ?? false;
   bool _closedForHiddenRoot = false;
 
   @override
   void dispose() {
+    _cooldownTimer?.cancel();
     _input.dispose();
     _inputFocus.dispose();
     super.dispose();
@@ -144,7 +150,7 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
         ref.read(settingsControllerProvider.select((s) => s.convertEmoticons))
         ? applyEmoticons(raw)
         : raw;
-    if (text.isEmpty || _sending) return;
+    if (text.isEmpty || _sending || _waiting) return;
     final client = _client;
     if (client == null) return;
     // Clear up front rather than after the round-trip. The field is never
@@ -153,7 +159,7 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     // comes back if the send fails.
     _input.clear();
     setState(() => _sending = true);
-    final ok = await ref
+    final failure = await ref
         .read(
           threadRepliesControllerProvider(
             ref.readActiveServerKey() ?? '',
@@ -161,13 +167,26 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
             widget.root.id,
           ).notifier,
         )
-        .send(client, text);
+        .sendDetailed(client, text);
     if (!mounted) return;
     setState(() => _sending = false);
-    if (!ok) {
+    if (!identical(_client, client)) return;
+    if (failure != null) {
+      _cooldown = cooldownFromFailure(
+        failure: failure,
+        slowmodeSeconds: 0,
+        now: DateTime.now(),
+      );
+      _cooldownTimer?.cancel();
+      if (_cooldown != null) {
+        _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (!mounted || !_waiting) timer.cancel();
+          if (mounted) setState(() {});
+        });
+      }
       // Hand the reply back so it can be retried instead of retyped.
       restoreFailedSend(_input, text);
-      showInfoSnack(context, 'Failed to send reply');
+      showInfoSnack(context, failure.message);
     }
   }
 
@@ -463,8 +482,13 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
                   },
                 ),
               ),
+              if (_waiting)
+                Text(formatCooldown(_cooldown!.remaining(DateTime.now()))),
               IconButton(
-                onPressed: _sending ? null : _send,
+                tooltip: _waiting
+                    ? sendCooldownLabel(_cooldown!, DateTime.now())
+                    : 'Send reply',
+                onPressed: _sending || _waiting ? null : _send,
                 icon: Icon(Icons.send, size: 20, color: colors.dirtyWhite),
               ),
             ],
