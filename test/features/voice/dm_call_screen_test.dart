@@ -76,8 +76,8 @@ class _StubVoice extends VoiceController {
   _StubVoice({
     this.initial = const VoiceConnection(),
     this.failJoinWith,
-    this.joinServerKey = _serverKey,
-  });
+    String? joinServerKey,
+  }) : joinServerKey = joinServerKey ?? _serverKey;
 
   final VoiceConnection initial;
   final String? failJoinWith;
