@@ -313,7 +313,7 @@ void main() {
     });
     await h.settle(12);
 
-    expect(h.lookups, ['u1']);
+    expect(h.lookups, ['u1', 'u2']);
     expect(h.pending.uploads['u1']!.status, 'rejected');
     expect(h.pending.uploads['u1']!.reason, 'blocked hash');
   });
