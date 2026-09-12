@@ -51,6 +51,23 @@ class AccordChannel {
     this.origin,
   }) : permissionOverwrites = permissionOverwrites ?? [];
 
+  /// The server's maximum slowmode (`rate_limit`), in seconds.
+  static const int maxRateLimitSeconds = 21600;
+
+  /// The channel's slowmode cooldown in whole seconds — [rateLimit]
+  /// (`rate_limit` / `rate_limit_per_user`) parsed tolerantly: null, a
+  /// non-number, or anything at or below zero is 0 (off); values above
+  /// [maxRateLimitSeconds] are clamped to it.
+  int get rateLimitSeconds {
+    final seconds = switch (rateLimit) {
+      final num v => v.isFinite ? v.toInt() : 0,
+      final String v => int.tryParse(v.trim()) ?? 0,
+      _ => 0,
+    };
+    if (seconds <= 0) return 0;
+    return seconds > maxRateLimitSeconds ? maxRateLimitSeconds : seconds;
+  }
+
   factory AccordChannel.fromJson(Map<String, dynamic> d) {
     final c = AccordChannel(
       id: asString(d['id']),

@@ -12,6 +12,18 @@ import 'rest_result.dart';
 /// Central HTTP client for AccordKit. Handles authentication, request
 /// construction, response-envelope parsing, and automatic rate-limit retry.
 ///
+/// A `429 Too Many Requests` is retried after the server's `Retry-After`
+/// pause, up to [maxRetries] attempts, **unless** the caller passes
+/// `retryOnRateLimit: false`. User-initiated sends (message create, multipart
+/// upload) opt out: with enforced slowmode and upload budgets a 429 is an
+/// actionable cooldown of up to hours, not a transient blip, so it comes
+/// straight back as a [RestResult] failure carrying the server's own
+/// [AccordError] — `rate_limited`, its message, and [AccordError.retryAfter] —
+/// rather than silently retransmitting the whole payload and reporting a
+/// generic "rate limited after N retries". When retry is on and every attempt
+/// is rate-limited, the last server error (with its `retryAfter`) is preserved
+/// too. Accepted responses (2xx) are never retried.
+///
 /// The underlying [http.Client] is injectable for testing, as is the [sleep]
 /// callback used between rate-limit retries.
 ///
@@ -22,6 +34,9 @@ import 'rest_result.dart';
 /// path they already have.
 class AccordRest {
   static const int maxRetries = 3;
+
+  /// The pause assumed for a 429 that carries no usable `Retry-After`.
+  static const Duration defaultRetryAfter = Duration(seconds: 1);
 
   String token;
   String tokenType; // "Bot" or "Bearer"
@@ -83,17 +98,23 @@ class AccordRest {
   /// [method] is one of GET/POST/PUT/PATCH/DELETE. A non-null [body]
   /// (Map or List) is JSON-encoded for non-GET requests. [query] is
   /// URL-encoded and appended.
+  ///
+  /// [retryOnRateLimit] controls whether a 429 is waited out and retried
+  /// (the default) or returned immediately as a failure — pass `false` for
+  /// non-idempotent user sends whose cooldown the UI must show instead.
   Future<RestResult> makeRequest(
     String method,
     String path, {
     Object? body,
     Map<String, dynamic> query = const {},
+    bool retryOnRateLimit = true,
   }) async {
     final uri = _buildUri(path, query);
     final headers = _buildHeaders();
     final bodyText = body != null ? jsonEncode(body) : '';
 
     return _executeWithRetry(
+      retryOnRateLimit: retryOnRateLimit,
       send: () => _send(method, uri, headers, bodyText),
       interpret: (response) => _parseResponse(
         response.statusCode,
@@ -131,11 +152,16 @@ class AccordRest {
   }
 
   /// Performs a `multipart/form-data` request (file uploads).
+  ///
+  /// [retryOnRateLimit] as for [makeRequest]. Uploads should normally pass
+  /// `false`: a 429 here means a slowmode or upload-budget cooldown, and a
+  /// blind retry would retransmit every file only to be refused again.
   Future<RestResult> makeMultipartRequest(
     String method,
     String path,
     MultipartForm form, {
     Map<String, dynamic> query = const {},
+    bool retryOnRateLimit = true,
   }) async {
     final uri = _buildUri(path, query);
     final bodyBytes = form.build();
@@ -151,6 +177,7 @@ class AccordRest {
       failureLabel: 'multipart request',
       exhaustedLabel: 'Multipart request',
       attemptTimeout: uploadTimeout,
+      retryOnRateLimit: retryOnRateLimit,
       send: () async {
         final request = http.Request(method, uri)
           ..headers.addAll(headers)
@@ -171,6 +198,7 @@ class AccordRest {
     String failureLabel = 'request',
     String exhaustedLabel = 'Request',
     Duration? attemptTimeout,
+    bool retryOnRateLimit = true,
   }) async {
     final effectiveTimeout = attemptTimeout ?? timeout;
     var attempt = 0;
@@ -193,16 +221,17 @@ class AccordRest {
       }
 
       if (response.statusCode == 429) {
+        // The server's own error (code/message) plus how long it asked us to
+        // wait — kept whether we retry or not, so the caller can show a real
+        // cooldown instead of a generic "rate limited" and is never left
+        // guessing when to try again.
+        final error = _rateLimitError(response);
         attempt += 1;
-        if (attempt < maxRetries) {
-          final retryAfter = _getRetryAfter(response);
-          await _sleep(Duration(milliseconds: (retryAfter * 1000).round()));
+        if (retryOnRateLimit && attempt < maxRetries) {
+          await _sleep(error.retryAfter ?? defaultRetryAfter);
           continue;
         }
-        return RestResult.failure(
-          429,
-          _internalError('Rate limited after $maxRetries retries'),
-        );
+        return RestResult.failure(429, error);
       }
 
       if (response.statusCode == 401) onUnauthorized?.call();
@@ -342,25 +371,40 @@ class AccordRest {
     );
   }
 
-  /// Extracts a Retry-After value (seconds) from headers or body, defaulting
-  /// to 1.0 second.
-  double _getRetryAfter(http.Response response) {
-    final header = response.headers['retry-after'];
-    if (header != null) {
-      final value = double.tryParse(header.trim());
-      if (value != null) return value;
-    }
+  /// Builds the [AccordError] for a 429, preserving the server's code and
+  /// message when the body is the standard error envelope
+  /// (`{"error":{"code":"rate_limited","message":…,"retry_after":N}}`) and
+  /// synthesising a `rate_limited` error otherwise.
+  ///
+  /// `retryAfter` is always set: the body's `error.retry_after` wins, then a
+  /// top-level `retry_after`, then the `Retry-After` header (seconds), then
+  /// [defaultRetryAfter]. Values are parsed tolerantly and clamped by
+  /// [AccordError.parseRetryAfter].
+  AccordError _rateLimitError(http.Response response) {
+    AccordError? error;
+    Duration? bodyRetryAfter;
     try {
       final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-      if (decoded is Map && decoded['retry_after'] != null) {
-        final v = decoded['retry_after'];
-        if (v is num) return v.toDouble();
-        if (v is String) return double.tryParse(v) ?? 1.0;
+      if (decoded is Map) {
+        final envelope = decoded['error'];
+        if (envelope is Map) {
+          error = AccordError.fromJson(envelope.cast<String, dynamic>());
+        }
+        bodyRetryAfter = AccordError.parseRetryAfter(decoded['retry_after']);
       }
     } catch (_) {
-      // ignore
+      // Empty or non-JSON body: fall through to the header.
     }
-    return 1.0;
+    error ??= AccordError(
+      code: AccordError.rateLimitedCode,
+      message: 'Rate limited',
+    );
+    if (error.code.isEmpty) error.code = AccordError.rateLimitedCode;
+    if (error.message.isEmpty) error.message = 'Rate limited';
+    error.retryAfter ??= bodyRetryAfter ??
+        AccordError.parseRetryAfter(response.headers['retry-after']) ??
+        defaultRetryAfter;
+    return error;
   }
 
   /// Renders [timeout] for the timeout message — whole seconds normally,
