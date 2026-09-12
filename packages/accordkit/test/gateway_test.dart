@@ -270,6 +270,35 @@ void main() {
       await socket.dispose();
     });
 
+    test('call.ring with a null metadata (no ring body) still parses',
+        () async {
+      // accordserver echoes `"metadata": null` when the caller sent no body.
+      final factory = FakeConnectionFactory();
+      final socket = makeSocket(factory);
+      final rings = <AccordCallSignal>[];
+      socket.onCallRing.listen(rings.add);
+
+      socket.connectToGateway('wss://x');
+      await pump();
+
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.event,
+        'type': 'call.ring',
+        'data': {
+          'channel_id': '5',
+          'caller_id': '9',
+          'participants': ['9', '2'],
+          'metadata': null,
+        },
+      }));
+      await pump();
+
+      expect(rings.single.channelId, '5');
+      expect(rings.single.callerId, '9');
+      expect(rings.single.metadata, isNull);
+      await socket.dispose();
+    });
+
     test('call.decline / cancel / end emit typed signals', () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);

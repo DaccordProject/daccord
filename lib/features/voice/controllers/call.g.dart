@@ -101,7 +101,7 @@ final class CallControllerProvider
   }
 }
 
-String _$callControllerHash() => r'91b94d8aa746fad76d61b42b5f590267c579df22';
+String _$callControllerHash() => r'52cc869408abbea2679ecddebca982a9f53df7c7';
 
 /// Orchestrates DM voice/video calls: placing an outgoing call (join voice +
 /// `call/ring`), reacting to the `call.*` gateway events, and accepting or

@@ -12,7 +12,6 @@ import 'package:bonfire/features/notifications/services/taskbar_badge.dart';
 import 'package:bonfire/features/onboarding/views/onboarding_tour.dart';
 import 'package:bonfire/features/updates/views/release_notes_dialog.dart';
 import 'package:bonfire/features/profiles/views/app_restart.dart';
-import 'package:bonfire/features/profiles/views/profile_gate.dart';
 import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/services/deep_link_navigation.dart';
@@ -22,11 +21,10 @@ import 'package:bonfire/features/server/services/federation_join.dart';
 import 'package:bonfire/features/server/views/federation_join_confirmation.dart';
 import 'package:bonfire/features/developer/controllers/mcp_server_controller.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
-import 'package:bonfire/features/settings/models/accord_settings.dart';
-import 'package:bonfire/features/voice/views/incoming_call_overlay.dart';
 import 'package:bonfire/router/controller.dart';
 import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/shared/components/app_lifecycle_ticker_mode.dart';
+import 'package:bonfire/shared/components/app_shell.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/desktop_window.dart';
 import 'package:bonfire/theme/app_theme.dart';
@@ -106,13 +104,15 @@ void main() async {
     debugPrint('setupDesktopWindow failed during startup: $e\n$st');
   }
 
+  // No bootstrap `MaterialApp` around [MainWindow]: the device-profile PIN gate
+  // lives inside the router app's builder (see `buildAppShell`), so go_router's
+  // navigator is the app's *root* navigator. A second Navigator out here is
+  // where `rootNavigator: true` lookups end up, and it has neither the app
+  // theme nor the incoming-call banner — the DM call view pushed into it
+  // blanked and rings were hidden under dialogs (#324).
   runApp(
     const AppRestart(
-      child: ProviderScope(
-        child: AppLifecycleTickerMode(
-          child: MaterialApp(home: ProfileGate(child: MainWindow())),
-        ),
-      ),
+      child: ProviderScope(child: AppLifecycleTickerMode(child: MainWindow())),
     ),
   );
 
@@ -176,13 +176,6 @@ void _silenceLiveKitAsyncErrors() {
     return previous?.call(error, stack) ?? false;
   };
 }
-
-/// Upper bound on the combined (system × in-app) text scale. The OS can ask
-/// for far more than this at the top accessibility sizes; past roughly 2× the
-/// app's fixed-height rows (channel tiles, the member list, voice tiles) start
-/// clipping instead of growing, so honour the user's preference up to here and
-/// no further.
-const double _maxEffectiveTextScale = 2.0;
 
 class MainWindow extends ConsumerStatefulWidget {
   const MainWindow({super.key});
@@ -269,16 +262,13 @@ class _MainWindowState extends ConsumerState<MainWindow> {
           final session = authState.session;
           final outcome = await confirmFederatedDeepLinkJoin(
             ctx,
-            activeAccount: '${session.username} (${session.userId}) on '
+            activeAccount:
+                '${session.username} (${session.userId}) on '
                 '${session.server.homeDomain}',
             domain: domain,
             spaceId: spaceId,
-            join: () => joinFederatedSpace(
-              ref,
-              authState.client,
-              domain,
-              spaceId,
-            ),
+            join: () =>
+                joinFederatedSpace(ref, authState.client, domain, spaceId),
           );
           if (outcome == null) break;
           if (outcome.error == null) {
@@ -410,33 +400,16 @@ class _MainWindowState extends ConsumerState<MainWindow> {
       theme: theme,
       darkTheme: theme,
       routerConfig: routerController,
-      // Apply accessibility prefs app-wide: scale all text by the UI scale and
-      // honour reduced-motion. Done in the router app's builder so the
-      // override sits above every route.
-      // The incoming-call banner is hosted here too, above every route, so a
-      // ring stays answerable from inside a dialog or the full-screen call
-      // view (#139).
-      builder: (context, child) {
-        // Compose the in-app UI scale with the platform's own text scale (iOS
-        // Dynamic Type, Android font size) instead of replacing it. Passing
-        // `TextScaler.linear(uiScale)` straight through discarded whatever the
-        // user had set at the OS level, so iOS "Larger Text" did nothing here —
-        // the app always rendered at its own scale. Capped at
-        // [_maxEffectiveTextScale] so the largest accessibility sizes can't
-        // burst fixed-height rows.
-        final systemScale = MediaQuery.textScalerOf(context).scale(1);
-        final combined = (systemScale * settings.uiScale).clamp(
-          AccordSettings.minUiScale,
-          _maxEffectiveTextScale,
-        );
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(combined),
-            disableAnimations: settings.reducedMotion,
-          ),
-          child: withIncomingCallOverlay(child),
-        );
-      },
+      // Accessibility prefs (UI scale, reduced motion), the device-profile PIN
+      // gate and the incoming-call banner all sit in the builder, above every
+      // route. See [buildAppShell] for why the gate must live *here* rather
+      // than in a wrapping MaterialApp (#324).
+      builder: (context, child) => buildAppShell(
+        context,
+        child,
+        uiScale: settings.uiScale,
+        reducedMotion: settings.reducedMotion,
+      ),
     );
   }
 }
