@@ -42,14 +42,13 @@ void _seedUnread(WidgetRef ref, String serverKey, String channelId) =>
         .read(readStateControllerProvider(serverKey).notifier)
         .markUnread(channelId, spaceId: 's1');
 
-Future<void> _settle() => Future<void>.delayed(Duration.zero);
-
 /// A minimal logged-in [AccordAuth] override whose [clientForKey] resolves
 /// only [key] to [client] — enough to exercise the REST ack without a real
 /// connection/session.
 class _Auth extends AccordAuth {
   _Auth(this.key, this.client);
   final String key;
+  @override
   final AccordClient client;
 
   @override
@@ -175,7 +174,7 @@ void main() {
             .markUnread('c1', spaceId: 's1', messageId: '20');
 
         markChannelRead(ref, 'c1', serverKey: key, fallbackMessageId: '5');
-        await _settle();
+        await tester.pump();
 
         expect(acked, ['20']);
         expect(_isUnread(ref, key, 'c1'), isFalse);
