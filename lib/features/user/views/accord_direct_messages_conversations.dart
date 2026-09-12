@@ -568,13 +568,21 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
   /// Places an outgoing DM call: rings the other participant(s) and opens the
   /// full-screen call view. The callee gets a `call.ring` and can accept/decline.
   Future<void> _startCall({required bool video}) async {
+    // The app's root navigator is go_router's (see `buildAppShell`): the call
+    // view goes above this dialog, under the incoming-call banner host.
     final navigator = Navigator.of(context, rootNavigator: true);
     await ref
         .read(callControllerProvider.notifier)
         .startCall(_channel, video: video);
     if (!mounted) return;
-    // Bail if the underlying voice join failed (an error is surfaced elsewhere).
-    if (ref.read(voiceControllerProvider).channelId != _channel.id) return;
+    // Bail if the underlying voice join failed. The voice bar shows the error
+    // too, but it isn't on screen behind this dialog — say it here, where the
+    // call was placed, rather than silently doing nothing (#324).
+    if (ref.read(voiceControllerProvider).channelId != _channel.id) {
+      final error = ref.read(voiceControllerProvider).error;
+      if (error != null) showInfoSnack(context, error);
+      return;
+    }
     await showFullScreenVoice(
       navigator.context,
       channelId: _channel.id,

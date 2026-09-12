@@ -20,6 +20,11 @@ final profileUnlockedProvider = NotifierProvider<ProfileUnlocked, bool>(
 
 /// Gates [child] behind the active profile's PIN. When the active profile has no
 /// PIN, or once the correct PIN is entered, [child] is shown.
+///
+/// Hosted from the router app's `MaterialApp.builder` (see `buildAppShell`),
+/// where [child] is the app's root Navigator. The gate therefore has no
+/// Navigator — and no [Overlay] — above it, so the lock screen brings its own:
+/// Material text fields need one for their selection handles and toolbar.
 class ProfileGate extends ConsumerWidget {
   const ProfileGate({super.key, required this.child});
 
@@ -33,8 +38,31 @@ class ProfileGate extends ConsumerWidget {
     final unlocked = ref.watch(profileUnlockedProvider);
 
     if (active == null || !active.hasPin || unlocked) return child;
-    return _PinLockScreen(profileName: active.name);
+    return _PinLockHost(profileName: active.name);
   }
+}
+
+/// Wraps the lock screen in an [Overlay] of its own. Built once: an Overlay
+/// only reads [Overlay.initialEntries] on first build, and the host is
+/// discarded as a whole once the profile unlocks.
+class _PinLockHost extends StatefulWidget {
+  const _PinLockHost({required this.profileName});
+
+  final String profileName;
+
+  @override
+  State<_PinLockHost> createState() => _PinLockHostState();
+}
+
+class _PinLockHostState extends State<_PinLockHost> {
+  late final List<OverlayEntry> _entries = [
+    OverlayEntry(
+      builder: (_) => _PinLockScreen(profileName: widget.profileName),
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) => Overlay(initialEntries: _entries);
 }
 
 class _PinLockScreen extends ConsumerStatefulWidget {

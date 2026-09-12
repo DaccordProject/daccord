@@ -52,4 +52,40 @@ void main() {
     expect(find.text(profilePinSecurityNotice), findsOneWidget);
     expect(find.text('Profile contents'), findsNothing);
   });
+
+  testWidgets('hosted in MaterialApp.builder (no Navigator above it) the lock '
+      'screen still takes a PIN and unlocks', (tester) async {
+    // This is where main.dart mounts the gate (#324): above the router's
+    // Navigator, so it has no Overlay of the app's to lean on — the PIN field's
+    // selection handles need one. Focusing and typing must not assert.
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: ThemeData(extensions: const [_theme]),
+          builder: (context, child) =>
+              ProfileGate(child: child ?? const SizedBox.shrink()),
+          home: const Text('Profile contents'),
+        ),
+      ),
+    );
+
+    expect(find.text('Profile contents'), findsNothing);
+    expect(find.byType(TextField), findsOneWidget);
+
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), '0000');
+    await tester.tap(find.text('Unlock'));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Incorrect PIN'), findsOneWidget);
+    expect(find.text('Profile contents'), findsNothing);
+
+    await tester.enterText(find.byType(TextField), '1234');
+    await tester.tap(find.text('Unlock'));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Profile contents'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+  });
 }

@@ -55,11 +55,7 @@ CallRingtone callRingtone(Ref ref) => const CallRingtone();
 /// caller, the channel we're currently ringing (before the callee answers).
 @immutable
 class CallState {
-  const CallState({
-    this.incoming,
-    this.outgoingChannelId,
-    this.endedMessage,
-  });
+  const CallState({this.incoming, this.outgoingChannelId, this.endedMessage});
 
   /// A ring we've received and not yet answered or dismissed.
   final IncomingCall? incoming;
@@ -84,8 +80,9 @@ class CallState {
   }) {
     return CallState(
       incoming: clearIncoming ? null : (incoming ?? this.incoming),
-      outgoingChannelId:
-          clearOutgoing ? null : (outgoingChannelId ?? this.outgoingChannelId),
+      outgoingChannelId: clearOutgoing
+          ? null
+          : (outgoingChannelId ?? this.outgoingChannelId),
       endedMessage: clearEnded ? null : (endedMessage ?? this.endedMessage),
     );
   }
@@ -121,7 +118,9 @@ class CallController extends _$CallController {
 
   /// Logs [call] as an unanswered incoming call (see [MissedCallsController]).
   void _recordMissed(IncomingCall call) {
-    ref.read(missedCallsControllerProvider.notifier).record(
+    ref
+        .read(missedCallsControllerProvider.notifier)
+        .record(
           channelId: call.channelId,
           callerId: call.callerId,
           serverKey: call.serverKey,
@@ -138,6 +137,12 @@ class CallController extends _$CallController {
 
   /// Places an outgoing call on a DM/group-DM [channel]: joins voice, then rings
   /// the other participant(s). [video] starts the camera and hints the callee.
+  ///
+  /// Strictly join-then-ring, matching the server's model of a DM call as
+  /// "voice join + signaling": `POST /channels/{id}/voice/join` must succeed
+  /// before `call/ring` goes out. When the join is rejected the voice controller
+  /// leaves [VoiceConnection.error] set and we clear the outgoing state so the
+  /// caller's screen can report it instead of opening an empty call view.
   Future<void> startCall(AccordChannel channel, {bool video = false}) async {
     // Guard against concurrent taps: set outgoingChannelId synchronously so a
     // second tap that arrives before the first await sees hasOutgoing == true.
@@ -145,24 +150,45 @@ class CallController extends _$CallController {
     if (ref.read(voiceControllerProvider).channelId == channel.id) return;
     state = state.copyWith(outgoingChannelId: channel.id, clearEnded: true);
 
-    final serverKey = ref.read(connectionsControllerProvider).activeKey;
-    final client = _clientFor(serverKey);
-    if (client == null) {
+    final voice = ref.read(voiceControllerProvider.notifier);
+    await voice.join(channel.id, null);
+    // Bail if the join failed (the voice controller surfaces its own error).
+    final connection = ref.read(voiceControllerProvider);
+    if (connection.channelId != channel.id) {
       state = state.copyWith(clearOutgoing: true);
       return;
     }
 
-    final voice = ref.read(voiceControllerProvider.notifier);
-    await voice.join(channel.id, null);
-    // Bail if the join failed (the voice controller surfaces its own error).
-    if (ref.read(voiceControllerProvider).channelId != channel.id) {
-      state = state.copyWith(clearOutgoing: true);
+    // Ring through the connection the join was pinned to (which the voice
+    // controller resolved from the active server at join time), not whatever
+    // is active by the time the join resolves.
+    final client = _clientFor(connection.serverKey);
+    if (client == null) {
+      state = state.copyWith(
+        clearOutgoing: true,
+        endedMessage: 'Could not start the call — no connection',
+      );
+      await voice.leave();
       return;
     }
 
     if (video) await voice.toggleVideo();
     _ringtone.start(outgoing: true);
-    await client.voice.ring(channel.id, metadata: {'video': video});
+    final result = await client.voice.ring(
+      channel.id,
+      metadata: {'video': video},
+    );
+    if (result.ok) return;
+    // Nobody is being rung, so the call can never connect: hang up rather than
+    // leave the caller on a "Calling…" screen that nothing will answer, and
+    // say why (the server's reason when it gave one).
+    final reason = (result.error?.message ?? '').trim();
+    _ringtone.stop();
+    state = state.copyWith(
+      clearOutgoing: true,
+      endedMessage: reason.isEmpty ? 'Could not ring the call' : reason,
+    );
+    await voice.leave();
   }
 
   /// Accepts the pending incoming call by joining its voice channel (the server
