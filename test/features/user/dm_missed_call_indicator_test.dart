@@ -134,7 +134,14 @@ void main() {
     await tester.pump();
 
     expect(find.byTooltip('Pinned messages'), findsOneWidget);
-    expect(find.byTooltip('Attach files'), findsOneWidget);
+    // The attach tooltip now carries the server's limits after the label
+    // (#330), so match on its prefix rather than the exact string.
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Tooltip && w.message?.startsWith('Attach files') == true,
+      ),
+      findsOneWidget,
+    );
     expect(find.byTooltip('Emoji'), findsOneWidget);
     expect(find.byTooltip('Start voice call'), findsOneWidget);
     expect(find.byTooltip('Start video call'), findsOneWidget);

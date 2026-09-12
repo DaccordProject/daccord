@@ -114,7 +114,25 @@ void main() {
       });
       expect(c.spaceId, '7');
       expect(c.rateLimit, 5);
+      expect(c.rateLimitSeconds, 5);
       expect(c.permissionOverwrites.single.type, 'user');
+    });
+
+    test('rateLimitSeconds parses slowmode tolerantly and clamps it', () {
+      int seconds(Object? raw) =>
+          AccordChannel.fromJson({'id': '1', 'rate_limit': raw})
+              .rateLimitSeconds;
+      expect(seconds(null), 0);
+      expect(seconds(0), 0);
+      expect(seconds(-5), 0);
+      expect(seconds(30), 30);
+      expect(seconds(30.9), 30);
+      expect(seconds(' 45 '), 45);
+      expect(seconds('never'), 0);
+      expect(seconds(true), 0);
+      expect(seconds(21600), 21600);
+      expect(seconds(99999), AccordChannel.maxRateLimitSeconds);
+      expect(AccordChannel.fromJson({'id': '1'}).rateLimitSeconds, 0);
     });
 
     test('roundtrips recipients', () {
