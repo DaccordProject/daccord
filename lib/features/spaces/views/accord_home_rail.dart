@@ -389,16 +389,17 @@ class _SpaceRail extends ConsumerWidget {
     ctl.setSpaceOrder([for (final id in rest) ServerEntityKey.tryDecode(id)!]);
   }
 
-  /// Context menu for a space (double-tap / right-click): server actions
-  /// (invite, settings, leave) above the folder-assignment actions. [serverKey]
-  /// is the owning connection's key, so actions hit the right server even when
-  /// it isn't the active one.
+  /// Context menu for a space (long-press on touch / right-click on desktop):
+  /// server actions (invite, settings, leave) above the folder-assignment
+  /// actions. [serverKey] is the owning connection's key, so actions hit the
+  /// right server even when it isn't the active one. [position] anchors the
+  /// menu on desktop; null presents the touch-friendly sheet.
   Future<void> _spaceMenu(
     BuildContext context,
     WidgetRef ref,
     AccordSpace space,
     String serverKey,
-    Offset position,
+    Offset? position,
   ) {
     final settings = ref.read(settingsControllerProvider);
     final ctl = ref.read(settingsControllerProvider.notifier);

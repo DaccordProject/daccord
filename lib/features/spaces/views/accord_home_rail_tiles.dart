@@ -17,87 +17,6 @@ class _FolderDrag extends _RailDrag {
   final String folderId;
 }
 
-/// Desktop pointers have no "long press" affordance and scroll via the wheel,
-/// so a drag should start immediately on click-drag. Touch platforms keep the
-/// long-press gesture so dragging doesn't fight finger-scrolling.
-bool get _immediateDrag => switch (defaultTargetPlatform) {
-  TargetPlatform.linux ||
-  TargetPlatform.macOS ||
-  TargetPlatform.windows => true,
-  _ => false,
-};
-
-/// The platform-appropriate draggable for a rail item: an immediate [Draggable]
-/// on desktop (click-drag), a [LongPressDraggable] on touch (press-and-hold to
-/// lift, with haptic, so dragging doesn't fight finger-scrolling).
-///
-/// On touch a long-press that is *released in place* (no drag) is treated as a
-/// context-menu request via [onPressMenu] — that's the menu's discoverable home
-/// there, since touch has no right-click and long-press is the platform's
-/// universal "show actions" gesture. Desktop opens the same menu on right-click
-/// instead (handled by the child), so [onPressMenu] never fires there.
-class _RailDraggable extends StatefulWidget {
-  const _RailDraggable({
-    required this.data,
-    required this.feedback,
-    required this.childWhenDragging,
-    required this.child,
-    this.onPressMenu,
-  });
-
-  final _RailDrag data;
-  final Widget feedback;
-  final Widget childWhenDragging;
-  final Widget child;
-
-  /// Touch only: the user long-pressed and released without dragging at this
-  /// global position — open the item's management menu there.
-  final ValueChanged<Offset>? onPressMenu;
-
-  @override
-  State<_RailDraggable> createState() => _RailDraggableState();
-}
-
-class _RailDraggableState extends State<_RailDraggable> {
-  // Captured on pointer-down so a release-in-place can anchor the menu where the
-  // finger landed (the drag callbacks don't carry the press origin).
-  Offset _downPos = Offset.zero;
-  bool _moved = false;
-
-  @override
-  Widget build(BuildContext context) {
-    if (_immediateDrag) {
-      return Draggable<_RailDrag>(
-        data: widget.data,
-        feedback: widget.feedback,
-        childWhenDragging: widget.childWhenDragging,
-        child: widget.child,
-      );
-    }
-    return Listener(
-      onPointerDown: (e) => _downPos = e.position,
-      child: LongPressDraggable<_RailDrag>(
-        data: widget.data,
-        feedback: widget.feedback,
-        childWhenDragging: widget.childWhenDragging,
-        onDragStarted: () {
-          _moved = false;
-          HapticFeedback.mediumImpact();
-        },
-        onDragUpdate: (d) {
-          if (!_moved && (d.globalPosition - _downPos).distance > 8) {
-            _moved = true;
-          }
-        },
-        onDragEnd: (d) {
-          if (!_moved && !d.wasAccepted) widget.onPressMenu?.call(_downPos);
-        },
-        child: widget.child,
-      ),
-    );
-  }
-}
-
 /// A drop zone occupying the track between two rail items, so a space or folder
 /// can be inserted *at* that position (e.g. between a space and a folder)
 /// instead of only onto an icon. Grows and shows an insertion bar while a
@@ -176,7 +95,10 @@ class _DraggableSpace extends StatelessWidget {
   /// A folder [folderId] was dropped on this tile: move the whole folder before
   /// this space.
   final ValueChanged<String> onDropFolderBefore;
-  final void Function(Offset position) onMenu;
+
+  /// Open the space's management menu: anchored at [position] (desktop
+  /// right-click) or as a sheet when it is null (touch long-press).
+  final void Function(Offset? position) onMenu;
   final String serverKey;
   final String entityKey;
 
@@ -204,8 +126,9 @@ class _DraggableSpace extends StatelessWidget {
       },
       builder: (context, candidate, _) => Opacity(
         opacity: candidate.isNotEmpty ? 0.5 : 1,
-        child: _RailDraggable(
+        child: RailDraggable<_RailDrag>(
           data: _SpaceDrag(entityKey),
+          tooltip: space.name,
           feedback: Material(
             color: Colors.transparent,
             child: _SpaceIcon(
@@ -220,11 +143,8 @@ class _DraggableSpace extends StatelessWidget {
           // Drag drives reorder / grouping; the management menu (new folder,
           // move/remove, leave) opens via long-press on touch and right-click on
           // desktop so it stays reachable everywhere.
-          onPressMenu: onMenu,
-          child: GestureDetector(
-            onSecondaryTapUp: (d) => onMenu(d.globalPosition),
-            child: icon,
-          ),
+          onMenu: onMenu,
+          child: icon,
         ),
       ),
     );
@@ -319,61 +239,61 @@ class _SpaceIcon extends ConsumerWidget {
         context,
       ).textTheme.titleSmall!.copyWith(color: Colors.white),
     );
+    // No Tooltip here: in the rail, [RailDraggable] owns the name tooltip (its
+    // long-press trigger must not compete with the drag / menu gesture), and
+    // the other host — the hidden-servers sheet — prints the name beside it.
     return Center(
-      child: Tooltip(
-        message: space.name,
-        child: GestureDetector(
-          onTap: onTap,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Opacity(
-                opacity: unreachable ? 0.4 : 1.0,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 120),
-                  width: 48,
-                  height: 48,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    color: selected ? colors.primary : colors.darkGray,
-                    borderRadius: radius,
-                  ),
-                  alignment: Alignment.center,
-                  child: iconUrl == null
-                      ? fallback
-                      : CachedNetworkImage(
-                          imageUrl: iconUrl,
-                          width: 48,
-                          height: 48,
-                          fit: BoxFit.cover,
-                          placeholder: (_, _) => fallback,
-                          errorWidget: (_, _, _) => fallback,
-                        ),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Opacity(
+              opacity: unreachable ? 0.4 : 1.0,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                width: 48,
+                height: 48,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: selected ? colors.primary : colors.darkGray,
+                  borderRadius: radius,
                 ),
-              ),
-              if (mentions > 0)
-                Positioned(
-                  right: -4,
-                  top: -2,
-                  child: _MentionBadge(count: mentions),
-                )
-              else if (hasUnread)
-                Positioned(
-                  left: -4,
-                  top: 18,
-                  child: Container(
-                    width: 8,
-                    height: 12,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.horizontal(
-                        right: Radius.circular(4),
+                alignment: Alignment.center,
+                child: iconUrl == null
+                    ? fallback
+                    : CachedNetworkImage(
+                        imageUrl: iconUrl,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        placeholder: (_, _) => fallback,
+                        errorWidget: (_, _, _) => fallback,
                       ),
+              ),
+            ),
+            if (mentions > 0)
+              Positioned(
+                right: -4,
+                top: -2,
+                child: _MentionBadge(count: mentions),
+              )
+            else if (hasUnread)
+              Positioned(
+                left: -4,
+                top: 18,
+                child: Container(
+                  width: 8,
+                  height: 12,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.horizontal(
+                      right: Radius.circular(4),
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
