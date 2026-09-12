@@ -148,7 +148,22 @@ void bindMessageEvents(
       // and the rail/channel indicators apply [UnreadIndicatorGate] when they
       // render (see `ReadStateSnapshot.spaceShowsUnread`), so unmuting a space
       // reveals what arrived while it was muted without waiting for a reconnect.
-      if (!isOwn && !isVisibleChannel) {
+      //
+      // Our own message is the one case that *clears* read state instead:
+      // posting into a channel reads it. The local badge alone isn't enough —
+      // without the `channels.ack` the server's read position stays behind our
+      // own message, so its `unread` array re-lights the channel on the next
+      // READY (a restart, or any reconnect that re-identifies). That is what
+      // made a channel highlight for messages the user wrote themselves. The
+      // ack also echoes to our other sessions via `read_state.update`.
+      if (isOwn) {
+        ref
+            .read(readStateControllerProvider(serverKey).notifier)
+            .markRead(message.channelId);
+        if (message.id.isNotEmpty) {
+          unawaited(client.channels.ack(message.channelId, message.id));
+        }
+      } else if (!isVisibleChannel) {
         ref
             .read(readStateControllerProvider(serverKey).notifier)
             .markUnread(

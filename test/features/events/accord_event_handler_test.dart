@@ -2,12 +2,15 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/events/services/accord_event_handler.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 /// A [GatewayConnection] a test can push inbound frames through.
 class _FakeGatewayConnection implements GatewayConnection {
@@ -81,5 +84,59 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(container.read(provider)?.single.id, 'm1');
+  });
+
+  test('our own message reads the channel instead of highlighting it', () async {
+    final connection = _FakeGatewayConnection();
+    final acked = <String>[];
+    final client = AccordClient(
+      baseUrl: 'https://accord.example.test',
+      gatewayUrl: 'wss://accord.example.test/ws',
+      connectionFactory: (_) => connection,
+      httpClient: MockClient((request) async {
+        acked.add('${request.method} ${request.url.path} ${request.body}');
+        return http.Response('{}', 200);
+      }),
+    );
+    addTearDown(client.dispose);
+    final container = ProviderContainer(
+      overrides: [settingsControllerProvider.overrideWith(_QuietSettings.new)],
+    );
+    addTearDown(container.dispose);
+    // Unread from somebody else, in a channel that is not on screen.
+    container
+        .read(readStateControllerProvider(_serverKey).notifier)
+        .markUnread('c1', spaceId: 's1');
+    addTearDown(
+      handleAccordEvents(
+        container.read(_refProvider),
+        client,
+        serverKey: _serverKey,
+        currentUserId: 'u-self',
+        selfDomain: 'accord.example.test',
+        isActive: () => true,
+      ),
+    );
+    client.login();
+    await Future<void>.delayed(Duration.zero);
+
+    // Federation echoes our own message back qualified to our home domain.
+    connection.receive({
+      'op': GatewayOpcodes.event,
+      'type': 'message.create',
+      'data': {
+        'id': 'm7',
+        'channel_id': 'c1',
+        'space_id': 's1',
+        'author_id': 'u-self@accord.example.test',
+        'content': 'mine',
+      },
+    });
+    await Future<void>.delayed(Duration.zero);
+
+    final state = container.read(readStateControllerProvider(_serverKey));
+    expect(state.isUnread('c1'), isFalse);
+    // The ack is what stops READY's `unread` array from re-lighting the channel.
+    expect(acked, contains('POST /api/v1/channels/c1/ack {"message_id":"m7"}'));
   });
 }
