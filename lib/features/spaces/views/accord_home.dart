@@ -40,6 +40,7 @@ import 'package:bonfire/features/spaces/views/accord_gates.dart';
 import 'package:bonfire/features/spaces/views/accord_channel_reorder.dart';
 import 'package:bonfire/features/spaces/views/accord_invites.dart';
 import 'package:bonfire/features/spaces/views/accord_search.dart';
+import 'package:bonfire/features/spaces/views/rail_draggable.dart';
 import 'package:bonfire/features/user/views/self_status_button.dart';
 import 'package:bonfire/features/user/views/accord_direct_messages.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
@@ -68,8 +69,6 @@ import 'package:bonfire/features/voice/views/voice_participants.dart';
 import 'package:bonfire/features/voice/views/voice_pip_overlay.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show SchedulerPhase;
 import 'package:flutter/services.dart';
@@ -206,7 +205,12 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       final channelId = args['channel_id'] as String;
       final messageId = args['message_id'] as String;
       final root = ref
-          .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', channelId))
+          .read(
+            accordMessagesControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              channelId,
+            ),
+          )
           ?.firstWhereOrNull((m) => m.id == messageId);
       if (root == null) return {'error': 'Message not loaded'};
       showAccordThread(context, channelId: channelId, root: root);
@@ -513,7 +517,12 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
 
     final channels = effectiveSpaceId == null
         ? null
-        : ref.watch(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', effectiveSpaceId));
+        : ref.watch(
+            accordChannelsControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              effectiveSpaceId,
+            ),
+          );
 
     final firstText = channels?.where((c) => c.type == 'text').firstOrNull;
 

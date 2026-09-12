@@ -53,20 +53,17 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
         ? Color(folder.color!)
         : colors.darkGray;
 
-    final folderIcon = Tooltip(
-      message: folder.name.isEmpty ? 'Folder' : folder.name,
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: folderColor.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        alignment: Alignment.center,
-        child: Icon(
-          folder.collapsed ? Icons.folder : Icons.folder_open,
-          color: colors.dirtyWhite,
-        ),
+    final folderIcon = Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: folderColor.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      alignment: Alignment.center,
+      child: Icon(
+        folder.collapsed ? Icons.folder : Icons.folder_open,
+        color: colors.dirtyWhite,
       ),
     );
 
@@ -88,19 +85,18 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
             },
             builder: (context, candidate, _) {
               final highlight = candidate.isNotEmpty;
-              return _RailDraggable(
+              return RailDraggable<_RailDrag>(
                 data: _FolderDrag(folder.id),
+                tooltip: folder.name.isEmpty ? 'Folder' : folder.name,
                 feedback: Material(
                   color: Colors.transparent,
                   child: folderIcon,
                 ),
                 childWhenDragging: Opacity(opacity: 0.3, child: folderIcon),
-                onPressMenu: (pos) => _folderMenu(context, ref, pos),
+                onMenu: (pos) => _folderMenu(context, ref, pos),
                 child: GestureDetector(
                   onTap: () =>
                       ctl.setFolderCollapsed(folder.id, !folder.collapsed),
-                  onSecondaryTapUp: (d) =>
-                      _folderMenu(context, ref, d.globalPosition),
                   child: Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
@@ -139,12 +135,15 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
     );
   }
 
+  /// Context menu for a folder member (long-press on touch / right-click on
+  /// desktop): the shared server actions above "remove from folder".
+  /// [position] anchors it on desktop; null presents the touch sheet.
   Future<void> _memberMenu(
     BuildContext context,
     WidgetRef ref,
     SettingsController ctl,
     _RailSpace railSpace,
-    Offset position,
+    Offset? position,
   ) {
     final space = railSpace.space;
     final entries = <AccordMenuEntry>[
@@ -174,7 +173,7 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
   Future<void> _folderMenu(
     BuildContext context,
     WidgetRef ref,
-    Offset position,
+    Offset? position,
   ) {
     final ctl = ref.read(settingsControllerProvider.notifier);
     final entries = <AccordMenuEntry>[
@@ -278,7 +277,10 @@ class _FolderMemberTile extends StatelessWidget {
   /// A space [draggedSpaceId] was dropped on this member: place it before this
   /// member within the folder.
   final ValueChanged<String> onDropBefore;
-  final void Function(Offset position) onMenu;
+
+  /// Open the member's management menu: anchored at [position] (desktop
+  /// right-click) or as a sheet when it is null (touch long-press).
+  final void Function(Offset? position) onMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -301,8 +303,9 @@ class _FolderMemberTile extends StatelessWidget {
       },
       builder: (context, candidate, _) => Opacity(
         opacity: candidate.isNotEmpty ? 0.5 : 1,
-        child: _RailDraggable(
+        child: RailDraggable<_RailDrag>(
           data: _SpaceDrag(entityKey),
+          tooltip: space.name,
           feedback: Material(
             color: Colors.transparent,
             child: _SpaceIcon(
@@ -314,11 +317,8 @@ class _FolderMemberTile extends StatelessWidget {
             ),
           ),
           childWhenDragging: Opacity(opacity: 0.3, child: icon),
-          onPressMenu: onMenu,
-          child: GestureDetector(
-            onSecondaryTapUp: (d) => onMenu(d.globalPosition),
-            child: icon,
-          ),
+          onMenu: onMenu,
+          child: icon,
         ),
       ),
     );
