@@ -1,7 +1,9 @@
 import 'package:bonfire/features/authentication/models/app_terms.dart';
+import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// The app's own terms gate, shown before the signed-out flow can be used.
 ///
@@ -43,6 +45,17 @@ class TermsGateView extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         const AppTermsBody(),
+        Align(
+          alignment: Alignment.center,
+          child: TextButton.icon(
+            onPressed: () => launchUrl(
+              Uri.parse(kDaccordPrivacyPolicyUrl),
+              mode: LaunchMode.externalApplication,
+            ),
+            icon: const Icon(Icons.privacy_tip_outlined, size: 18),
+            label: const Text('Privacy Policy'),
+          ),
+        ),
         const SizedBox(height: 16),
         SizedBox(
           height: 50,
@@ -172,12 +185,24 @@ Future<void> showAppTermsDialog(BuildContext context) {
               const SizedBox(height: 12),
               Flexible(child: const AppTermsBody(maxHeight: 420)),
               const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Close'),
-                ),
+              OverflowBar(
+                alignment: MainAxisAlignment.end,
+                spacing: 8,
+                overflowSpacing: 8,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => launchUrl(
+                      Uri.parse(kDaccordPrivacyPolicyUrl),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                    icon: const Icon(Icons.privacy_tip_outlined, size: 18),
+                    label: const Text('Privacy Policy'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Close'),
+                  ),
+                ],
               ),
             ],
           ),

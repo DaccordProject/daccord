@@ -1,17 +1,17 @@
 ---
 title: Installing daccord
-description: Download and install daccord on Linux, Windows, macOS, or Android.
+description: Download and install daccord on Linux, Windows, macOS, Android, or iOS.
 order: 1
 section: getting-started
 ---
 
 # Installing daccord
 
-daccord is available for Linux, Windows, macOS, Android, and the web.
+daccord is available for Linux, Windows, macOS, Android, iOS, and the web.
 
 ## Download
 
-Download the latest release from the [GitHub Releases page](https://github.com/DaccordProject/daccord/releases).
+Get the free iOS app from the [App Store](https://apps.apple.com/app/id6779929284), or Android from [Google Play](https://play.google.com/store/apps/details?id=com.daccord_projects.daccord). Desktop builds and the Android APK are available from the [GitHub Releases page](https://github.com/DaccordProject/daccord/releases).
 
 Choose the right file for your platform:
 
@@ -57,7 +57,15 @@ The portable archive does not register the `daccord://` scheme with Windows.
 2. Drag daccord to your Applications folder.
 3. Launch from Applications. On first launch, you may need to right-click and choose "Open" to bypass Gatekeeper.
 
+## iOS
+
+1. Open [Daccord on the App Store](https://apps.apple.com/app/id6779929284).
+2. Tap **Get** to install the free app. Requires iOS 15.6 or later.
+3. Launch Daccord and connect to your server.
+
 ## Android
+
+Install Daccord from [Google Play](https://play.google.com/store/apps/details?id=com.daccord_projects.daccord), or install the APK manually:
 
 1. Download the `.apk` file to your device.
 2. Open it and follow the installation prompts. You may need to allow installation from unknown sources in your device settings.
@@ -69,4 +77,6 @@ The Web (JavaScript) build runs entirely in your browser with no installation re
 
 ## Updates
 
-daccord checks for updates automatically on startup. When a new version is available, a banner appears at the top of the window. Click it to download and install the update. You can also check manually from the user menu.
+App Store and Google Play installations receive updates through their respective stores.
+
+Desktop and sideloaded Android builds check for updates automatically on startup. When a new version is available, a banner appears at the top of the window. Click it to download and install the update. You can also check manually from the user menu.

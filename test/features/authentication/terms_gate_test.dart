@@ -87,6 +87,7 @@ void main() {
 
     expect(find.byType(TermsGateView), findsOneWidget);
     expect(find.text(appTermsTitle), findsOneWidget);
+    expect(find.text('Privacy Policy'), findsOneWidget);
     expect(find.textContaining('Zero tolerance'), findsOneWidget);
     // The welcome screen — and with it the server browser and the credentials
     // form behind it — stays out of reach.

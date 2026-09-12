@@ -69,7 +69,10 @@ This client is the front door: one native app for every screen you own.
 
 ## 📥 Download
 
-Grab the latest build from the **[Releases page](https://github.com/DaccordProject/daccord/releases/latest)**:
+Grab the latest build from the **[Releases page](https://github.com/DaccordProject/daccord/releases/latest)**, or check the mobile store listings:
+
+[Daccord on the App Store](https://apps.apple.com/app/id6779929284) ·
+[Daccord on Google Play](https://play.google.com/store/apps/details?id=com.daccord_projects.daccord)
 
 | Platform | File |
 |---|---|
@@ -83,7 +86,7 @@ Grab the latest build from the **[Releases page](https://github.com/DaccordProje
 
 Every release ships a `SHA256SUMS.txt` so you can verify what you downloaded. Step-by-step instructions per platform live in [Installing daccord](docs/getting-started/installation.md).
 
-iOS and the store channels are built and submitted by the release workflow; public store listings aren't live yet, so the downloads above are the way in today.
+iOS and store channels are built and submitted by the release workflow. Availability depends on the store and region; store installations receive updates through their respective stores.
 
 ### Platform support
 

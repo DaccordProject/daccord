@@ -13,6 +13,7 @@ import 'package:bonfire/features/settings/views/privacy_settings_page.dart';
 import 'package:bonfire/features/settings/views/settings_backup.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/onboarding/views/onboarding_tour.dart';
+import 'package:bonfire/features/onboarding/views/onboarding_help.dart';
 import 'package:bonfire/features/updates/views/updates_page.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/user/views/accord_account_settings.dart';
@@ -793,6 +794,15 @@ class _AboutSection extends StatelessWidget {
             'report it.',
           ),
           onTap: () => showAppTermsDialog(context),
+        ),
+        ListTile(
+          leading: const Icon(Icons.privacy_tip_outlined),
+          title: const Text('Privacy Policy'),
+          subtitle: const Text(
+            'How the app, website, and independent servers handle data.',
+          ),
+          trailing: const Icon(Icons.open_in_new, size: 16),
+          onTap: () => openOnboardingHelpUrl(kDaccordPrivacyPolicyUrl),
         ),
       ],
     );

@@ -3,11 +3,6 @@ import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Where "Help & support" points. Kept here rather than in `shared/app_info.dart`
-/// so the onboarding module owns its own copy of the support surface; the repo
-/// slug itself is still the single source of truth ([kGithubRepo]).
-const String kDaccordHelpUrl = 'https://github.com/$kGithubRepo#readme';
-
 /// The issue tracker — "found a bug / need help" lands here.
 const String kDaccordIssuesUrl = 'https://github.com/$kGithubRepo/issues';
 
