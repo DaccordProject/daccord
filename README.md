@@ -130,6 +130,8 @@ The easiest route is the **Accord desktop app**: a tray application that bundles
 
 ## 📚 Documentation
 
+Shared app links use `https://www.daccord.gg/open/`. iOS Universal Link handling requires the website association and matching signing profile described in [App Store deployment](docs/app-store-deploy.md#universal-links).
+
 End-user documentation lives in [`docs/`](docs/index.md):
 
 - [Installing daccord](docs/getting-started/installation.md) · [Adding a server](docs/getting-started/adding-a-server.md) · [Creating an account](docs/getting-started/creating-an-account.md)
