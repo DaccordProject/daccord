@@ -46,6 +46,25 @@ void main() {
       arr.deserializeArray(AccordUser.fromJson);
       expect((arr.data as List).map((u) => (u as AccordUser).id), ['1', '2']);
     });
+
+    test('extras default to empty and pendingAttachments to none', () {
+      final r = RestResult.success(200, {'id': '1'});
+      expect(r.extras, isEmpty);
+      expect(r.pendingAttachments, isEmpty);
+      expect(r.accepted, isFalse);
+    });
+
+    test('pendingAttachments reads string ids and tolerates junk', () {
+      final r = RestResult.success(202, null, extras: {
+        'pending_attachments': ['u1', 2, null, ''],
+      });
+      expect(r.pendingAttachments, ['u1', '2']);
+      expect(r.accepted, isTrue);
+
+      final notAList =
+          RestResult.success(202, null, extras: {'pending_attachments': 'u1'});
+      expect(notAList.pendingAttachments, isEmpty);
+    });
   });
 
   group('AccordError', () {
@@ -101,6 +120,72 @@ void main() {
       expect(result.data, [
         {'id': '1'}
       ]);
+    });
+
+    test('keeps envelope siblings of data on extras', () async {
+      final rest = mockRest(
+        log: [],
+        responder: (_) => http.Response(
+          jsonEncode({
+            'data': {'id': '1'},
+            'cursor': {'after': '99'},
+          }),
+          200,
+        ),
+      );
+      final result = await rest.makeRequest('GET', '/x');
+      expect(result.data, {'id': '1'});
+      expect(result.extras, {
+        'cursor': {'after': '99'}
+      });
+      expect(result.pendingAttachments, isEmpty);
+    });
+
+    test('a 202 with pending_attachments is a success that keeps the ids',
+        () async {
+      final rest = mockRest(
+        log: [],
+        responder: (_) => http.Response(
+          jsonEncode({
+            'data': {'id': 'm1', 'channel_id': '5', 'attachments': []},
+            'pending_attachments': ['u1', 'u2'],
+          }),
+          202,
+        ),
+      );
+      final result = await rest.makeRequest('POST', '/x');
+      expect(result.ok, isTrue);
+      expect(result.statusCode, 202);
+      expect(result.accepted, isTrue);
+      expect(result.data, {'id': 'm1', 'channel_id': '5', 'attachments': []});
+      expect(result.pendingAttachments, ['u1', 'u2']);
+    });
+
+    test('a 200 from a server that predates pending_attachments has none',
+        () async {
+      final rest = mockRest(
+        log: [],
+        responder: (_) => jsonData({'id': 'm1'}),
+      );
+      final result = await rest.makeRequest('POST', '/x');
+      expect(result.statusCode, 200);
+      expect(result.accepted, isFalse);
+      expect(result.extras, isEmpty);
+      expect(result.pendingAttachments, isEmpty);
+    });
+
+    test('a plain (non-envelope) body has no extras', () async {
+      final rest = mockRest(
+        log: [],
+        responder: (_) => jsonRaw({
+          'id': 'm1',
+          'pending_attachments': ['u1']
+        }),
+      );
+      final result = await rest.makeRequest('POST', '/x');
+      expect(result.extras, isEmpty);
+      expect(result.pendingAttachments, isEmpty);
+      expect((result.data as Map)['id'], 'm1');
     });
 
     test('parses error envelope', () async {
@@ -322,8 +407,7 @@ void main() {
         onUnauthorized: () => calls++,
       );
       final form = MultipartForm(boundary: 'BOUND')..addField('a', 'b');
-      final result =
-          await rest.makeMultipartRequest('POST', '/upload', form);
+      final result = await rest.makeMultipartRequest('POST', '/upload', form);
       expect(result.ok, isFalse);
       expect(calls, 1);
     });

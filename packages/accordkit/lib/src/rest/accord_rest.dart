@@ -325,9 +325,14 @@ class AccordRest {
       return RestResult.failure(status, accordError);
     }
 
-    // Success envelope with "data" key.
+    // Success envelope with "data" key. Sibling keys (`pending_attachments`,
+    // `cursor`, …) are kept on [RestResult.extras] rather than dropped.
     if (map.containsKey('data')) {
-      return RestResult.success(status, map['data']);
+      final extras = <String, dynamic>{
+        for (final entry in map.entries)
+          if (entry.key != 'data') entry.key: entry.value,
+      };
+      return RestResult.success(status, map['data'], extras: extras);
     }
 
     // Plain dictionary response (no envelope).

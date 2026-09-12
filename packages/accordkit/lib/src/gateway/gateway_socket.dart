@@ -4,6 +4,7 @@ import 'dart:math';
 
 import '../core/accord_config.dart';
 import '../models/accord_relationship.dart';
+import '../models/automod_upload.dart';
 import '../models/call_signal.dart';
 import '../models/channel.dart';
 import '../models/invite.dart';
@@ -176,6 +177,9 @@ class GatewaySocket {
 
   late final _auditLogCreate = _ctrl<Map<String, dynamic>>();
   late final _anonymousCountUpdated = _ctrl<Map<String, dynamic>>();
+
+  late final _automodUploadStatus = _ctrl<AccordAutomodUploadStatus>();
+  late final _automodUploadUpdate = _ctrl<AccordAutomodUploadStatus>();
   late final _rawEvent = _ctrl<RawGatewayEvent>();
 
   Stream<void> get onConnected => _connected.stream;
@@ -217,8 +221,7 @@ class GatewaySocket {
   /// Fired when the server reports that the authenticated user read a channel on
   /// another session (multi-device sync). Carries `channel_id`,
   /// `last_read_message_id`, and `mention_count`.
-  Stream<Map<String, dynamic>> get onReadStateUpdate =>
-      _readStateUpdate.stream;
+  Stream<Map<String, dynamic>> get onReadStateUpdate => _readStateUpdate.stream;
 
   Stream<Map<String, dynamic>> get onReactionAdd => _reactionAdd.stream;
   Stream<Map<String, dynamic>> get onReactionRemove => _reactionRemove.stream;
@@ -278,6 +281,17 @@ class GatewaySocket {
   Stream<Map<String, dynamic>> get onAuditLogCreate => _auditLogCreate.stream;
   Stream<Map<String, dynamic>> get onAnonymousCountUpdated =>
       _anonymousCountUpdated.stream;
+
+  /// AutoMod progress on one of *this account's* uploads (`messages` intent;
+  /// the server addresses it to the uploader only). IDs and status only —
+  /// reasons come from `AutomodApi.getUpload`.
+  Stream<AccordAutomodUploadStatus> get onAutomodUploadStatus =>
+      _automodUploadStatus.stream;
+
+  /// AutoMod progress on any upload in a space the session moderates
+  /// (`moderation` intent; permission is re-checked per delivery).
+  Stream<AccordAutomodUploadStatus> get onAutomodUploadUpdate =>
+      _automodUploadUpdate.stream;
   Stream<RawGatewayEvent> get onRawEvent => _rawEvent.stream;
 
   // ── Public API ─────────────────────────────────────────────────────────
@@ -895,6 +909,12 @@ class GatewaySocket {
         break;
       case 'audit_log.create':
         _auditLogCreate.add(data);
+        break;
+      case 'automod.upload_status':
+        _automodUploadStatus.add(AccordAutomodUploadStatus.fromJson(data));
+        break;
+      case 'automod.upload_update':
+        _automodUploadUpdate.add(AccordAutomodUploadStatus.fromJson(data));
         break;
     }
 
