@@ -24,13 +24,20 @@ Future<void> showChannelPermissionsDialog(
 }) {
   return showDialog<void>(
     context: context,
-    builder: (_) => _ChannelPermissionsDialog(spaceId: spaceId, channel: channel),
+    builder: (_) =>
+        _ChannelPermissionsDialog(spaceId: spaceId, channel: channel),
   );
 }
 
 /// The tri-state of a single permission within an overwrite: explicitly allowed,
 /// explicitly denied, or inherited (neither list contains it).
 enum _OverwriteState { allow, neutral, deny }
+
+/// Below this many logical pixels the dialog stacks the role/member selector
+/// above a full-width editor instead of placing them side by side (#328). Used
+/// both for the body layout (via [LayoutBuilder]) and, against the screen
+/// width, to let the dialog fill a phone instead of keeping desktop insets.
+const _compactBreakpoint = 560.0;
 
 /// Permissions only meaningful on voice channels — hidden for text/forum/etc.
 const _voiceOnlyPerms = <String>{
@@ -61,7 +68,10 @@ const _textOnlyPerms = <String>{
 };
 
 class _ChannelPermissionsDialog extends ConsumerStatefulWidget {
-  const _ChannelPermissionsDialog({required this.spaceId, required this.channel});
+  const _ChannelPermissionsDialog({
+    required this.spaceId,
+    required this.channel,
+  });
 
   final String spaceId;
   final AccordChannel channel;
@@ -108,7 +118,12 @@ class _ChannelPermissionsDialogState
   }
 
   Map<String, AccordMember> get _members =>
-      ref.read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId)) ??
+      ref.read(
+        accordMembersControllerProvider(
+          ref.readActiveServerKey() ?? '',
+          widget.spaceId,
+        ),
+      ) ??
       const <String, AccordMember>{};
 
   Future<void> _load() async {
@@ -125,9 +140,8 @@ class _ChannelPermissionsDialogState
       final overwrite = item is AccordPermissionOverwrite
           ? item
           : item is Map
-              ? AccordPermissionOverwrite.fromJson(
-                  item.cast<String, dynamic>())
-              : null;
+          ? AccordPermissionOverwrite.fromJson(item.cast<String, dynamic>())
+          : null;
       if (overwrite == null || overwrite.id.isEmpty) continue;
       _originalIds.add(overwrite.id);
       _types[overwrite.id] = overwrite.type; // fromJson normalizes member→user
@@ -152,17 +166,20 @@ class _ChannelPermissionsDialogState
   }
 
   static Map<String, Map<String, _OverwriteState>> _deepCopy(
-          Map<String, Map<String, _OverwriteState>> src) =>
-      {for (final e in src.entries) e.key: Map.of(e.value)};
+    Map<String, Map<String, _OverwriteState>> src,
+  ) => {for (final e in src.entries) e.key: Map.of(e.value)};
 
   /// Materializes an all-inherit entry for [id] if it has none yet, so the
   /// editor can show rows for a role/member with no existing overwrite.
   void _ensureEntity(String? id, {String type = 'role'}) {
     if (id == null) return;
     _types.putIfAbsent(id, () => type);
-    _data.putIfAbsent(id, () => {
-          for (final p in AccordPermission.all()) p: _OverwriteState.neutral,
-        });
+    _data.putIfAbsent(
+      id,
+      () => {
+        for (final p in AccordPermission.all()) p: _OverwriteState.neutral,
+      },
+    );
   }
 
   void _select(String id, String type) {
@@ -234,7 +251,8 @@ class _ChannelPermissionsDialogState
     // Entities that still carry at least one allow/deny survive; the rest that
     // were originally present are deleted.
     final active = <String>[];
-    final payloads = <(String id, String type, List<String> allow, List<String> deny)>[];
+    final payloads =
+        <(String id, String type, List<String> allow, List<String> deny)>[];
     for (final entry in _data.entries) {
       final allow = <String>[];
       final deny = <String>[];
@@ -306,8 +324,7 @@ class _ChannelPermissionsDialogState
     return role == null ? null : accordRoleColor(role.color);
   }
 
-  String _memberName(String id) =>
-      accordMemberName(_members[id], fallback: id);
+  String _memberName(String id) => accordMemberName(_members[id], fallback: id);
 
   Future<void> _addMemberOverwrite() async {
     final picked = await showDialog<String>(
@@ -328,19 +345,31 @@ class _ChannelPermissionsDialogState
     // fresh `roles` list to the space (see SpacesController._mutateRoles), so
     // selecting the list identity catches all role changes without rebuilding
     // for unrelated spaces.
-    ref.watch(spacesControllerProvider.select((spaces) =>
-        spaces?.firstWhereOrNull((s) => s.id == widget.spaceId)?.roles));
+    ref.watch(
+      spacesControllerProvider.select(
+        (spaces) =>
+            spaces?.firstWhereOrNull((s) => s.id == widget.spaceId)?.roles,
+      ),
+    );
     // Rebuild when a rendered member-overwrite name changes (member update or
     // user backfill), joined so select() compares by value. The build reads
     // nothing else from the cache; the watch also keeps the self-loading
     // member controller alive for the read-at-tap member picker.
     final memberIds = _memberOverwriteIds;
-    ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).select(
+    ref.watch(
+      accordMembersControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        widget.spaceId,
+      ).select(
         (members) => memberIds
             .map((id) => accordMemberName(members?[id], fallback: id))
-            .join('\u0000')));
+            .join('\u0000'),
+      ),
+    );
     final colors = BonfireThemeExtension.of(context);
-    final theme = Theme.of(context);
+    // On a phone the default 40px dialog insets and the 560px height cap would
+    // leave the stacked layout cramped; let it use (nearly) the whole screen.
+    final phone = MediaQuery.sizeOf(context).width < _compactBreakpoint;
 
     return PopScope(
       canPop: false,
@@ -349,53 +378,29 @@ class _ChannelPermissionsDialogState
       },
       child: Dialog(
         backgroundColor: colors.foreground,
+        insetPadding: phone ? const EdgeInsets.all(12) : null,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760, maxHeight: 560),
+          constraints: BoxConstraints(
+            maxWidth: 760,
+            maxHeight: phone ? double.infinity : 560,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _Header(
-                title: 'Permissions: #${widget.channel.name ?? widget.channel.id}',
+                title:
+                    'Permissions: #${widget.channel.name ?? widget.channel.id}',
                 onClose: _tryClose,
               ),
               Expanded(
                 child: _loading
                     ? const LoadingView()
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          SizedBox(
-                            width: 200,
-                            child: _EntityListPane(
-                              roles: _roles,
-                              memberIds: _memberOverwriteIds,
-                              selectedId: _selectedId,
-                              roleColor: _roleColor,
-                              memberName: _memberName,
-                              onSelectRole: (id) => _select(id, 'role'),
-                              onSelectMember: (id) => _select(id, 'user'),
-                              onAddMember: _addMemberOverwrite,
-                            ),
-                          ),
-                          VerticalDivider(width: 1, color: colors.background),
-                          Expanded(
-                            child: _selectedId == null
-                                ? Center(
-                                    child: Text(
-                                      'Select a role or member',
-                                      style: theme.textTheme.bodyMedium,
-                                    ),
-                                  )
-                                : _OverwriteEditorPane(
-                                    key: ValueKey(_selectedId),
-                                    data: _data[_selectedId] ?? const {},
-                                    visiblePerms: _visiblePerms().toSet(),
-                                    enabled: !_saving,
-                                    onSet: _setPermission,
-                                  ),
-                          ),
-                        ],
+                    : LayoutBuilder(
+                        builder: (context, constraints) =>
+                            constraints.maxWidth < _compactBreakpoint
+                            ? _buildCompactBody(colors)
+                            : _buildWideBody(colors),
                       ),
               ),
               if (_error != null)
@@ -414,6 +419,64 @@ class _ChannelPermissionsDialogState
           ),
         ),
       ),
+    );
+  }
+
+  /// Desktop/tablet: fixed-width selector list beside the editor.
+  Widget _buildWideBody(BonfireThemeExtension colors) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(width: 200, child: _buildEntityPane(compact: false)),
+        VerticalDivider(width: 1, color: colors.background),
+        Expanded(child: _buildEditorPane(compact: false)),
+      ],
+    );
+  }
+
+  /// Phones: a horizontally scrolling strip of role/member chips above a
+  /// full-width editor, so permission labels keep their room to wrap (#328).
+  Widget _buildCompactBody(BonfireThemeExtension colors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildEntityPane(compact: true),
+        Divider(height: 1, color: colors.background),
+        Expanded(child: _buildEditorPane(compact: true)),
+      ],
+    );
+  }
+
+  Widget _buildEntityPane({required bool compact}) {
+    return _EntityListPane(
+      compact: compact,
+      roles: _roles,
+      memberIds: _memberOverwriteIds,
+      selectedId: _selectedId,
+      roleColor: _roleColor,
+      memberName: _memberName,
+      onSelectRole: (id) => _select(id, 'role'),
+      onSelectMember: (id) => _select(id, 'user'),
+      onAddMember: _addMemberOverwrite,
+    );
+  }
+
+  Widget _buildEditorPane({required bool compact}) {
+    if (_selectedId == null) {
+      return Center(
+        child: Text(
+          'Select a role or member',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      );
+    }
+    return _OverwriteEditorPane(
+      key: ValueKey(_selectedId),
+      data: _data[_selectedId] ?? const {},
+      visiblePerms: _visiblePerms().toSet(),
+      enabled: !_saving,
+      compact: compact,
+      onSet: _setPermission,
     );
   }
 }
@@ -475,14 +538,18 @@ class _Footer extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: colors.background, width: 1)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+      // OverflowBar wraps Reset/Save onto two lines when large text scale
+      // makes them too wide for a phone, instead of overflowing.
+      child: OverflowBar(
+        alignment: MainAxisAlignment.end,
+        overflowAlignment: OverflowBarAlignment.end,
+        spacing: 8,
+        overflowSpacing: 8,
         children: [
           TextButton(
             onPressed: (saving || !canReset) ? null : onReset,
             child: const Text('Reset'),
           ),
-          const SizedBox(width: 8),
           FilledButton(
             onPressed: saving ? null : onSave,
             child: Text(saving ? 'Saving…' : 'Save'),
@@ -495,6 +562,7 @@ class _Footer extends StatelessWidget {
 
 class _EntityListPane extends StatelessWidget {
   const _EntityListPane({
+    required this.compact,
     required this.roles,
     required this.memberIds,
     required this.selectedId,
@@ -505,6 +573,8 @@ class _EntityListPane extends StatelessWidget {
     required this.onAddMember,
   });
 
+  /// Horizontal chip strip (narrow screens) instead of a vertical list.
+  final bool compact;
   final List<AccordRole> roles;
   final List<String> memberIds;
   final String? selectedId;
@@ -518,47 +588,78 @@ class _EntityListPane extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-      children: [
-        for (final role in roles)
-          _EntityRow(
-            label: role.name,
-            color: roleColor(role.id) ?? colors.dirtyWhite,
-            icon: Icons.shield_outlined,
-            selected: role.id == selectedId,
-            onTap: () => onSelectRole(role.id),
-          ),
+    final children = [
+      for (final role in roles)
+        _EntityRow(
+          compact: compact,
+          label: role.name,
+          color: roleColor(role.id) ?? colors.dirtyWhite,
+          icon: Icons.shield_outlined,
+          selected: role.id == selectedId,
+          onTap: () => onSelectRole(role.id),
+        ),
+      if (compact)
+        // The strip has no room for a section header; a thin rule separates
+        // roles from members (the chip icons already tell them apart).
+        Container(
+          width: 1,
+          height: 24,
+          margin: const EdgeInsets.symmetric(horizontal: 6),
+          color: colors.darkGray,
+        )
+      else
         Padding(
           padding: const EdgeInsets.fromLTRB(10, 12, 10, 4),
           child: Text(
             'MEMBERS',
-            style: theme.textTheme.labelSmall!
-                .copyWith(color: colors.gray, letterSpacing: 0.6),
+            style: theme.textTheme.labelSmall!.copyWith(
+              color: colors.gray,
+              letterSpacing: 0.6,
+            ),
           ),
         ),
-        for (final id in memberIds)
-          _EntityRow(
-            label: memberName(id),
-            color: colors.dirtyWhite,
-            icon: Icons.person_outline,
-            selected: id == selectedId,
-            onTap: () => onSelectMember(id),
-          ),
+      for (final id in memberIds)
         _EntityRow(
-          label: '+ Add Member',
-          color: colors.primary,
-          icon: Icons.add,
-          selected: false,
-          onTap: onAddMember,
+          compact: compact,
+          label: memberName(id),
+          color: colors.dirtyWhite,
+          icon: Icons.person_outline,
+          selected: id == selectedId,
+          onTap: () => onSelectMember(id),
         ),
-      ],
+      _EntityRow(
+        compact: compact,
+        label: '+ Add Member',
+        color: colors.primary,
+        icon: Icons.add,
+        selected: false,
+        onTap: onAddMember,
+      ),
+    ];
+    if (compact) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        child: Row(
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0) const SizedBox(width: 6),
+              children[i],
+            ],
+          ],
+        ),
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+      children: children,
     );
   }
 }
 
-class _EntityRow extends StatelessWidget {
+class _EntityRow extends StatefulWidget {
   const _EntityRow({
+    this.compact = false,
     required this.label,
     required this.color,
     required this.icon,
@@ -566,6 +667,9 @@ class _EntityRow extends StatelessWidget {
     required this.onTap,
   });
 
+  /// Renders as a self-sized chip (for the horizontal strip) instead of a
+  /// full-width list row.
+  final bool compact;
   final String label;
   final Color color;
   final IconData icon;
@@ -573,28 +677,78 @@ class _EntityRow extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_EntityRow> createState() => _EntityRowState();
+}
+
+class _EntityRowState extends State<_EntityRow> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.selected) _reveal();
+  }
+
+  @override
+  void didUpdateWidget(_EntityRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selected && !oldWidget.selected) _reveal();
+  }
+
+  /// Scrolls this row into view once it becomes the selection — matters for
+  /// the compact strip, where "+ Add Member" appends the new chip off-screen.
+  /// Only on selection change, so it never fights the user's own scrolling.
+  void _reveal() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Scrollable.ensureVisible(
+        context,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 150),
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
+    final compact = widget.compact;
+    final selected = widget.selected;
+    final color = widget.color;
+    final radius = BorderRadius.circular(compact ? 20 : 8);
+    final text = Text(
+      widget.label,
+      overflow: TextOverflow.ellipsis,
+      style: theme.textTheme.bodyMedium!.copyWith(color: color),
+    );
     return Material(
       color: selected ? colors.darkGray : Colors.transparent,
-      borderRadius: BorderRadius.circular(8),
+      shape: RoundedRectangleBorder(
+        borderRadius: radius,
+        // Unselected chips need an outline to read as tappable in the strip.
+        side: compact
+            ? BorderSide(color: selected ? color : colors.darkGray)
+            : BorderSide.none,
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
+        borderRadius: radius,
+        onTap: widget.onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          padding: compact
+              ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+              : const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
           child: Row(
+            mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
             children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium!.copyWith(color: color),
-                ),
-              ),
+              Icon(widget.icon, size: 16, color: color),
+              SizedBox(width: compact ? 8 : 10),
+              if (compact)
+                // Long role names must not stretch the strip; cap the chip.
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 180),
+                  child: text,
+                )
+              else
+                Expanded(child: text),
             ],
           ),
         ),
@@ -609,12 +763,16 @@ class _OverwriteEditorPane extends StatelessWidget {
     required this.data,
     required this.visiblePerms,
     required this.enabled,
+    this.compact = false,
     required this.onSet,
   });
 
   final Map<String, _OverwriteState> data;
   final Set<String> visiblePerms;
   final bool enabled;
+
+  /// Tighter margins and finger-sized tri-state buttons (narrow screens).
+  final bool compact;
   final void Function(String perm, _OverwriteState state) onSet;
 
   @override
@@ -622,7 +780,9 @@ class _OverwriteEditorPane extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      padding: compact
+          ? const EdgeInsets.fromLTRB(12, 8, 12, 16)
+          : const EdgeInsets.fromLTRB(20, 16, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -646,8 +806,10 @@ class _OverwriteEditorPane extends StatelessWidget {
         padding: const EdgeInsets.only(top: 14, bottom: 4),
         child: Text(
           group.label.toUpperCase(),
-          style: theme.textTheme.labelSmall!
-              .copyWith(color: colors.gray, letterSpacing: 0.6),
+          style: theme.textTheme.labelSmall!.copyWith(
+            color: colors.gray,
+            letterSpacing: 0.6,
+          ),
         ),
       ),
       for (final perm in perms)
@@ -656,6 +818,7 @@ class _OverwriteEditorPane extends StatelessWidget {
           description: AccordPermission.description(perm),
           state: data[perm] ?? _OverwriteState.neutral,
           enabled: enabled,
+          compact: compact,
           onChanged: (s) => onSet(perm, s),
         ),
     ];
@@ -668,6 +831,7 @@ class _PermissionRow extends StatelessWidget {
     required this.description,
     required this.state,
     required this.enabled,
+    this.compact = false,
     required this.onChanged,
   });
 
@@ -675,45 +839,58 @@ class _PermissionRow extends StatelessWidget {
   final String description;
   final _OverwriteState state;
   final bool enabled;
+
+  /// Finger-sized (40px) tri-state buttons for touch screens.
+  final bool compact;
   final ValueChanged<_OverwriteState> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
+    final gap = SizedBox(width: compact ? 6 : 4);
+    // The label wraps freely while the three buttons keep their fixed size;
+    // the pane is full-width on phones so the text is never squeezed into a
+    // letter-per-line column (#328).
     final row = Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: EdgeInsets.symmetric(vertical: compact ? 6 : 4),
       child: Row(
         children: [
-          Expanded(
-            child: Text(label, style: theme.textTheme.bodyMedium),
-          ),
+          Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
+          SizedBox(width: compact ? 12 : 8),
           _TriButton(
             icon: Icons.check,
             color: colors.green,
+            compact: compact,
             selected: state == _OverwriteState.allow,
             onTap: enabled
-                ? () => onChanged(state == _OverwriteState.allow
-                    ? _OverwriteState.neutral
-                    : _OverwriteState.allow)
+                ? () => onChanged(
+                    state == _OverwriteState.allow
+                        ? _OverwriteState.neutral
+                        : _OverwriteState.allow,
+                  )
                 : null,
           ),
-          const SizedBox(width: 4),
+          gap,
           _TriButton(
             icon: Icons.remove,
             color: colors.gray,
+            compact: compact,
             selected: state == _OverwriteState.neutral,
             onTap: enabled ? () => onChanged(_OverwriteState.neutral) : null,
           ),
-          const SizedBox(width: 4),
+          gap,
           _TriButton(
             icon: Icons.close,
             color: colors.red,
+            compact: compact,
             selected: state == _OverwriteState.deny,
             onTap: enabled
-                ? () => onChanged(state == _OverwriteState.deny
-                    ? _OverwriteState.neutral
-                    : _OverwriteState.deny)
+                ? () => onChanged(
+                    state == _OverwriteState.deny
+                        ? _OverwriteState.neutral
+                        : _OverwriteState.deny,
+                  )
                 : null,
           ),
         ],
@@ -731,12 +908,16 @@ class _TriButton extends StatelessWidget {
     required this.color,
     required this.selected,
     required this.onTap,
+    this.compact = false,
   });
 
   final IconData icon;
   final Color color;
   final bool selected;
   final VoidCallback? onTap;
+
+  /// 40px touch target instead of the 30x28 desktop button.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -745,8 +926,8 @@ class _TriButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
       child: Container(
-        width: 30,
-        height: 28,
+        width: compact ? 40 : 30,
+        height: compact ? 40 : 28,
         decoration: BoxDecoration(
           color: selected ? color.withValues(alpha: 0.25) : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
@@ -779,8 +960,9 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
     final theme = Theme.of(context);
     final q = _query.trim().toLowerCase();
     final matches = widget.members
-        .where((m) =>
-            q.isEmpty || accordMemberName(m).toLowerCase().contains(q))
+        .where(
+          (m) => q.isEmpty || accordMemberName(m).toLowerCase().contains(q),
+        )
         .sortedBy((m) => accordMemberName(m).toLowerCase());
 
     return Dialog(
@@ -809,8 +991,10 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
               child: matches.isEmpty
                   ? Padding(
                       padding: const EdgeInsets.all(16),
-                      child: Text('No members',
-                          style: theme.textTheme.bodyMedium),
+                      child: Text(
+                        'No members',
+                        style: theme.textTheme.bodyMedium,
+                      ),
                     )
                   : ListView(
                       shrinkWrap: true,
@@ -819,8 +1003,10 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
                         for (final m in matches)
                           ListTile(
                             dense: true,
-                            leading:
-                                Icon(Icons.person_outline, color: colors.gray),
+                            leading: Icon(
+                              Icons.person_outline,
+                              color: colors.gray,
+                            ),
                             title: Text(accordMemberName(m)),
                             onTap: () => Navigator.of(context).pop(m.userId),
                           ),
