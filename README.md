@@ -64,6 +64,7 @@ This client is the front door: one native app for every screen you own.
 - 🔐 **Secure sign-in** — session tokens live in the OS credential vault, with optional TOTP two-factor authentication.
 - ⬆️ **In-app updates** — desktop and sideloaded Android builds check for, download, and install new releases themselves.
 - 📱 **Responsive everywhere** — one UI that flows from phone to desktop, sharp at every size.
+- 🛠️ **Local MCP tools** — opt-in desktop automation with bearer authentication and configurable tool groups. See [local MCP troubleshooting](docs/troubleshooting/common-issues.md#local-mcp-tools-not-connecting).
 
 ---
 
