@@ -1,24 +1,64 @@
+import 'package:bonfire/features/messaging/controllers/withdrawn_attachments.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/external_url.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Opens a fullscreen, pan/zoomable viewer for the image at [url].
-Future<void> showImageLightbox(BuildContext context, String url) {
+///
+/// Pass the message attachment's [attachmentId] (see `attachmentKey`) so the
+/// viewer closes itself if the server withdraws that attachment while it's
+/// open — otherwise a withdrawn image would stay on screen for as long as the
+/// user kept the dialog up.
+Future<void> showImageLightbox(
+  BuildContext context,
+  String url, {
+  String? attachmentId,
+}) {
   return showDialog<void>(
     context: context,
     barrierColor: Colors.black87,
-    builder: (context) => _ImageLightbox(url: url),
+    builder: (context) => _ImageLightbox(url: url, attachmentId: attachmentId),
   );
 }
 
-class _ImageLightbox extends StatelessWidget {
-  const _ImageLightbox({required this.url});
+class _ImageLightbox extends ConsumerStatefulWidget {
+  const _ImageLightbox({required this.url, this.attachmentId});
 
   final String url;
+  final String? attachmentId;
+
+  @override
+  ConsumerState<_ImageLightbox> createState() => _ImageLightboxState();
+}
+
+class _ImageLightboxState extends ConsumerState<_ImageLightbox> {
+  bool _closing = false;
+
+  void _closeIfWithdrawn(bool withdrawn) {
+    if (!withdrawn || _closing) return;
+    _closing = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.of(context).maybePop();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final attachmentId = widget.attachmentId;
+    if (attachmentId != null) {
+      final serverKey = ref.watchActiveServerKey() ?? '';
+      _closeIfWithdrawn(
+        ref.watch(
+          withdrawnAttachmentsControllerProvider(
+            serverKey,
+          ).select((s) => s.contains(attachmentId)),
+        ),
+      );
+    }
+    final url = widget.url;
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(16),

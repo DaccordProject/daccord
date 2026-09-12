@@ -33,9 +33,86 @@ IconData _attachmentIcon(AttachmentPreview preview, {required bool unknown}) {
     case AttachmentPreview.audio:
       return Icons.audiotrack_outlined;
     case AttachmentPreview.none:
-      return unknown
-          ? Icons.help_outline
-          : Icons.insert_drive_file_outlined;
+      return unknown ? Icons.help_outline : Icons.insert_drive_file_outlined;
+  }
+}
+
+/// Stands in for an attachment on a *sent* message that AutoMod hasn't
+/// published: processing, held for a moderator, or finally refused. The copy
+/// keeps the three apart — a file that's merely still being scanned must not
+/// read like one that was rejected — and a refusal shows the server's reason
+/// once it has been fetched for this (our own) upload.
+class _PendingAttachmentTile extends StatelessWidget {
+  const _PendingAttachmentTile({required this.upload});
+
+  final PendingUpload upload;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
+    final (icon, title, detail) = switch (upload.status) {
+      AutomodUploadStatus.quarantined => (
+        Icons.visibility_off_outlined,
+        'Attachment under review',
+        upload.reason ?? 'Held for a moderator to check before it is shown.',
+      ),
+      AutomodUploadStatus.rejected => (
+        Icons.block_outlined,
+        'Attachment removed by AutoMod',
+        upload.reason ?? "This file didn't pass the server's upload rules.",
+      ),
+      AutomodUploadStatus.removed => (
+        Icons.block_outlined,
+        'Attachment removed by AutoMod',
+        upload.reason ?? 'A moderator or server policy withdrew this file.',
+      ),
+      _ => (
+        Icons.hourglass_top_outlined,
+        'Attachment processing',
+        'Being checked by AutoMod before it is shown to others.',
+      ),
+    };
+    final refused = upload.isRefused;
+    return Semantics(
+      label: '$title. $detail',
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 400),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: colors.darkGray,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: refused
+                ? colors.red.withValues(alpha: 0.5)
+                : colors.gray.withValues(alpha: 0.5),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20, color: refused ? colors.red : colors.gray),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: theme.textTheme.bodyMedium),
+                  Text(
+                    detail,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.gray,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -57,7 +134,8 @@ class _AttachmentChip extends StatelessWidget {
     final colors = BonfireThemeExtension.of(context);
     final unknown = attachment.isUnrecognised;
     return Tooltip(
-      message: '${attachment.name}\n'
+      message:
+          '${attachment.name}\n'
           '${unknown ? 'Unrecognised type' : attachment.contentType} · '
           '${formatFileSize(attachment.size)}',
       child: Container(
@@ -80,10 +158,9 @@ class _AttachmentChip extends StatelessWidget {
               child: Text(
                 attachment.name,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall!
-                    .copyWith(color: colors.dirtyWhite),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall!.copyWith(color: colors.dirtyWhite),
               ),
             ),
             const SizedBox(width: 4),
@@ -168,9 +245,18 @@ class _OlderHistoryHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Rebuild whenever the message list mutates (which also covers the
     // controller bumping state at the start/end of loadOlder).
-    ref.watch(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', channelId));
-    final notifier =
-        ref.read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', channelId).notifier);
+    ref.watch(
+      accordMessagesControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        channelId,
+      ),
+    );
+    final notifier = ref.read(
+      accordMessagesControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        channelId,
+      ).notifier,
+    );
     if (notifier.isLoadingOlder) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 12),
