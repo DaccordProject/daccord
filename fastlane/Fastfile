@@ -398,6 +398,10 @@ platform :mac do
       pkg: pkg,
       platform: "osx",
       app_version: ENV.fetch("APP_STORE_VERSION"),
+      # Deliver validates directory names even when metadata uploads are off.
+      # The shared parent contains platform folders, not language folders.
+      metadata_path: "fastlane/metadata/mac",
+      screenshots_path: "fastlane/screenshots/mac",
       skip_metadata: true,
       skip_screenshots: true,
       skip_app_version_update: true,

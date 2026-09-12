@@ -221,6 +221,19 @@ red while iOS, Google Play and the GitHub Release all succeeded. Passing
 `skip_metadata: true` skips that call, so the binary reaches App Store Connect
 and waits there.
 
+The upload-only lane explicitly uses `fastlane/metadata/mac` and
+`fastlane/screenshots/mac`. Fastlane validates folder names even with metadata
+and screenshots skipped; the shared metadata parent contains `ios`, which is
+not a language code. The Mac folders may be absent when no listing data is
+tracked. CI checks this with
+`bundle exec ruby fastlane/test/mac_upload_metadata_test.rb` before release builds.
+
+To recover a failed Mac upload after fixing release tooling on `master`, run
+the Release workflow on `master` with `deploy_mac=true`, `deploy_ios=false`, and
+`deploy_android=false`. This rebuilds the same marketing version with a new
+build number and uploads only the Mac package. A rerun of the old tagged run
+still uses the old Fastfile.
+
 To turn macOS on, in App Store Connect → Daccord → macOS App:
 
 1. Add Mac screenshots (1280 × 800, 1440 × 900, 2560 × 1600 or 2880 × 1800) —

@@ -143,6 +143,7 @@ End-user documentation lives in [`docs/`](docs/index.md):
 - [Self-hosting](docs/self-hosting/overview.md) · [Network behavior and privacy](docs/privacy-network.md) · [Troubleshooting](docs/troubleshooting/common-issues.md)
 
 Maintainer-facing notes: [release signing](docs/release-signing.md) and [store deployment](docs/app-store-deploy.md).
+CI checks Mac upload metadata isolation before release builds; see the store deployment guide for retrying a failed Mac upload.
 
 ---
 

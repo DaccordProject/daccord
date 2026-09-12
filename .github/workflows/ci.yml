@@ -74,6 +74,22 @@ env:
   ACCORD_TEST_LIVEKIT_IMAGE: livekit/livekit-server@sha256:9e34703b97ceb9f622bcbb533107e4786c7aa65966f0494966a452ad41a0c0d4
 
 jobs:
+  release-tools:
+    name: Release tooling
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Verify Mac upload metadata isolation
+        run: bundle exec ruby fastlane/test/mac_upload_metadata_test.rb
+
   analyze:
     name: Analyze & Test (${{ matrix.channel }})
     runs-on: ubuntu-latest
