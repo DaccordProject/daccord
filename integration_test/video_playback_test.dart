@@ -69,5 +69,10 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
     }
+
+    // NativePlayer destroys the mpv handle and closes its wakeup callback on a
+    // five-second timer. Keep the process alive past the final disposal so a
+    // crash in that deferred teardown fails this regression test too.
+    await Future<void>.delayed(const Duration(seconds: 6));
   }, skip: !Platform.isLinux);
 }
