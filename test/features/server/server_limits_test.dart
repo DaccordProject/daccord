@@ -136,6 +136,79 @@ void main() {
       // migrations/011_server_settings.sql: 26214400 bytes, 10 attachments.
       expect(AccordServerLimits.fallback.maxAttachmentBytes, 26214400);
       expect(AccordServerLimits.fallback.maxAttachmentsPerMessage, 10);
+      // No invented upload budget: an older server enforces none.
+      expect(AccordServerLimits.fallback.uploadRequestsPerMinute, isNull);
+      expect(AccordServerLimits.fallback.uploadBytesPerMinute, isNull);
+    });
+
+    test('reads the upload budgets a newer server publishes (#330)', () {
+      final limits = AccordServerLimits.fromSettings(const {
+        'max_attachment_size': 26214400,
+        'max_attachments_per_message': 10,
+        'upload_requests_per_minute': 6,
+        'upload_bytes_per_minute': 52428800,
+      });
+      expect(limits.uploadRequestsPerMinute, 6);
+      expect(limits.uploadBytesPerMinute, 52428800);
+      expect(limits.fromServer, isTrue);
+    });
+
+    test('leaves the upload budgets null on an older server', () {
+      final limits = AccordServerLimits.fromSettings(const {
+        'max_attachment_size': 26214400,
+        'max_attachments_per_message': 10,
+      });
+      expect(limits.uploadRequestsPerMinute, isNull);
+      expect(limits.uploadBytesPerMinute, isNull);
+      expect(limits.maxAttachmentBytes, 26214400);
+      expect(limits.fromServer, isTrue);
+    });
+
+    test('budgets alone still count as server-provided limits', () {
+      final limits = AccordServerLimits.fromSettings(const {
+        'upload_requests_per_minute': '12',
+        'upload_bytes_per_minute': 1099511627776.0,
+      });
+      expect(limits.fromServer, isTrue);
+      expect(limits.uploadRequestsPerMinute, 12);
+      expect(limits.uploadBytesPerMinute, 1099511627776);
+      expect(limits.maxAttachmentBytes, kMaxAttachmentBytes);
+      expect(limits.maxAttachmentsPerMessage, kMaxAttachmentsPerMessage);
+    });
+
+    test('ignores zero, negative and unparseable budgets', () {
+      final limits = AccordServerLimits.fromSettings(const {
+        'max_attachment_size': 1024,
+        'upload_requests_per_minute': 0,
+        'upload_bytes_per_minute': 'unlimited',
+      });
+      expect(limits.uploadRequestsPerMinute, isNull);
+      expect(limits.uploadBytesPerMinute, isNull);
+      expect(
+        AccordServerLimits.fromSettings(const {
+          'upload_requests_per_minute': -6,
+          'upload_bytes_per_minute': null,
+        }),
+        AccordServerLimits.fallback,
+      );
+    });
+
+    test('equality covers the budgets', () {
+      const a = AccordServerLimits(
+        maxAttachmentBytes: 1,
+        maxAttachmentsPerMessage: 1,
+        uploadRequestsPerMinute: 6,
+        fromServer: true,
+      );
+      const b = AccordServerLimits(
+        maxAttachmentBytes: 1,
+        maxAttachmentsPerMessage: 1,
+        uploadRequestsPerMinute: 7,
+        fromServer: true,
+      );
+      expect(a == b, isFalse);
+      expect(a.hashCode == b.hashCode, isFalse);
+      expect(a.toString(), contains('uploadRequestsPerMinute: 6'));
     });
   });
 

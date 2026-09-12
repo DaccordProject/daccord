@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/admin/utils/upload_budgets.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -27,6 +28,15 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
   final _tosText = TextEditingController();
   final _tosUrl = TextEditingController();
 
+  /// Per-user upload budgets (`upload_requests_per_minute`,
+  /// `upload_bytes_per_minute` shown as MB). Only offered — and only sent
+  /// back — when the server reported them, so an older server that doesn't
+  /// know the keys is neither shown controls it can't honour nor sent
+  /// settings it would reject.
+  final _uploadRequests = TextEditingController();
+  final _uploadMb = TextEditingController();
+  bool _hasUploadBudgets = false;
+
   String _policy = 'open';
   bool _publicListing = false;
   bool _tosEnabled = false;
@@ -52,6 +62,8 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
     _maxMembers.dispose();
     _tosText.dispose();
     _tosUrl.dispose();
+    _uploadRequests.dispose();
+    _uploadMb.dispose();
     super.dispose();
   }
 
@@ -86,12 +98,39 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
       _tosText.text = d['tos_text']?.toString() ?? '';
       _tosUrl.text = d['tos_url']?.toString() ?? '';
       _tosVersion = asInt(d['tos_version'], 1);
+      _hasUploadBudgets = d.containsKey('upload_requests_per_minute') ||
+          d.containsKey('upload_bytes_per_minute');
+      _uploadRequests.text = d['upload_requests_per_minute']?.toString() ?? '';
+      final uploadBytes = asInt(d['upload_bytes_per_minute']);
+      _uploadMb.text =
+          uploadBytes > 0 ? formatUploadMbPerMinute(uploadBytes) : '';
     });
   }
 
   Future<void> _save() async {
     final client = _client;
     if (client == null) return;
+    // Validate the upload budgets before anything is sent: the server rejects
+    // an out-of-range value, and a rejected PATCH would drop every other
+    // change on this form with it.
+    int? uploadRequests;
+    int? uploadBytes;
+    if (_hasUploadBudgets) {
+      uploadRequests = parseUploadRequestsPerMinute(_uploadRequests.text);
+      uploadBytes = parseUploadMbPerMinute(_uploadMb.text);
+      if (uploadRequests == null) {
+        setState(() => _error = 'Uploads per minute must be a whole number '
+            'from $kMinUploadRequestsPerMinute to '
+            '$kMaxUploadRequestsPerMinute.');
+        return;
+      }
+      if (uploadBytes == null) {
+        setState(() => _error = 'Upload MB per minute must be more than 0 '
+            'and at most ${formatUploadMbPerMinute(kMaxUploadBytesPerMinute)} '
+            'MB (1 TiB).');
+        return;
+      }
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -108,6 +147,10 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
       'tos_enabled': _tosEnabled,
       'tos_text': tosText.isEmpty ? null : tosText,
       'tos_url': tosUrl.isEmpty ? null : tosUrl,
+      if (_hasUploadBudgets) ...{
+        'upload_requests_per_minute': uploadRequests,
+        'upload_bytes_per_minute': uploadBytes,
+      },
     });
     if (!mounted) return;
     setState(() => _saving = false);
@@ -201,6 +244,63 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
                 ],
               ),
               const SizedBox(height: 16),
+              if (_hasUploadBudgets) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _Label(
+                            'Uploads per user per minute '
+                            '($kMinUploadRequestsPerMinute–'
+                            '$kMaxUploadRequestsPerMinute)',
+                          ),
+                          TextField(
+                            controller: _uploadRequests,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _Label('Upload MB per user per minute'),
+                          TextField(
+                            controller: _uploadMb,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              border: OutlineInputBorder(),
+                              suffixText: 'MB',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Per-user budgets for message sends with attachments, across '
+                  'all channels and DMs — moderators and admins included. Text '
+                  "messages don't count. Keep the MB budget at least as large "
+                  'as the biggest single upload you allow.',
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: colors.gray,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               _Label('Message of the day'),
               TextField(
                 controller: _motd,
