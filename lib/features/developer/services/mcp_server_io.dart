@@ -132,6 +132,17 @@ class McpServer {
       return;
     }
 
+    // Streamable HTTP acknowledges notifications without a JSON-RPC response.
+    // Returning `{}` here makes strict clients reject the initialized handshake.
+    if (parsed['jsonrpc'] == '2.0' &&
+        parsed['method'] is String &&
+        (parsed['method'] as String).isNotEmpty &&
+        !parsed.containsKey('id')) {
+      request.response.statusCode = HttpStatus.accepted;
+      await request.response.close();
+      return;
+    }
+
     final result = await _dispatch(Map<String, dynamic>.from(parsed));
     _send(request, 200, result);
   }

@@ -60,6 +60,61 @@ void main() {
       HttpStatus.ok,
     );
   });
+
+  test(
+    'handshake notifications have no body and tool discovery still works',
+    () async {
+      token = ''.padLeft(64, 'd');
+      expect(await server.start(0), isTrue);
+      final client = HttpClient();
+      try {
+        Future<(int, String)> post(Map<String, dynamic> message) async {
+          final request = await client.postUrl(
+            Uri.parse('http://127.0.0.1:${server.port}/mcp'),
+          );
+          request.headers.contentType = ContentType.json;
+          request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+          request.write(jsonEncode(message));
+          final response = await request.close();
+          return (
+            response.statusCode,
+            await utf8.decoder.bind(response).join(),
+          );
+        }
+
+        final initialized = await post({
+          'jsonrpc': '2.0',
+          'id': 1,
+          'method': 'initialize',
+        });
+        expect(initialized.$1, HttpStatus.ok);
+        expect(
+          jsonDecode(initialized.$2)['result']['serverInfo']['name'],
+          'daccord',
+        );
+
+        for (final method in [
+          'notifications/initialized',
+          'notifications/cancelled',
+        ]) {
+          final notification = await post({'jsonrpc': '2.0', 'method': method});
+          expect(notification, (HttpStatus.accepted, ''));
+        }
+
+        final listed = await post({
+          'jsonrpc': '2.0',
+          'id': 2,
+          'method': 'tools/list',
+        });
+        expect(listed.$1, HttpStatus.ok);
+        final body = jsonDecode(listed.$2);
+        expect(body['id'], 2);
+        expect(body['result']['tools'], isNotEmpty);
+      } finally {
+        client.close(force: true);
+      }
+    },
+  );
 }
 
 Future<int> _postInitialize(int port, {String? bearerToken}) async {

@@ -22,6 +22,13 @@ daccord automatically attempts to reconnect when the connection drops. If you se
 - Check your internet connection.
 - If the problem persists, close and reopen daccord to establish a fresh session.
 
+## Local MCP Tools Not Connecting
+
+- Enable **Developer mode** in App Settings, then open **Developer** and enable the **Client MCP server**. The default endpoint is `http://127.0.0.1:39101/mcp`.
+- Configure your MCP client with the bearer token from that page. It is separate from any remote Accord server API key.
+- Keep Daccord running and enable the tool groups you need; Read and Navigate are enabled by default.
+- A failure at `notifications/initialized` can indicate an older build returning an invalid response. HTTP notifications must receive status 202 with an empty body. Regression coverage: `flutter test test/features/developer/mcp_server_io_test.dart`.
+
 ## No Sound in Voice Channels
 
 - Check that your microphone and speakers are selected in **App Settings > Voice & Video**.
