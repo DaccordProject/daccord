@@ -151,8 +151,8 @@ void main() {
       final refused = _state(c).forMessage('m1').single;
       expect(refused.status, 'rejected');
       expect(refused.isRefused, isTrue);
-      expect(refused.isOutstanding, isFalse);
-      expect(_state(c).hasOutstanding, isFalse);
+      expect(refused.isOutstanding, isTrue);
+      expect(_state(c).hasOutstanding, isTrue);
     });
 
     test('removed is a refusal too', () {
@@ -317,18 +317,18 @@ void main() {
           'u3': {'status': 'quarantined'},
         }, asked: asked);
         _notifier(c).track(_message, ['u1', 'u2', 'u3', 'u4']);
-        // Already refused: nothing left to ask.
+        // Rejected uploads still need reconciliation: a moderator may release them.
         _notifier(c).applyStatus(_event('u4', AutomodUploadStatus.rejected));
 
         await _notifier(c).reconcile(client);
 
-        expect(asked, ['u1', 'u2', 'u3']);
+        expect(asked, ['u1', 'u2', 'u3', 'u4']);
         final byId = _state(c).uploads;
         expect(byId.containsKey('u1'), isFalse);
         expect(byId['u2']!.status, 'rejected');
         expect(byId['u2']!.reason, 'blocked hash');
         expect(byId['u3']!.status, 'quarantined');
-        expect(byId['u4']!.status, 'rejected');
+        expect(byId['u4']!.status, 'removed');
       },
     );
 
