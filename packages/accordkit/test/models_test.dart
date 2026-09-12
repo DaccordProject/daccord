@@ -284,10 +284,12 @@ void main() {
           {'id': '2', 'name': 'e'},
         ],
         'member_count': 3,
+        'presence_count': 2,
       });
       expect(s.roles.single.name, 'admin');
       expect(s.emojis.single.name, 'e');
       expect(s.memberCount, 3);
+      expect(s.presenceCount, 2);
     });
   });
 

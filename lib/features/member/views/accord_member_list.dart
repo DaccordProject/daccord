@@ -65,6 +65,12 @@ class _Roster extends ConsumerWidget {
             const <AccordRole>[],
       ),
     );
+    final counts = ref.watch(
+      spacesControllerProvider.select((spaces) {
+        final space = spaces?.firstWhereOrNull((s) => s.id == spaceId);
+        return (members: space?.memberCount, presences: space?.presenceCount);
+      }),
+    );
     final cdnUrl = ref.watchCdnUrl();
     final presences = ref.watch(activePresencesProvider);
 
@@ -101,14 +107,22 @@ class _Roster extends ConsumerWidget {
       return const LoadingView();
     }
 
-    final sections = _buildSections(members.values.toList(), roles, presences);
+    final sections = _buildSections(
+      members.values.toList(),
+      roles,
+      presences,
+      memberCount: counts.members,
+      presenceCount: counts.presences,
+    );
 
     // Flatten sections into one lazily-built row list so a large roster only
     // materializes the rows on screen.
     final rows = <Widget Function()>[
       for (final section in sections) ...[
-        () =>
-            _SectionHeader(label: section.label, count: section.members.length),
+        () => _SectionHeader(
+          label: section.label,
+          count: section.count ?? section.members.length,
+        ),
         for (final member in section.members)
           () => _MemberRow(
             member: member,
@@ -138,6 +152,7 @@ class _RosterSection {
   /// it always sorts last.
   final int position;
   final List<AccordMember> members;
+  int? count;
 }
 
 const int _defaultPosition = -1;
@@ -150,8 +165,10 @@ const int _offlinePosition = -2;
 List<_RosterSection> _buildSections(
   List<AccordMember> members,
   List<AccordRole> roles,
-  PresenceMap presences,
-) {
+  PresenceMap presences, {
+  Object? memberCount,
+  Object? presenceCount,
+}) {
   final byKey = <String, _RosterSection>{};
   final defaultSection = _RosterSection(
     label: 'Members',
@@ -179,10 +196,16 @@ List<_RosterSection> _buildSections(
     section.members.add(member);
   }
 
+  offlineSection.count = rosterOfflineCount(
+    memberCount: memberCount,
+    presenceCount: presenceCount,
+    loadedOfflineCount: offlineSection.members.length,
+  );
+
   final sections = byKey.values.toList()
     ..sort((a, b) => b.position.compareTo(a.position));
   if (defaultSection.members.isNotEmpty) sections.add(defaultSection);
-  if (offlineSection.members.isNotEmpty) sections.add(offlineSection);
+  if ((offlineSection.count ?? 0) > 0) sections.add(offlineSection);
 
   for (final section in sections) {
     section.members.sort(
@@ -192,6 +215,23 @@ List<_RosterSection> _buildSections(
     );
   }
   return sections;
+}
+
+/// Uses the server's space summary for the complete offline total while the
+/// roster itself stays bounded to its initial page. Older servers omit these
+/// fields, in which case the visible rows remain the best available count.
+int rosterOfflineCount({
+  required Object? memberCount,
+  required Object? presenceCount,
+  required int loadedOfflineCount,
+}) {
+  final total = memberCount is num ? memberCount.toInt() : null;
+  final online = presenceCount is num ? presenceCount.toInt() : null;
+  if (total == null || online == null || total < 0 || online < 0) {
+    return loadedOfflineCount;
+  }
+  final reported = total > online ? total - online : 0;
+  return reported > loadedOfflineCount ? reported : loadedOfflineCount;
 }
 
 class _SectionHeader extends StatelessWidget {
@@ -215,6 +255,7 @@ class _SectionHeader extends StatelessWidget {
     );
   }
 }
+
 
 class _MemberRow extends ConsumerWidget {
   const _MemberRow({
@@ -361,4 +402,3 @@ Future<void> _showMemberContextMenu(
       if (context.mounted) showInfoSnack(context, 'Username copied');
   }
 }
-
