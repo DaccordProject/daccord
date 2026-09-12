@@ -5,6 +5,7 @@
 /// in the `part` files stays private to this library.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:accordkit/accordkit.dart';
@@ -20,6 +21,7 @@ import 'package:bonfire/features/member/views/accord_member_popout.dart';
 import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/utils/message_visibility.dart';
+import 'package:bonfire/features/messaging/utils/send_cooldown.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/messaging/utils/attachment_limits.dart';
 import 'package:bonfire/features/messaging/utils/attachment_types.dart';
@@ -382,6 +384,18 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
       perms,
       AccordPermission.mentionEveryone,
     );
+    // Slowmode the composer enforces locally between sends. The server is
+    // authoritative (its 429 corrects the timer); this only spares the user a
+    // round-trip that is bound to fail. Exempt users see no cooldown at all.
+    final slowmodeSeconds = effectiveSlowmodeSeconds(
+      channel: channel,
+      exempt: isSlowmodeExempt(
+        channelPermissions: perms,
+        isSpaceOwner:
+            currentUserId != null && space?.ownerId == currentUserId,
+        isInstanceAdmin: ref.watchIsAdmin(),
+      ),
+    );
     final suppressEveryone = ref.watch(
       settingsControllerProvider.select((s) => s.suppressEveryone),
     );
@@ -707,6 +721,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                   : channel?.name,
               spaceId: spaceId,
               canMentionEveryone: canMentionEveryone,
+              slowmodeSeconds: slowmodeSeconds,
               replyingTo: _replyTo,
               replyName: _replyTo == null
                   ? null

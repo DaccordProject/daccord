@@ -119,7 +119,7 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
   late String _type = widget.channel?.type ?? 'text';
   late String? _parentId = widget.channel?.parentId ?? widget.parentId;
   late bool _nsfw = widget.channel?.nsfw ?? false;
-  late int _rateLimit = asInt(widget.channel?.rateLimit);
+  late int _rateLimit = widget.channel?.rateLimitSeconds ?? 0;
   bool _busy = false;
   String? _error;
 
@@ -512,17 +512,25 @@ class _ChannelModerationFields extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<int>(
-          initialValue: _slowmodePresets.any((p) => p.seconds == rateLimit)
-              ? rateLimit
-              : 0,
+          initialValue: rateLimit,
           decoration: const InputDecoration(
             labelText: 'Slowmode',
+            helperText: 'One message per user per interval; moderators are '
+                'exempt',
             isDense: true,
             border: OutlineInputBorder(),
           ),
           items: [
             for (final p in _slowmodePresets)
               DropdownMenuItem(value: p.seconds, child: Text(p.label)),
+            // A value set elsewhere (the API, another client) that isn't a
+            // preset: show it as-is rather than as "Off", which would
+            // silently turn slowmode off on the next save.
+            if (!_slowmodePresets.any((p) => p.seconds == rateLimit))
+              DropdownMenuItem(
+                value: rateLimit,
+                child: Text('Custom (${rateLimit}s)'),
+              ),
           ],
           onChanged: busy ? null : onRateLimitChanged,
         ),

@@ -6,6 +6,7 @@ class _Composer extends ConsumerStatefulWidget {
     this.channelName,
     this.spaceId,
     required this.canMentionEveryone,
+    this.slowmodeSeconds = 0,
     this.replyingTo,
     this.replyName,
     this.onCancelReply,
@@ -15,6 +16,11 @@ class _Composer extends ConsumerStatefulWidget {
   final String? channelName;
   final String? spaceId;
   final bool canMentionEveryone;
+
+  /// The channel's slowmode in seconds, or 0 when it's off or the current
+  /// user is exempt (see `effectiveSlowmodeSeconds`). Starts a local cooldown
+  /// after each accepted send and picks the wording of a 429 countdown.
+  final int slowmodeSeconds;
   final AccordMessage? replyingTo;
   final String? replyName;
   final VoidCallback? onCancelReply;
@@ -38,6 +44,13 @@ class _ComposerState extends ConsumerState<_Composer> {
   /// Why the last attach or send didn't work, shown above the composer.
   /// Cleared when the user attaches again or retries the send.
   String? _error;
+
+  /// The send cooldown in force — slowmode after an accepted send, or the
+  /// `retry_after` of a server 429 — and the once-a-second tick that redraws
+  /// its countdown. Nothing resends when it lapses: the user retries. Dropped
+  /// on channel or account change, since it belongs to this channel alone.
+  SendCooldown? _cooldown;
+  Timer? _cooldownTicker;
 
   /// The server's typing indicator lasts ~10s, so we re-trigger at most once
   /// every 8s while the user keeps typing rather than on every keystroke.
@@ -176,7 +189,54 @@ class _ComposerState extends ConsumerState<_Composer> {
           .draftFor(nextServerKey, widget.channelId);
       _serverKey = nextServerKey;
       _lastTypingSent = null;
+      // The cooldown was this channel's (or this account's); a rebuild is
+      // already underway, so no setState.
+      _cooldownTicker?.cancel();
+      _cooldownTicker = null;
+      _cooldown = null;
+    } else if (widget.slowmodeSeconds == 0 &&
+        oldWidget.slowmodeSeconds > 0 &&
+        _cooldown?.kind == SendCooldownKind.slowmode) {
+      // Slowmode was switched off, or the user just became exempt.
+      _cooldownTicker?.cancel();
+      _cooldownTicker = null;
+      _cooldown = null;
     }
+  }
+
+  /// Whether Send is withheld by the cooldown right now.
+  bool get _sendBlocked => sendBlockedByCooldown(
+        cooldown: _cooldown,
+        now: DateTime.now(),
+        hasAttachments: _attachments.isNotEmpty,
+      );
+
+  /// Installs [cooldown] (replacing any running one) and ticks the countdown
+  /// once a second until it lapses. A null or already-expired cooldown clears.
+  void _startCooldown(SendCooldown? cooldown) {
+    _cooldownTicker?.cancel();
+    _cooldownTicker = null;
+    if (cooldown == null || !cooldown.isActive(DateTime.now())) {
+      if (_cooldown != null) setState(() => _cooldown = null);
+      return;
+    }
+    setState(() => _cooldown = cooldown);
+    _cooldownTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final current = _cooldown;
+      if (current == null || !current.isActive(DateTime.now())) {
+        _clearCooldown();
+        return;
+      }
+      setState(() {});
+    });
+  }
+
+  void _clearCooldown() {
+    _cooldownTicker?.cancel();
+    _cooldownTicker = null;
+    if (_cooldown == null) return;
+    setState(() => _cooldown = null);
   }
 
   /// Persists [text] as the draft for [channelId] (mirrors the reference
@@ -187,6 +247,7 @@ class _ComposerState extends ConsumerState<_Composer> {
 
   @override
   void dispose() {
+    _cooldownTicker?.cancel();
     _saveDraft(widget.channelId, _controller.text);
     _controller.dispose();
     _focusNode.dispose();
@@ -452,6 +513,8 @@ class _ComposerState extends ConsumerState<_Composer> {
         ? applyEmoticons(raw)
         : raw;
     if ((text.trim().isEmpty && _attachments.isEmpty) || _sending) return;
+    // Enter/Send during a cooldown does nothing; the countdown says why.
+    if (_sendBlocked) return;
 
     final client = ref.read(
       accordAuthProvider.select(
@@ -487,7 +550,7 @@ class _ComposerState extends ConsumerState<_Composer> {
     // true — no spinner, no message, buttons dead — and the user's text and
     // attachments would be gone. Anything that goes wrong has to end up in
     // `_error` where it's on screen.
-    final String? error;
+    final SendFailure? error;
     try {
       error = await controller.sendWithAttachments(
         client,
@@ -511,19 +574,37 @@ class _ComposerState extends ConsumerState<_Composer> {
     if (!mounted) return;
     if (error == null) {
       setState(() => _sending = false);
+      // Slowmode: the server will refuse another message for this long, so
+      // don't offer one. Its 429 corrects this timer if the clocks disagree.
+      _startCooldown(
+        cooldownAfterSend(
+          slowmodeSeconds: widget.slowmodeSeconds,
+          now: DateTime.now(),
+        ),
+      );
       soundManager.play('message_sent');
       widget.onCancelReply?.call();
       return;
     }
     // Failed: hand the message back so it can be fixed and retried, keeping any
-    // attachments ahead of ones added while this send was in flight.
+    // attachments ahead of ones added while this send was in flight. A rate
+    // limit (slowmode or an upload budget) becomes a countdown rather than an
+    // error to dismiss — the server's retry_after is the whole story, and the
+    // message was sent exactly once, so there is nothing to retry until then.
+    final cooldown = cooldownFromFailure(
+      failure: error,
+      slowmodeSeconds: widget.slowmodeSeconds,
+      now: DateTime.now(),
+    );
+    final errorText = cooldown == null ? error.message : null;
     setState(() {
       _sending = false;
-      _error = error;
+      _error = errorText;
       _attachments.insertAll(0, attachments);
     });
     restoreFailedSend(_controller, text);
     _saveDraft(widget.channelId, _controller.text);
+    if (cooldown != null) _startCooldown(cooldown);
   }
 
   @override
@@ -541,6 +622,30 @@ class _ComposerState extends ConsumerState<_Composer> {
         : 'Message';
     final unauthorizedBroadcast = !widget.canMentionEveryone &&
         _broadcastMention.hasMatch(_controller.text);
+    final now = DateTime.now();
+    final cooldown =
+        _cooldown != null && _cooldown!.isActive(now) ? _cooldown : null;
+    final sendBlocked = sendBlockedByCooldown(
+      cooldown: cooldown,
+      now: now,
+      hasAttachments: _attachments.isNotEmpty,
+    );
+    // Configured capacity, shown as guidance beside the per-message limits;
+    // only the server knows what's left this minute.
+    final budgetHint = uploadBudgetHint(
+      requestsPerMinute: limits.uploadRequestsPerMinute,
+      bytesPerMinute: limits.uploadBytesPerMinute,
+    );
+    final String? cooldownLine = cooldown != null
+        ? [
+            sendCooldownLabel(cooldown, now),
+            if (cooldown.kind == SendCooldownKind.rateLimited &&
+                budgetHint != null)
+              budgetHint,
+          ].join(' ')
+        : widget.slowmodeSeconds > 0
+        ? slowmodeHint(widget.slowmodeSeconds)
+        : null;
     // A DropTarget keeps receiving drags even when covered, so it's disabled
     // while a dialog/sheet (emoji picker, lightbox, …) is on top of the pane.
     final onTop = ModalRoute.of(context)?.isCurrent ?? true;
@@ -635,6 +740,31 @@ class _ComposerState extends ConsumerState<_Composer> {
                     ),
                   ),
                 ),
+              if (cooldownLine != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.timer_outlined,
+                        size: 14,
+                        color: cooldown != null ? colors.yellow : colors.gray,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          cooldownLine,
+                          style: Theme.of(context).textTheme.bodySmall!
+                              .copyWith(
+                                color: cooldown != null
+                                    ? colors.yellow
+                                    : colors.gray,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               if (_mentionQuery != null && widget.spaceId != null)
                 _MentionPopup(
                   spaceId: widget.spaceId!,
@@ -648,7 +778,11 @@ class _ComposerState extends ConsumerState<_Composer> {
                     tooltip: atAttachmentLimit
                         ? 'Attachment limit reached '
                               '(${limits.maxAttachmentsPerMessage} per message)'
-                        : 'Attach files',
+                        : [
+                            'Attach files '
+                                '(${attachmentLimitsHint(maxBytes: limits.maxAttachmentBytes, maxCount: limits.maxAttachmentsPerMessage)})',
+                            if (budgetHint != null) budgetHint,
+                          ].join('\n'),
                     onPressed: _sending || atAttachmentLimit
                         ? null
                         : _pickFiles,
@@ -700,9 +834,15 @@ class _ComposerState extends ConsumerState<_Composer> {
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Send',
-                    onPressed: _sending ? null : _send,
-                    icon: Icon(Icons.send, size: 20, color: colors.dirtyWhite),
+                    tooltip: sendBlocked && cooldown != null
+                        ? sendCooldownLabel(cooldown, now)
+                        : 'Send',
+                    onPressed: _sending || sendBlocked ? null : _send,
+                    icon: Icon(
+                      Icons.send,
+                      size: 20,
+                      color: sendBlocked ? colors.gray : colors.dirtyWhite,
+                    ),
                   ),
                 ],
               ),

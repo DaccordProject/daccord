@@ -4,6 +4,7 @@ import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/shared/controllers/load_failed.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/list_ext.dart';
+import 'package:bonfire/features/messaging/utils/send_cooldown.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
@@ -155,23 +156,27 @@ class AccordMessagesController extends _$AccordMessagesController {
   }) async => await _createMessage(client, content, replyTo: replyTo) == null;
 
   /// Sends [content] via `messages.create`. Returns null on success, or the
-  /// server's own failure message — shared by [send] and the no-attachments
-  /// path of [sendWithAttachments] so both surface the same reason instead of
-  /// [send]'s bool swallowing it.
-  Future<String?> _createMessage(
+  /// server's own failure (message plus, for a 429, its `retry_after`) —
+  /// shared by [send] and the no-attachments path of [sendWithAttachments] so
+  /// both surface the same reason instead of [send]'s bool swallowing it.
+  ///
+  /// One request per call: the SDK doesn't retry a rate-limited send, so a
+  /// slowmode or upload-budget 429 comes straight back for the composer to
+  /// turn into a countdown rather than a minutes-long busy Send.
+  Future<SendFailure?> _createMessage(
     AccordClient client,
     String content, {
     String? replyTo,
   }) async {
     final trimmed = content.trim();
-    if (trimmed.isEmpty) return 'Message is empty.';
+    if (trimmed.isEmpty) return const SendFailure('Message is empty.');
     final data = <String, dynamic>{'content': trimmed};
     if (replyTo != null) data['reply_to'] = replyTo;
     final result = await client.messages.create(channelId, data);
-    if (!ref.mounted) return 'Message view closed.';
+    if (!ref.mounted) return const SendFailure('Message view closed.');
     if (!result.ok) {
       debugPrint('Failed to send message to $channelId: ${result.error}');
-      return result.errorMessageOr('Failed to send message.');
+      return SendFailure.fromResult(result, 'Failed to send message.');
     }
     final message = result.data;
     if (message is AccordMessage) addMessage(message);
@@ -281,11 +286,13 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// `content` (bytes) and optional `content_type`. Falls back to
   /// `messages.create` (the same call [send] makes) when there are no files.
   ///
-  /// Returns null on success, or the failure message to show the user. The
-  /// server's own reason is passed through — a rejected upload (too large, no
+  /// Returns null on success, or the failure to show the user. The server's
+  /// own reason is passed through — a rejected upload (too large, no
   /// `attach_files` permission, unsupported type) is otherwise indistinguishable
-  /// from a dead Send button.
-  Future<String?> sendWithAttachments(
+  /// from a dead Send button — and a 429 carries its `retry_after` so the
+  /// composer can count down instead of guessing. The upload is sent exactly
+  /// once: the SDK never retransmits a rate-limited multipart request.
+  Future<SendFailure?> sendWithAttachments(
     AccordClient client,
     String content,
     List<Map<String, dynamic>> files, {
@@ -302,10 +309,10 @@ class AccordMessagesController extends _$AccordMessagesController {
       data,
       files,
     );
-    if (!ref.mounted) return 'Message view closed.';
+    if (!ref.mounted) return const SendFailure('Message view closed.');
     if (!result.ok) {
       debugPrint('Failed to send attachments to $channelId: ${result.error}');
-      return result.errorMessageOr('Failed to send attachments.');
+      return SendFailure.fromResult(result, 'Failed to send attachments.');
     }
     final message = result.data;
     if (message is AccordMessage) addMessage(message);
