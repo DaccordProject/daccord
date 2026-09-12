@@ -61,7 +61,7 @@ This client is the front door: one native app for every screen you own.
 
 - 🎨 **Themes** — Dark, Light, Nord, Monokai, and Solarized built in, plus fully custom colors you can copy, paste, and share in chat.
 - 👥 **Multiple profiles** — keep separate local profiles on one device and switch between them without signing out.
-- 🔐 **Secure sign-in** — session tokens live in the OS credential vault, with optional TOTP two-factor authentication.
+- 🔐 **Secure sign-in** — session tokens live in the OS credential vault, with optional TOTP two-factor authentication; each device profile keeps its own credential, even for the same account.
 - ⬆️ **In-app updates** — desktop and sideloaded Android builds check for, download, and install new releases themselves.
 - 📱 **Responsive everywhere** — one UI that flows from phone to desktop, sharp at every size.
 - 🛠️ **Local MCP tools** — opt-in desktop automation with bearer authentication and configurable tool groups. See [local MCP troubleshooting](docs/troubleshooting/common-issues.md#local-mcp-tools-not-connecting).

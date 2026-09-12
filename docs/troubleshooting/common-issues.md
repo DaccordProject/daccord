@@ -59,3 +59,10 @@ can use more CPU.
 If you encounter a bug, report it at the [daccord GitHub Issues page](https://github.com/DaccordProject/daccord/issues).
 
 daccord collects no first-party analytics, telemetry, or crash data. It does make documented requests for connected servers, discovery, updates, and user-approved media. See [Network behavior and privacy](../privacy-network.md) for the complete disclosure.
+
+## Unexpected Sign-out
+
+- **A saved credential is missing from the OS vault** -- Sign in again; the existing session metadata is repaired in place, without changing your saved reference.
+- **Same account signed in on two device profiles** -- Each profile keeps its own credential, so signing out or clearing one profile never affects the other.
+- **Credentials disappear on Linux under heavy account switching** -- Vault writes are serialized within the app process to stop overlapping writes from silently dropping a credential; this does not coordinate across separate app processes (e.g. two windows of the app running at once).
+

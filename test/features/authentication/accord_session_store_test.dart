@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_session_store.dart';
 import 'package:bonfire/features/authentication/repositories/session_credential_vault.dart';
+import 'package:bonfire/features/profiles/models/device_profile.dart';
+import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
@@ -107,6 +109,40 @@ void main() {
     await store.deleteActive();
     expect(vault.values, isEmpty);
   });
+
+  test(
+    'a new login repairs a missing credential without changing its reference',
+    () async {
+      await store.persist(session());
+      final reference = vault.values.keys.single;
+      vault.values.clear();
+      expect(await store.readRestorableActive(), isNull);
+      await store.persist(session(token: 'fresh-token'));
+      expect(vault.values.keys, [reference]);
+      expect((await store.readRestorableActive())?.token, 'fresh-token');
+    },
+  );
+
+  test(
+    'the same account in two profiles retains independent credentials',
+    () async {
+      await ProfileStore.bootstrap(temporary.path);
+      final first = AccordSessionStore(credentialVault: vault);
+      await first.persist(session(token: 'default-token'));
+      final firstReference = vault.values.keys.single;
+      final workId = ProfileStore.create('Work');
+      await ProfileStore.switchTo(workId);
+      final second = AccordSessionStore(credentialVault: vault);
+      await second.persist(session(token: 'work-token'));
+      expect(vault.values.length, 2);
+      expect((await second.readRestorableActive())?.token, 'work-token');
+      await second.removeAccount(session().key);
+      await second.deleteActive();
+      expect(vault.values, {firstReference: 'default-token'});
+      await ProfileStore.switchTo(DeviceProfile.defaultId);
+      expect((await first.readRestorableActive())?.token, 'default-token');
+    },
+  );
 
   test('native packaging and Web threat documentation stay wired', () {
     expect(
