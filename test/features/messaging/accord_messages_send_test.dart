@@ -120,7 +120,7 @@ void main() {
 
         final error = await n.sendWithAttachments(client, 'hi', const []);
 
-        expect(error, 'Missing Attach Files permission');
+        expect(error?.message, 'Missing Attach Files permission');
       },
     );
 
@@ -171,7 +171,7 @@ void main() {
 
         final error = await n.sendWithAttachments(client, 'hi', [file]);
 
-        expect(error, isNull);
+        expect(error?.message, isNull);
         expect(posts, 1);
         final messages = container.read(
           accordMessagesControllerProvider('', 'ch1'),
@@ -234,7 +234,7 @@ void main() {
 
         final error = await n.sendWithAttachments(client, 'hi', [file]);
 
-        expect(error, 'attachment blocked by rule blocked-file');
+        expect(error?.message, 'attachment blocked by rule blocked-file');
         expect(
           container.read(accordMessagesControllerProvider('', 'ch1')),
           isNull,
@@ -257,7 +257,7 @@ void main() {
         },
       ]);
 
-      expect(error, 'File too large');
+      expect(error?.message, 'File too large');
     });
 
     test(
@@ -282,8 +282,77 @@ void main() {
           },
         ]);
 
-        expect(error, 'Failed to send attachments.');
+        expect(error?.message, 'Failed to send attachments.');
       },
     );
+  });
+  group('rate limits (#330)', () {
+    // The server's exact 429 shape for slowmode and the upload budgets:
+    // `Retry-After` header plus `error.retry_after`, both in seconds.
+    http.Response rateLimited(int seconds) => http.Response(
+      jsonEncode({
+        'error': {
+          'code': 'rate_limited',
+          'message': 'rate limited, retry after ${seconds}s',
+          'retry_after': seconds,
+        },
+      }),
+      429,
+      headers: {'retry-after': '$seconds'},
+    );
+
+    test(
+      'a slowmode 429 on a text send comes back once with its retry_after',
+      () async {
+        var requests = 0;
+        final n = _makeContainer().read(
+          accordMessagesControllerProvider('', 'ch1').notifier,
+        );
+        final client = _clientWith((_) async {
+          requests++;
+          return rateLimited(12);
+        });
+
+        final failure = await n.sendWithAttachments(client, 'hi', const []);
+
+        // Exactly one POST: the SDK must not retry a user send, or Send stays
+        // busy for the whole cooldown and the server sees duplicate attempts.
+        expect(requests, 1);
+        expect(failure, isNotNull);
+        expect(failure!.rateLimited, isTrue);
+        expect(failure.retryAfter, const Duration(seconds: 12));
+        expect(failure.message, 'rate limited, retry after 12s');
+      },
+    );
+
+    test('an upload-budget 429 is sent exactly once, files and all', () async {
+      var uploads = 0;
+      final n = _makeContainer().read(
+        accordMessagesControllerProvider('', 'ch1').notifier,
+      );
+      final client = _clientWith((request) async {
+        if (request.url.path.endsWith('/messages/upload')) uploads++;
+        return rateLimited(45);
+      });
+
+      final failure = await n.sendWithAttachments(client, 'pic', [
+        {
+          'filename': 'a.png',
+          'content': <int>[1, 2, 3],
+        },
+      ]);
+
+      expect(uploads, 1);
+      expect(failure!.rateLimited, isTrue);
+      expect(failure.retryAfter, const Duration(seconds: 45));
+    });
+
+    test('send() still reports a rate limit as a plain failure', () async {
+      final n = _makeContainer().read(
+        accordMessagesControllerProvider('', 'ch1').notifier,
+      );
+      final client = _clientWith((_) async => rateLimited(5));
+      expect(await n.send(client, 'hi'), isFalse);
+    });
   });
 }

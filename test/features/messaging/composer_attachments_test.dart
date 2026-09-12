@@ -78,7 +78,11 @@ PlatformFile _file(String name, {int bytes = 16}) => PlatformFile(
     );
 
 class _Harness {
-  _Harness({Map<String, Object?>? settings, this.sendStatus = 200}) {
+  _Harness({
+    Map<String, Object?>? settings,
+    this.sendStatus = 200,
+    this.sendResponse,
+  }) {
     final responder = MockClient((request) async {
       final path = request.url.path;
       requests.add('${request.method} $path');
@@ -91,6 +95,7 @@ class _Harness {
         );
       }
       if (path.contains('/messages/upload')) {
+        if (sendResponse != null) return sendResponse!;
         return http.Response(
           sendStatus == 200
               ? jsonEncode({
@@ -139,6 +144,10 @@ class _Harness {
   }
 
   final int sendStatus;
+
+  /// When set, the exact reply to every upload — for shapes [sendStatus]
+  /// can't express, like a 429 with a `Retry-After`.
+  final http.Response? sendResponse;
   final List<String> requests = [];
   late final AccordClient client;
   late final ProviderContainer container;
@@ -167,8 +176,13 @@ Future<_Harness> _pump(
   WidgetTester tester, {
   Map<String, Object?>? settings,
   int sendStatus = 200,
+  http.Response? sendResponse,
 }) async {
-  final harness = _Harness(settings: settings, sendStatus: sendStatus);
+  final harness = _Harness(
+    settings: settings,
+    sendStatus: sendStatus,
+    sendResponse: sendResponse,
+  );
   addTearDown(harness.dispose);
   await tester.pumpWidget(harness.app);
   await _tick(tester);
@@ -302,6 +316,113 @@ void main() {
     expect(_visibleText('Payload too large'), findsOneWidget);
     // The attachment comes back so the send can be retried.
     expect(_visibleText('song.mp3'), findsOneWidget);
+  });
+
+  testWidgets(
+      'a rate-limited upload counts down, keeps the file and is sent once',
+      (tester) async {
+    // #330: the server's upload budget said no. The composer must not retry
+    // (the SDK sends exactly one request), must hand the file back, and must
+    // show the server's retry_after as a countdown with Send disabled until it
+    // lapses — then leave the retry to the user.
+    FilePicker.platform = _FakeFilePicker(
+      () async => FilePickerResult([_file('song.mp3')]),
+    );
+    final harness = await _pump(
+      tester,
+      settings: const {
+        'upload_requests_per_minute': 6,
+        'upload_bytes_per_minute': 52428800,
+      },
+      sendResponse: http.Response(
+        jsonEncode({
+          'error': {
+            'code': 'rate_limited',
+            'message': 'rate limited, retry after 30s',
+            'retry_after': 30,
+          },
+        }),
+        429,
+        headers: {'content-type': 'application/json', 'retry-after': '30'},
+      ),
+    );
+    await _tapAttach(tester);
+    expect(_visibleText('song.mp3'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.send));
+    await _tick(tester);
+
+    expect(
+      harness.requests.where((r) => r.contains('/messages/upload')),
+      hasLength(1),
+    );
+    expect(_visibleText('Rate limited — try again in 30s'), findsOneWidget);
+    // The budget guidance rides along with the countdown.
+    expect(_visibleText('6 uploads and 50 MB per minute'), findsOneWidget);
+    // Not an error to dismiss, and the file is still attached for the retry.
+    expect(_visibleText('rate limited, retry after'), findsNothing);
+    expect(_visibleText('song.mp3'), findsOneWidget);
+
+    IconButton sendButton() => tester.widget<IconButton>(
+          find.ancestor(
+            of: find.byIcon(Icons.send),
+            matching: find.byType(IconButton),
+          ),
+        );
+    expect(sendButton().onPressed, isNull);
+    expect(sendButton().tooltip, contains('Rate limited'));
+
+    // Nothing is resent in the background while the countdown runs.
+    await tester.pump(const Duration(seconds: 5));
+    expect(
+      harness.requests.where((r) => r.contains('/messages/upload')),
+      hasLength(1),
+    );
+
+    // Dropping the file frees text sends: this channel has no slowmode, so
+    // only uploads were ever held back.
+    await tester.tap(find.byIcon(Icons.close).last);
+    await _tick(tester);
+    expect(_visibleText('song.mp3'), findsNothing);
+    expect(sendButton().onPressed, isNotNull);
+  });
+
+  testWidgets('the attach tooltip shows the server upload budgets',
+      (tester) async {
+    FilePicker.platform = _FakeFilePicker(() async => null);
+    await _pump(
+      tester,
+      settings: const {
+        'max_attachment_size': 8 * 1024 * 1024,
+        'max_attachments_per_message': 4,
+        'upload_requests_per_minute': 6,
+        'upload_bytes_per_minute': 52428800,
+      },
+    );
+    final button = tester.widget<IconButton>(
+      find.ancestor(
+        of: find.byIcon(Icons.add_circle_outline),
+        matching: find.byType(IconButton),
+      ),
+    );
+    expect(button.tooltip, contains('up to 8.0 MB each, 4 per message'));
+    expect(
+      button.tooltip,
+      contains('Uploads are limited to 6 uploads and 50 MB per minute.'),
+    );
+  });
+
+  testWidgets('no upload budget is invented for an older server',
+      (tester) async {
+    FilePicker.platform = _FakeFilePicker(() async => null);
+    await _pump(tester, settings: const {'max_attachment_size': 1024});
+    final button = tester.widget<IconButton>(
+      find.ancestor(
+        of: find.byIcon(Icons.add_circle_outline),
+        matching: find.byType(IconButton),
+      ),
+    );
+    expect(button.tooltip, isNot(contains('per minute')));
   });
 
   testWidgets('falls back to the compiled-in limits when /settings 403s',
