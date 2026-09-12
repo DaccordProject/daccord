@@ -123,6 +123,8 @@ The actual wiring: a single gateway dispatcher (`lib/features/events/services/ac
 
 ## Build / run / test
 
+- Public support/privacy URLs live in `lib/shared/app_info.dart`; App Store listing URLs are tracked under `fastlane/metadata/ios/en-US`. Release notes remain generated and ignored. Keep both URL sources aligned.
+
 ```bash
 flutter pub get
 dart run build_runner watch -d        # keep running during dev (codegen)
@@ -170,7 +172,6 @@ When in doubt about Accord behaviour, read `packages/accordkit` (the vendored SD
   should verify commands against `pubspec.yaml` and workflows rather than copy
   volatile dependency versions or test counts.
 - Keep changes minimal and reuse-first; this is a port, not a rewrite.
-- Public support/privacy URLs live in `lib/shared/app_info.dart`; App Store listing URLs are tracked under `fastlane/metadata/ios/en-US`. Release notes remain generated and ignored. Keep both URL sources aligned.
 - Don't reintroduce Discord endpoints, Discord branding, or Firebase push without explicit instruction.
 
 ## AutoMod
