@@ -323,8 +323,6 @@ class AccordMessagesController extends _$AccordMessagesController {
             .read(pendingUploadsControllerProvider(serverKey).notifier)
             .track(upload.message, upload.pendingAttachmentIds, client: client);
       }
-    } else if (upload is AccordMessage) {
-      addMessage(upload);
     }
     return null;
   }
