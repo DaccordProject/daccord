@@ -1,4 +1,10 @@
-# Release version: 0.2.19
+# Release version: 0.2.20
 
-• Notification permission is now requested after you sign in, rather than on
-  the very first screen, so the terms are no longer covered by a system prompt.
+• Read positions now synchronize across connected devices, with retries for
+  failed acknowledgements and fewer repeated notifications.
+• Fixed missing direct-message alerts, mobile call audio, and the DM call screen.
+• Improved saved-session reliability and fixed a Linux video playback crash.
+• Added AutoMod controls, upload review states, and clearer rate-limit guidance.
+• Improved mobile channel permissions and space menus, and added easy access
+  to the Privacy Policy.
+• Fixed the local MCP connection handshake for desktop tools.
