@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/messaging/utils/send_cooldown.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
@@ -110,10 +111,12 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
   }
 
   Future<void> _newPost() async {
+    SendFailure? sendFailure;
     final created = await showDialog<AccordMessage>(
       context: context,
       builder: (dialogContext) => PostComposerDialog(
         title: 'New post',
+        sendFailure: () => sendFailure,
         submitLabel: 'Post',
         bodyLabel: 'Body (optional)',
         initialTitle: '',
@@ -129,7 +132,8 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
             Navigator.of(dialogContext).pop(message);
             return null;
           }
-          return 'Failed to create post';
+          sendFailure = SendFailure.fromResult(result, 'Failed to create post');
+          return sendFailure!.message;
         },
       ),
     );

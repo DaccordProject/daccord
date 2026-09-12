@@ -51,6 +51,26 @@ String tooManyAttachmentsMessage(String name, int maxCount) =>
     "$name wasn't attached — you can send at most $maxCount "
     '${maxCount == 1 ? 'file' : 'files'} per message.';
 
+/// The per-message limits as a short phrase for the attach button:
+/// "up to 25 MB each, 10 per message".
+String attachmentLimitsHint({required int maxBytes, required int maxCount}) =>
+    'up to ${formatFileSize(maxBytes)} each, $maxCount per message';
+
+/// Guidance on the server's per-user upload budgets, shown next to the
+/// per-message limits wherever those are: "Uploads are limited to 6 uploads and
+/// 50 MB per minute." Null when the server reports neither budget (older
+/// server), so no limit is invented. This is configured capacity, not what's
+/// left this minute — only the server knows that, and says so with a 429.
+String? uploadBudgetHint({int? requestsPerMinute, int? bytesPerMinute}) {
+  final parts = <String>[
+    if (requestsPerMinute != null)
+      '$requestsPerMinute ${requestsPerMinute == 1 ? 'upload' : 'uploads'}',
+    if (bytesPerMinute != null) formatFileSize(bytesPerMinute),
+  ];
+  if (parts.isEmpty) return null;
+  return 'Uploads are limited to ${parts.join(' and ')} per minute.';
+}
+
 /// The outcome of screening picked files: the ones that can be attached, plus a
 /// line per file that can't be, naming it and why.
 class AttachmentScreening {

@@ -320,6 +320,28 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     if (!ok) showInfoSnack(context, 'Failed to delete message');
   }
 
+  Future<void> _blockFiles(AccordMessage message) async {
+    final client = ref.accordClient;
+    if (client == null) return;
+    final removed = await showBlockAttachmentDialog(
+      context,
+      client: client,
+      message: message,
+      isInstanceAdmin: ref.readIsAdmin(),
+      stillActive: () => mounted && identical(ref.accordClient, client),
+    );
+    if (mounted && removed == true && identical(ref.accordClient, client)) {
+      ref
+          .read(
+            accordMessagesControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              widget.channelId,
+            ).notifier,
+          )
+          .removeMessage(message.id);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -339,6 +361,13 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     final avatarRadius = compact ? 14.0 : 18.0;
     final gutter = compact ? 8.0 : 12.0;
     final cdnUrl = ref.watchCdnUrl();
+    // Attachments AutoMod is holding back (or refused) on this message — ours
+    // only; the tracker is fed by our own 202s and uploader-only events.
+    final pendingUploads = ref.watch(
+      pendingUploadsControllerProvider(
+        ref.watchActiveServerKey() ?? '',
+      ).select((s) => s.forMessage(message.id)),
+    );
     final avatarUrl = widget.author != null
         ? accordMemberAvatarUrl(widget.author, cdnUrl)
         : accordAvatarUrl(widget.authorUser, cdnUrl);
@@ -375,6 +404,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
             pinned: message.pinned,
             onEdit: () => _startEdit(message),
             onDelete: () => _delete(message.id),
+            onBlock:
+                (widget.canManageMessages || ref.readIsAdmin()) &&
+                    message.attachments.isNotEmpty &&
+                    (message.spaceId != null || ref.readIsAdmin())
+                ? () => _blockFiles(message)
+                : null,
             onTogglePin: () => _togglePin(message.id, pinned: message.pinned),
             onReport: () => _report(message),
             onMenuStateChanged: _menuStateChanged,
@@ -495,6 +530,11 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                           padding: const EdgeInsets.only(top: 4),
                           child: _buildAttachment(attachment, cdnUrl, theme),
                         ),
+                      for (final upload in pendingUploads)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: _PendingAttachmentTile(upload: upload),
+                        ),
                       for (final embed in message.embeds)
                         AccordEmbedBox(embed: embed, cdnUrl: cdnUrl),
                       if ((message.reactions ?? const []).isNotEmpty)
@@ -574,6 +614,14 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         // Pin sits between Edit and Delete in this menu; it's site-specific
         // (the thread view has no pinning) so it slots in via [beforeDelete].
         beforeDelete: [
+          if ((widget.canManageMessages || ref.readIsAdmin()) &&
+              message.attachments.isNotEmpty &&
+              (message.spaceId != null || ref.readIsAdmin()))
+            AccordMenuEntry(
+              label: 'Block files and delete',
+              icon: Icons.block,
+              onSelected: () => _blockFiles(message),
+            ),
           if (widget.canManageMessages)
             AccordMenuEntry(
               label: message.pinned ? 'Unpin' : 'Pin',
@@ -776,7 +824,11 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
           builder: (_, safeUrl) => MouseRegion(
             cursor: SystemMouseCursors.click,
             child: GestureDetector(
-              onTap: () => showImageLightbox(context, safeUrl),
+              onTap: () => showImageLightbox(
+                context,
+                safeUrl,
+                attachmentId: attachmentKey(attachment),
+              ),
               child: _ImageAttachment(
                 url: safeUrl,
                 width: _asDouble(attachment.width),

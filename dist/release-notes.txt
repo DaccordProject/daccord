@@ -1,11 +1,4 @@
-# Release version: 0.2.18
+# Release version: 0.2.19
 
-• Improved message reporting and user blocking across conversations, threads
-  and forums.
-• Fixed requests that could leave screens loading indefinitely and added
-  clearer feedback when an action fails.
-• Improved iPad layouts and mobile channel navigation, including swiping to
-  open the channel drawer.
-• Made app and server terms clearer during sign-in and registration.
-• Fixed incomplete settings and conversation controls and improved message
-  and voice state handling.
+• Notification permission is now requested after you sign in, rather than on
+  the very first screen, so the terms are no longer covered by a system prompt.

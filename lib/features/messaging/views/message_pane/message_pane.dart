@@ -5,6 +5,9 @@
 /// in the `part` files stays private to this library.
 library;
 
+import 'package:bonfire/features/automod/views/block_attachment_dialog.dart';
+
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:accordkit/accordkit.dart';
@@ -19,10 +22,14 @@ import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/member/views/accord_member_popout.dart';
 import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/features/messaging/controllers/pending_uploads.dart';
+import 'package:bonfire/features/messaging/models/pending_upload.dart';
 import 'package:bonfire/features/messaging/utils/message_visibility.dart';
+import 'package:bonfire/features/messaging/utils/send_cooldown.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/messaging/utils/attachment_limits.dart';
 import 'package:bonfire/features/messaging/utils/attachment_types.dart';
+import 'package:bonfire/features/messaging/utils/attachment_withdrawal.dart';
 import 'package:bonfire/features/messaging/utils/dropped_entity.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/messaging/views/box/accord_embed_box.dart';
@@ -285,9 +292,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
         ref
             .read(messagesLoadFailedProvider(serverKey, channelId).notifier)
             .set(false);
-        ref.invalidate(
-          accordMessagesControllerProvider(serverKey, channelId),
-        );
+        ref.invalidate(accordMessagesControllerProvider(serverKey, channelId));
       },
     );
   }
@@ -381,6 +386,17 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
     final canMentionEveryone = accordHasPermission(
       perms,
       AccordPermission.mentionEveryone,
+    );
+    // Slowmode the composer enforces locally between sends. The server is
+    // authoritative (its 429 corrects the timer); this only spares the user a
+    // round-trip that is bound to fail. Exempt users see no cooldown at all.
+    final slowmodeSeconds = effectiveSlowmodeSeconds(
+      channel: channel,
+      exempt: isSlowmodeExempt(
+        channelPermissions: perms,
+        isSpaceOwner: currentUserId != null && space?.ownerId == currentUserId,
+        isInstanceAdmin: ref.watchIsAdmin(),
+      ),
     );
     final suppressEveryone = ref.watch(
       settingsControllerProvider.select((s) => s.suppressEveryone),
@@ -707,6 +723,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                   : channel?.name,
               spaceId: spaceId,
               canMentionEveryone: canMentionEveryone,
+              slowmodeSeconds: slowmodeSeconds,
               replyingTo: _replyTo,
               replyName: _replyTo == null
                   ? null

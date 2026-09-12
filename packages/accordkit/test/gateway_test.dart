@@ -197,6 +197,50 @@ void main() {
       await socket.dispose();
     });
 
+    test('automod.upload_status / upload_update emit typed statuses', () async {
+      final factory = FakeConnectionFactory();
+      final socket = makeSocket(factory);
+      final own = <AccordAutomodUploadStatus>[];
+      final moderated = <AccordAutomodUploadStatus>[];
+      final raw = <RawGatewayEvent>[];
+      socket.onAutomodUploadStatus.listen(own.add);
+      socket.onAutomodUploadUpdate.listen(moderated.add);
+      socket.onRawEvent.listen(raw.add);
+
+      socket.connectToGateway('wss://x');
+      await pump();
+
+      final payload = {
+        'id': 'u1',
+        'message_id': 'm1',
+        'channel_id': 'c1',
+        'space_id': 's1',
+        'status': 'published',
+      };
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.event,
+        'type': 'automod.upload_status',
+        'data': payload,
+      }));
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.event,
+        'type': 'automod.upload_update',
+        'data': {...payload, 'status': 'rejected'},
+      }));
+      await pump();
+
+      expect(own.single.id, 'u1');
+      expect(own.single.messageId, 'm1');
+      expect(own.single.channelId, 'c1');
+      expect(own.single.spaceId, 's1');
+      expect(own.single.status, AutomodUploadStatus.published);
+      expect(moderated.single.id, 'u1');
+      expect(moderated.single.status, AutomodUploadStatus.rejected);
+      expect(raw.map((e) => e.type),
+          ['automod.upload_status', 'automod.upload_update']);
+      await socket.dispose();
+    });
+
     test('call.ring emits a typed AccordCallSignal', () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
@@ -247,7 +291,8 @@ void main() {
       await pump();
 
       expect(events.map((e) => e.type), ['decline', 'cancel', 'end']);
-      expect(events.every((e) => e.channelId == '5' && e.userId == '2'), isTrue);
+      expect(
+          events.every((e) => e.channelId == '5' && e.userId == '2'), isTrue);
       await socket.dispose();
     });
 
@@ -585,8 +630,7 @@ void main() {
       await socket.dispose();
     });
 
-    test('revives a dead socket even after reconnects are exhausted',
-        () async {
+    test('revives a dead socket even after reconnects are exhausted', () async {
       final factory = FakeConnectionFactory();
       final socket = makeExhaustedSocket(factory);
       socket.connectToGateway('wss://x');
@@ -635,8 +679,7 @@ void main() {
       await socket.dispose();
     });
 
-    test('force-closes a stale connection that misses the probe ack',
-        () async {
+    test('force-closes a stale connection that misses the probe ack', () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
       socket.connectToGateway('wss://x');
@@ -648,8 +691,8 @@ void main() {
 
       // The probe heartbeat went out, was never acked, and the dead socket was
       // closed and reopened through the normal reconnect path.
-      final probe =
-          jsonDecode(factory.connections.first.sent.last) as Map<String, dynamic>;
+      final probe = jsonDecode(factory.connections.first.sent.last)
+          as Map<String, dynamic>;
       expect(probe['op'], GatewayOpcodes.heartbeat);
       expect(factory.connections.first.closeCode, 4000);
       expect(factory.connections, hasLength(2));
@@ -685,7 +728,8 @@ void main() {
       await socket.dispose();
     });
 
-    test('heartbeat timer does not race with probe during ack window', () async {
+    test('heartbeat timer does not race with probe during ack window',
+        () async {
       // Verify that the probe stops the heartbeat timer before sending its OOB
       // heartbeat, so a timer tick mid-probe can't close a live connection that
       // hasn't had time to ACK yet.

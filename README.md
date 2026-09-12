@@ -352,3 +352,9 @@ Every contribution — however small — goes straight into maintaining and impr
 ## 📄 License
 
 Licensed under the **[GNU General Public License v3.0](LICENSE)** (GPLv3), inherited from Bonfire. AccordKit-Dart is MIT-licensed; GPLv3 may incorporate MIT-licensed code, so depending on `accordkit` is fine.
+
+### Automatic moderation
+
+Configure server and space rules, review held uploads, and block repeated file
+uploads through the AutoMod controls. See [the client AutoMod guide](docs/automod.md)
+for permissions, video sampling, private evidence, and cooldown behavior.

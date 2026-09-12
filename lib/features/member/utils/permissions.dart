@@ -105,8 +105,7 @@ Set<String> accordEffectiveChannelPermissions({
   required String currentUserId,
 }) {
   final effective = Set<String>.of(permissions);
-  if (channel == null ||
-      effective.contains(AccordPermission.administrator)) {
+  if (channel == null || effective.contains(AccordPermission.administrator)) {
     return effective;
   }
 
@@ -124,8 +123,7 @@ Set<String> accordEffectiveChannelPermissions({
 
   apply(
     channel.permissionOverwrites.where(
-      (overwrite) =>
-          overwrite.type == 'role' && overwrite.id == everyoneRoleId,
+      (overwrite) => overwrite.type == 'role' && overwrite.id == everyoneRoleId,
     ),
   );
   apply(
@@ -145,9 +143,10 @@ Set<String> accordEffectiveChannelPermissions({
 }
 
 /// Whether [perms] should reveal the space settings affordance: any of
-/// manage-space, manage-roles or view-audit-log. The gate shared by the space
+/// manage-space, manage-roles, view-audit-log or moderate-members. The gate shared by the space
 /// header menu and the channel list's settings gear.
 bool canManageSpaceSettings(Set<String> perms) =>
+    accordHasPermission(perms, AccordPermission.moderateMembers) ||
     accordHasPermission(perms, AccordPermission.manageSpace) ||
     accordHasPermission(perms, AccordPermission.manageRoles) ||
     accordHasPermission(perms, AccordPermission.viewAuditLog);

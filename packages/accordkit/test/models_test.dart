@@ -114,7 +114,25 @@ void main() {
       });
       expect(c.spaceId, '7');
       expect(c.rateLimit, 5);
+      expect(c.rateLimitSeconds, 5);
       expect(c.permissionOverwrites.single.type, 'user');
+    });
+
+    test('rateLimitSeconds parses slowmode tolerantly and clamps it', () {
+      int seconds(Object? raw) =>
+          AccordChannel.fromJson({'id': '1', 'rate_limit': raw})
+              .rateLimitSeconds;
+      expect(seconds(null), 0);
+      expect(seconds(0), 0);
+      expect(seconds(-5), 0);
+      expect(seconds(30), 30);
+      expect(seconds(30.9), 30);
+      expect(seconds(' 45 '), 45);
+      expect(seconds('never'), 0);
+      expect(seconds(true), 0);
+      expect(seconds(21600), 21600);
+      expect(seconds(99999), AccordChannel.maxRateLimitSeconds);
+      expect(AccordChannel.fromJson({'id': '1'}).rateLimitSeconds, 0);
     });
 
     test('roundtrips recipients', () {
@@ -286,6 +304,84 @@ void main() {
       expect(v.livekitUrl, 'wss://lk');
       expect(v.sfuEndpoint, 'sfu');
       expect(v.voiceState!.userId, '9');
+    });
+  });
+
+  group('AccordAutomodUploadStatus', () {
+    test('parses the gateway payload (ids + status, no reason)', () {
+      final s = AccordAutomodUploadStatus.fromJson({
+        'id': 'u1',
+        'message_id': 'm1',
+        'channel_id': 'c1',
+        'space_id': 's1',
+        'status': 'quarantined',
+      });
+      expect(s.id, 'u1');
+      expect(s.messageId, 'm1');
+      expect(s.channelId, 'c1');
+      expect(s.spaceId, 's1');
+      expect(s.status, AutomodUploadStatus.quarantined);
+      expect(s.toJson(), {
+        'id': 'u1',
+        'message_id': 'm1',
+        'channel_id': 'c1',
+        'space_id': 's1',
+        'status': 'quarantined',
+      });
+    });
+
+    test('a DM upload has no space and int ids are coerced', () {
+      final s = AccordAutomodUploadStatus.fromJson({
+        'id': 7,
+        'message_id': 8,
+        'channel_id': 9,
+        'space_id': null,
+        'status': 'published',
+      });
+      expect(s.id, '7');
+      expect(s.messageId, '8');
+      expect(s.channelId, '9');
+      expect(s.spaceId, isNull);
+      expect(s.status, AutomodUploadStatus.published);
+      expect(s.toJson().containsKey('space_id'), isFalse);
+    });
+
+    test('a missing status reads as pending', () {
+      expect(
+        AccordAutomodUploadStatus.fromJson({'id': 'u1'}).status,
+        AutomodUploadStatus.pending,
+      );
+    });
+  });
+
+  group('AccordAutomodUpload', () {
+    test('parses status details and blanks empty reason/rule', () {
+      final u = AccordAutomodUpload.fromJson({
+        'id': 'u1',
+        'message_id': 'm1',
+        'status': 'rejected',
+        'reason': '',
+        'rule_id': null,
+        'expires_at': null,
+      });
+      expect(u.status, AutomodUploadStatus.rejected);
+      expect(u.reason, isNull);
+      expect(u.ruleId, isNull);
+      expect(u.expiresAt, isNull);
+      expect(
+          u.toJson(), {'id': 'u1', 'message_id': 'm1', 'status': 'rejected'});
+    });
+  });
+
+  group('AutomodUploadStatus', () {
+    test('classifies outstanding vs refused', () {
+      expect(AutomodUploadStatus.isOutstanding('pending'), isTrue);
+      expect(AutomodUploadStatus.isOutstanding('quarantined'), isTrue);
+      expect(AutomodUploadStatus.isOutstanding('published'), isFalse);
+      expect(AutomodUploadStatus.isRefused('rejected'), isTrue);
+      expect(AutomodUploadStatus.isRefused('removed'), isTrue);
+      expect(AutomodUploadStatus.isRefused('published'), isFalse);
+      expect(AutomodUploadStatus.isRefused('pending'), isFalse);
     });
   });
 

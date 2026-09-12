@@ -12,8 +12,11 @@ import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/voice/controllers/missed_calls.dart';
 import 'package:bonfire/features/events/services/accord_connection_coordinator.dart';
+import 'package:bonfire/features/notifications/services/notification.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
+import 'package:bonfire/features/messaging/controllers/pending_uploads.dart';
+import 'package:bonfire/features/messaging/utils/pending_upload_store.dart';
 import 'package:bonfire/features/server/utils/space_cache.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -226,11 +229,7 @@ class AccordAuth extends _$AccordAuth {
           'Failed to read ${server.baseUrl} settings '
           '(${result.statusCode}): $message',
         );
-        return (
-          settings: null,
-          error: message,
-          statusCode: result.statusCode,
-        );
+        return (settings: null, error: message, statusCode: result.statusCode);
       }
       final map = Map<String, dynamic>.from(result.data as Map);
       final inner = map['data'];
@@ -358,6 +357,8 @@ class AccordAuth extends _$AccordAuth {
     ref.read(missedCallsControllerProvider.notifier).clearAll();
     ref.read(openTabsControllerProvider.notifier).clear();
     unawaited(SpaceCache.clear());
+    unawaited(PendingUploadStore.clear());
+    ref.invalidate(pendingUploadsControllerProvider);
     ref.read(spacesControllerProvider.notifier).setSpaces(const []);
     state = const AccordAuthLoggedOut();
   }
@@ -742,6 +743,8 @@ class AccordAuth extends _$AccordAuth {
     ref.invalidate(presenceControllerProvider(key));
     ref.read(openTabsControllerProvider.notifier).removeForServer(key);
     unawaited(SpaceCache.remove(key));
+    unawaited(PendingUploadStore.remove(key));
+    ref.invalidate(pendingUploadsControllerProvider(key));
 
     if (wasActive) {
       final next = _connections.keys.isNotEmpty
@@ -788,6 +791,8 @@ class AccordAuth extends _$AccordAuth {
     ref.invalidate(presenceControllerProvider(key));
     ref.read(openTabsControllerProvider.notifier).removeForServer(key);
     unawaited(SpaceCache.remove(key));
+    unawaited(PendingUploadStore.remove(key));
+    ref.invalidate(pendingUploadsControllerProvider(key));
   }
 
   /// Connects [session] as a live server (or, if already connected, optionally
@@ -815,6 +820,12 @@ class AccordAuth extends _$AccordAuth {
     ref
         .read(connectionsControllerProvider.notifier)
         .register(session, status: ConnectionStatus.connecting);
+
+    // First point at which notifications mean anything: there is an account
+    // whose mentions we could post. Asking at startup instead put the OS
+    // permission alert over the terms gate. Fire-and-forget — the prompt must
+    // not delay the connection, and it no-ops after the first call.
+    unawaited(requestNotificationPermissions());
 
     // Seed the rail from the last-known cache so this server's spaces show
     // immediately (dimmed, while connecting/unreachable) instead of waiting on

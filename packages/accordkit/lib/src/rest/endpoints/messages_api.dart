@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../../models/message.dart';
+import '../../models/message_upload.dart';
 import '../endpoint_base.dart';
 import '../multipart_form.dart';
 import '../rest_result.dart';
@@ -25,10 +26,20 @@ class MessagesApi extends EndpointBase {
     return result.deserialize(AccordMessage.fromJson);
   }
 
-  /// Creates a message. [data] needs at least `content` or `embeds`.
+  /// Creates a message. [data] needs at least `content` or `embeds`; a
+  /// `thread_id` makes it a thread reply.
+  ///
+  /// Not retried on 429: the server enforces channel slowmode (`rate_limit`)
+  /// on this route, so a rate limit is a cooldown to show the user, returned
+  /// as a failure whose [AccordError.retryAfter] says how long. Exactly one
+  /// request is made per call.
   Future<RestResult> create(String channelId, Map<String, dynamic> data) async {
-    final result = await rest
-        .makeRequest('POST', '/channels/$channelId/messages', body: data);
+    final result = await rest.makeRequest(
+      'POST',
+      '/channels/$channelId/messages',
+      body: data,
+      retryOnRateLimit: false,
+    );
     return result.deserialize(AccordMessage.fromJson);
   }
 
@@ -36,6 +47,17 @@ class MessagesApi extends EndpointBase {
   ///
   /// Each entry in [files] is a map with `filename` (String),
   /// `content` (`List<int>`/`Uint8List`), and `content_type` (String).
+  ///
+  /// On success [RestResult.data] is an [AccordMessageUpload]: the created
+  /// message plus the upload IDs an AutoMod-enabled server is still holding
+  /// (a `202 Accepted` with `pending_attachments`). A server that published
+  /// everything immediately — or predates AutoMod — yields an empty list.
+  /// Either way exactly one message was created; callers must not re-send
+  /// because the returned attachment list is shorter than what they uploaded.
+  ///
+  /// A deterministic AutoMod rejection (blocked hash, `reject` rule) is an
+  /// ordinary failure (HTTP 400) whose [RestResult.error] carries the
+  /// server's reason.
   Future<RestResult> createWithAttachments(
     String channelId,
     Map<String, dynamic> data,
@@ -53,8 +75,23 @@ class MessagesApi extends EndpointBase {
       form.addFile(name, filename, content, contentType: ct);
     }
     final result = await rest.makeMultipartRequest(
-        'POST', '/channels/$channelId/messages/upload', form);
-    return result.deserialize(AccordMessage.fromJson);
+        'POST', '/channels/$channelId/messages/upload', form,
+        retryOnRateLimit: false);
+    return _asUpload(result);
+  }
+
+  /// Wraps a multipart response's message in an [AccordMessageUpload],
+  /// carrying over the envelope's `pending_attachments` and HTTP status.
+  static RestResult _asUpload(RestResult result) {
+    final d = result.data;
+    if (result.ok && d is Map<String, dynamic>) {
+      result.data = AccordMessageUpload(
+        message: AccordMessage.fromJson(d),
+        pendingAttachmentIds: result.pendingAttachments,
+        statusCode: result.statusCode,
+      );
+    }
+    return result;
   }
 
   /// Edits an existing message.
@@ -133,10 +170,16 @@ class MessagesApi extends EndpointBase {
     return list(channelId, query: q);
   }
 
-  /// Triggers the typing indicator (lasts ~10s).
+  /// Triggers the typing indicator (lasts ~10s). Fire-and-forget, so a
+  /// rate-limited call is dropped rather than retried.
   Future<RestResult> typing(String channelId, {String threadId = ''}) {
     final data = <String, dynamic>{};
     if (threadId.isNotEmpty) data['thread_id'] = threadId;
-    return rest.makeRequest('POST', '/channels/$channelId/typing', body: data);
+    return rest.makeRequest(
+      'POST',
+      '/channels/$channelId/typing',
+      body: data,
+      retryOnRateLimit: false,
+    );
   }
 }

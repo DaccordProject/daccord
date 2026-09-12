@@ -129,6 +129,119 @@ void main() {
       expect(body, contains('filename="a.bin"'));
       expect(body, contains('name="payload_json"'));
     });
+
+    test('createWithAttachments on 200 yields an upload with no pending ids',
+        () async {
+      rest = mockRest(
+          log: log,
+          responder: (_) => jsonData({
+                'id': '1',
+                'channel_id': '5',
+                'attachments': [
+                  {'id': 'a1', 'filename': 'a.bin', 'url': '/cdn/a.bin'}
+                ],
+              }));
+      final result = await MessagesApi(rest).createWithAttachments(
+        '5',
+        {'content': 'hi'},
+        [
+          {
+            'filename': 'a.bin',
+            'content': Uint8List.fromList([1])
+          }
+        ],
+      );
+      final upload = result.data as AccordMessageUpload;
+      expect(upload.statusCode, 200);
+      expect(upload.message.id, '1');
+      expect(upload.message.attachments.single.id, 'a1');
+      expect(upload.pendingAttachmentIds, isEmpty);
+      expect(upload.hasPendingAttachments, isFalse);
+    });
+
+    test('createWithAttachments on 202 keeps the pending upload ids', () async {
+      rest = mockRest(
+          log: log,
+          responder: (_) => http.Response(
+                jsonEncode({
+                  'data': {'id': '1', 'channel_id': '5', 'attachments': []},
+                  'pending_attachments': ['u1'],
+                }),
+                202,
+              ));
+      final result = await MessagesApi(rest).createWithAttachments(
+        '5',
+        {'content': 'hi'},
+        [
+          {
+            'filename': 'a.bin',
+            'content': Uint8List.fromList([1])
+          }
+        ],
+      );
+      expect(result.ok, isTrue);
+      final upload = result.data as AccordMessageUpload;
+      expect(upload.statusCode, 202);
+      expect(upload.message.id, '1');
+      expect(upload.message.attachments, isEmpty);
+      expect(upload.pendingAttachmentIds, ['u1']);
+      expect(upload.hasPendingAttachments, isTrue);
+    });
+
+    test('createWithAttachments surfaces a deterministic 400 rejection',
+        () async {
+      rest = mockRest(
+          log: log,
+          responder: (_) => jsonError(
+              'BAD_REQUEST', 'blocked by rule blocked-file',
+              status: 400));
+      final result = await MessagesApi(rest).createWithAttachments(
+        '5',
+        {'content': 'hi'},
+        [
+          {
+            'filename': 'a.bin',
+            'content': Uint8List.fromList([1])
+          }
+        ],
+      );
+      expect(result.ok, isFalse);
+      expect(result.statusCode, 400);
+      expect(result.error!.message, 'blocked by rule blocked-file');
+      expect(result.data, isNull);
+    });
+  });
+
+  group('AutomodApi', () {
+    test('getUpload fetches the authorized status and deserializes it',
+        () async {
+      rest = mockRest(
+          log: log,
+          responder: (_) => jsonData({
+                'id': 'u1',
+                'message_id': 'm1',
+                'status': 'rejected',
+                'reason': 'explicit content',
+                'rule_id': 'explicit-image',
+                'expires_at': 1700000000,
+              }));
+      final result = await AutomodApi(rest).getUpload('u1');
+      expect(req.method, 'GET');
+      expect(req.url.path, '/api/v1/automod/uploads/u1');
+      final upload = result.data as AccordAutomodUpload;
+      expect(upload.id, 'u1');
+      expect(upload.messageId, 'm1');
+      expect(upload.status, AutomodUploadStatus.rejected);
+      expect(upload.reason, 'explicit content');
+      expect(upload.ruleId, 'explicit-image');
+      expect(upload.expiresAt, 1700000000);
+    });
+
+    test('getUpload encodes the id', () async {
+      rest = mockRest(log: log, responder: (_) => jsonData({'id': 'a/b'}));
+      await AutomodApi(rest).getUpload('a/b');
+      expect(req.url.path, '/api/v1/automod/uploads/a%2Fb');
+    });
   });
 
   group('ReactionsApi', () {
@@ -327,8 +440,7 @@ void main() {
       expect(req.url.path, '/api/v1/directory/7');
     });
 
-    test('client.directory does not double-prefix the API base path',
-        () async {
+    test('client.directory does not double-prefix the API base path', () async {
       // Regression: DirectoryApi used to prepend AccordConfig.apiBasePath on
       // top of AccordClient's already-versioned rest base URL, so every
       // client.directory call hit /api/v1/api/v1/directory (#306).
@@ -476,8 +588,7 @@ void main() {
 
       rest = mockRest(
         log: log,
-        responder: (_) =>
-            jsonError('METHOD_NOT_ALLOWED', 'nope', status: 405),
+        responder: (_) => jsonError('METHOD_NOT_ALLOWED', 'nope', status: 405),
       );
       final methodNotAllowed = await ReportsApi(rest).createDirect({});
       expect(ReportsApi.reportRouteMissing(methodNotAllowed), isTrue);

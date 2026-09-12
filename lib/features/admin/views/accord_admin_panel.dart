@@ -1,3 +1,4 @@
+import 'package:bonfire/features/automod/views/automod_panel.dart';
 import 'package:bonfire/features/admin/views/admin_reports_tab.dart';
 import 'package:bonfire/features/admin/views/admin_settings_tab.dart';
 import 'package:bonfire/features/admin/views/admin_spaces_tab.dart';
@@ -10,8 +11,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 /// Instance-level (server-wide) administration panel — visible only to instance
-/// admins (`session.isAdmin`). Four tabs mirroring the reference client's
-/// `server_management_panel`: Spaces, Users, Reports, Settings. Non-admins are
+/// admins (`session.isAdmin`). Five tabs extending the reference client's
+/// `server_management_panel`: Spaces, Users, Reports, Settings, AutoMod. Non-admins are
 /// shown an access-denied placeholder rather than the tabs.
 class AccordAdminPanel extends ConsumerWidget {
   const AccordAdminPanel({super.key});
@@ -20,8 +21,9 @@ class AccordAdminPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
     final session = ref.watch(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.session : null),
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session : null,
+      ),
     );
     final isAdmin = session?.isAdmin ?? false;
 
@@ -58,7 +60,7 @@ class AccordAdminPanel extends ConsumerWidget {
     }
 
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         backgroundColor: colors.background,
         appBar: AppBar(
@@ -76,6 +78,7 @@ class AccordAdminPanel extends ConsumerWidget {
               Tab(text: 'Users'),
               Tab(text: 'Reports'),
               Tab(text: 'Settings'),
+              Tab(text: 'AutoMod'),
             ],
           ),
         ),
@@ -85,6 +88,7 @@ class AccordAdminPanel extends ConsumerWidget {
             AdminUsersTab(),
             AdminReportsTab(),
             AdminSettingsTab(),
+            AutomodPanel(),
           ],
         ),
       ),

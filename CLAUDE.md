@@ -30,7 +30,7 @@ The Accord server backend is [`accordserver`](https://github.com/DaccordProject/
 - **State management:** Riverpod 3 (`flutter_riverpod`, `riverpod_annotation` with codegen → `*.g.dart`).
 - **Models / serialization:** primarily provided by `accordkit` (`Accord*` types). The handful of client-local models (server config, session, device profile, space folders, settings) hand-roll `fromJson`/`toJson` — they're small and Hive-backed, so codegen serializers aren't used. The only generated files in `lib/` are Riverpod's `*.g.dart` files.
 - **Routing:** `go_router`.
-- **Local storage:** `hive_ce` — boxes opened in `setupHive()`: `auth`, `last-location`, `added-accounts`, `accord-session`, `accord-settings`.
+- **Local storage:** `hive_ce` — boxes opened in `setupHive()`: `auth`, `last-location`, `added-accounts`, `space-cache`, `window-state`, `pending-uploads` (per-connection AutoMod-held upload IDs), plus the per-profile `accord-session` and `accord-settings`.
 - **Networking:** `accordkit` (vendored in-tree at `packages/accordkit`, maintained here). **The firebridge → accordkit swap is complete** — `packages/firebridge` and `firebridge_extensions` no longer exist and nothing in `lib/` imports them (a few doc comments still mention "firebridge" to describe what a controller replaced). Do not try to re-add firebridge.
 - **Voice/video/screen share:** `livekit_client` (a local fork at `packages/livekit_client`, see #68) over WebRTC; credentials fetched via accordkit's `client.voice`. See `lib/features/voice/`.
 - **Media:** `media_kit` (a local fork at `packages/media_kit`; `media_kit_video` and `video_player_media_kit` stay pinned git forks) / `cached_network_image` / `file_picker` — re-point CDN URLs at the Accord server. The fork defers closing libmpv's wakeup `NativeCallable` until after `mpv_terminate_destroy`; closing it early aborted the process whenever a video attachment was disposed (upstream PR #1424).
@@ -171,3 +171,13 @@ When in doubt about Accord behaviour, read `packages/accordkit` (the vendored SD
   volatile dependency versions or test counts.
 - Keep changes minimal and reuse-first; this is a port, not a rewrite.
 - Don't reintroduce Discord endpoints, Discord branding, or Firebase push without explicit instruction.
+
+## AutoMod
+
+`lib/features/automod/` owns the policy/review UI and block-before-delete flow.
+Keep configuration (`manage_space`), review (`moderate_members`), and stored-file
+blocking (effective channel `manage_messages`) separate; instance scope requires
+an administrator. `docs/automod.md` documents the client contract. Private
+evidence must use the authenticated SDK endpoint and must be cleared on account
+changes. Moderator mutations opt out of automatic 429 retry. Tests live in
+`test/features/automod/` and `packages/accordkit/test/automod_management_test.dart`.
