@@ -84,3 +84,36 @@ bool isVoiceDoubleTap(DateTime? lastTapAt, DateTime now) =>
     lastTapAt != null &&
     !now.isBefore(lastTapAt) &&
     now.difference(lastTapAt) <= voiceDoubleTapWindow;
+
+/// The voice-bar message shown when the microphone could not be captured
+/// because the OS denied (or has not granted) microphone access.
+const String micPermissionDeniedMessage =
+    'Microphone access is unavailable — enable it in Settings';
+
+/// Whether a failed microphone capture/publish was a *permission* failure, as
+/// opposed to a device/transport problem.
+///
+/// The error surfaces differently per platform: iOS and web reject
+/// `getUserMedia` with a DOMException named `NotAllowedError`
+/// (`FlutterRTCMediaStream.m`, "step 10 Permission Failure"), Android's
+/// `GetUserMediaImpl` fails with a `PermissionDenied`-style message, and
+/// flutter_webrtc's Dart layer wraps both in a plain
+/// `'Unable to getUserMedia: …'` string — so this matches on the message text
+/// rather than on a type.
+bool isMicPermissionError(Object error) {
+  final text = '$error'.toLowerCase();
+  return text.contains('notallowederror') ||
+      text.contains('permissiondenied') ||
+      text.contains('permission');
+}
+
+/// The user-facing message for a microphone that could not be published at
+/// join/unmute time. A permission failure gets the actionable Settings hint;
+/// anything else keeps the platform's reason so the voice bar says *why*.
+String describeMicFailure(Object error) {
+  if (isMicPermissionError(error)) return micPermissionDeniedMessage;
+  final reason = '$error'.replaceFirst('Unable to getUserMedia: ', '').trim();
+  return reason.isEmpty
+      ? 'Microphone unavailable'
+      : 'Microphone unavailable: $reason';
+}

@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 // `dart:io` isn't available on web; universal_io's Platform reports an empty
 // environment there, which is the right answer for this check anyway.
@@ -50,8 +53,10 @@ class SoundManager {
   /// Lazy so a silent manager never builds a player. `audioplayers` reaches the
   /// platform on first use, not construction, but building four of them plus a
   /// ringtone player in a test process is pointless either way.
-  late final List<AudioPlayer> _pool =
-      List.generate(_poolSize, (_) => AudioPlayer());
+  late final List<AudioPlayer> _pool = List.generate(
+    _poolSize,
+    (_) => AudioPlayer(),
+  );
   int _next = 0;
   bool _initialized = false;
 
@@ -72,6 +77,16 @@ class SoundManager {
   /// Mirrors `AccordSettings.sfxVolume` (0.0–1.0).
   double volume = 1.0;
 
+  /// Whether a LiveKit voice session is live. `VoiceController` raises this
+  /// before the media session connects and clears it after it disconnects; see
+  /// [allowsOneShotInCall] for what it gates.
+  bool _voiceSessionActive = false;
+  bool get voiceSessionActive => _voiceSessionActive;
+
+  void setVoiceSessionActive(bool active) {
+    _voiceSessionActive = active;
+  }
+
   void init() {
     if (silent || _initialized) return;
     _initialized = true;
@@ -79,15 +94,120 @@ class SoundManager {
       player.setReleaseMode(ReleaseMode.stop);
     }
     _ringPlayer.setReleaseMode(ReleaseMode.loop);
+    _applyAudioContext();
     _lifecycle = AppLifecycleListener(
       onStateChange: (state) => focused = state == AppLifecycleState.resumed,
     );
   }
 
+  /// Configures how our players interact with the platform audio session, once
+  /// at startup, so nothing about a chime ever has to change while a voice
+  /// call is live. Mobile only — the desktop/web backends have no such context.
+  ///
+  /// Android: applied per player rather than through `AudioPlayer.global`,
+  /// because `audioplayers_android` bakes the global default into a player at
+  /// creation and our players already exist. (Both paths also write
+  /// `AudioManager.mode`/`isSpeakerphoneOn` — at startup that is harmless;
+  /// mid-call it would undo flutter_webrtc's `MODE_IN_COMMUNICATION`, which is
+  /// exactly why this is never called again later.)
+  ///
+  /// iOS: `audioplayers_darwin` has a single global `AVAudioSession` category,
+  /// so it is set once via the global scope.
+  void _applyAudioContext() {
+    if (kIsWeb) return;
+    final context = audioContextFor(defaultTargetPlatform);
+    if (context == null) return;
+    Future<void> apply(Future<void> Function() op, String what) async {
+      try {
+        await op();
+      } catch (e) {
+        debugPrint('SoundManager: $what audio context failed: $e');
+      }
+    }
+
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      unawaited(
+        apply(() => AudioPlayer.global.setAudioContext(context), 'global'),
+      );
+      return;
+    }
+    for (final player in _pool) {
+      unawaited(apply(() => player.setAudioContext(context), 'sfx'));
+    }
+    unawaited(apply(() => _ringPlayer.setAudioContext(context), 'ringtone'));
+  }
+
+  /// The audioplayers context for our SFX and ringtone players on [platform],
+  /// or null where the backend has none (desktop, web). Pure so the choice can
+  /// be unit-tested without the plugin.
+  ///
+  /// * **Android** — `audioFocus: none`: a chime must not request (and on
+  ///   completion abandon) audio focus while flutter_webrtc's `AudioSwitch`
+  ///   holds it for the call, and outside a call a 300 ms chime has no business
+  ///   pausing whatever is playing. Everything else stays at the plugin
+  ///   defaults so volume/routing semantics are unchanged (media stream,
+  ///   `MODE_NORMAL` — only ever written at startup, see [_applyAudioContext]).
+  /// * **iOS** — `playback` + `mixWithOthers`: the plugin default minus the
+  ///   "interrupt other apps" behaviour. The category itself is irrelevant to a
+  ///   call: LiveKit reconfigures the session to `playAndRecord`/`voiceChat`
+  ///   through `RTCAudioSession` when the first audio track appears
+  ///   (`packages/livekit_client/lib/src/track/audio_management.dart`).
+  static AudioContext? audioContextFor(TargetPlatform platform) {
+    switch (platform) {
+      case TargetPlatform.android:
+        return AudioContext(
+          android: const AudioContextAndroid(
+            contentType: AndroidContentType.sonification,
+            audioFocus: AndroidAudioFocus.none,
+          ),
+        );
+      case TargetPlatform.iOS:
+        return AudioContext(
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+            options: const {AVAudioSessionOptions.mixWithOthers},
+          ),
+        );
+      case TargetPlatform.fuchsia:
+      case TargetPlatform.linux:
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+        return null;
+    }
+  }
+
+  /// Whether a one-shot chime may play while a voice session is live.
+  ///
+  /// False only on iOS. There, `audioplayers_darwin` calls
+  /// `AVAudioSession.setActive(false)` on the shared session every time a
+  /// one-shot finishes and no other player is running
+  /// (`WrappedMediaPlayer.onSoundComplete` → `controlAudioSession` →
+  /// `AudioContext.activateAudioSession(active: false)`). That is the very
+  /// session WebRTC's `RTCAudioSession` is driving the call through, and
+  /// deactivating it underneath WebRTC stops capture and playback — the
+  /// "connected, permission granted, no audio either way" call (#323). No
+  /// `AudioContext` avoids that call, so in-call chimes are skipped on iOS.
+  /// The looping ringtone is unaffected: a loop resumes on completion, so the
+  /// session is only ever re-*activated*, and `stopRingtone` doesn't touch it.
+  ///
+  /// Android's backend only requests/abandons audio focus around playback,
+  /// which [audioContextFor] turns off, so chimes are safe there; web and
+  /// desktop have no shared session at all.
+  static bool allowsOneShotInCall({
+    required TargetPlatform platform,
+    required bool isWeb,
+  }) => isWeb || platform != TargetPlatform.iOS;
+
   /// Plays the named SFX from [_sounds]. No-ops when disabled, muted, or the
-  /// name is unknown.
+  /// name is unknown — and, while a voice session is live, on the platforms
+  /// where a one-shot would break the call's audio session
+  /// ([allowsOneShotInCall]).
   Future<void> play(String name) async {
     if (silent || !enabled || volume <= 0.0) return;
+    if (_voiceSessionActive &&
+        !allowsOneShotInCall(platform: defaultTargetPlatform, isWeb: kIsWeb)) {
+      return;
+    }
     final asset = _sounds[name];
     if (asset == null) return;
 

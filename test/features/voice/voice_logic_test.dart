@@ -166,4 +166,54 @@ void main() {
       );
     });
   });
+
+  group('isMicPermissionError', () {
+    test('recognises each platform\'s denial', () {
+      // iOS / web: flutter_webrtc wraps the DOMException name in a string.
+      expect(
+        isMicPermissionError('Unable to getUserMedia: NotAllowedError'),
+        isTrue,
+      );
+      // Android: GetUserMediaImpl's message.
+      expect(isMicPermissionError(Exception('PermissionDenied')), isTrue);
+      expect(
+        isMicPermissionError('Unable to getUserMedia: permission denied'),
+        isTrue,
+      );
+    });
+
+    test('a device/transport failure is not a permission failure', () {
+      expect(
+        isMicPermissionError('Unable to getUserMedia: NotFoundError'),
+        isFalse,
+      );
+      expect(
+        isMicPermissionError(
+          'LiveKit Exception: [TrackPublishException] Failed to publish track',
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('describeMicFailure', () {
+    test('a denied mic gets the actionable Settings hint', () {
+      expect(
+        describeMicFailure('Unable to getUserMedia: NotAllowedError'),
+        micPermissionDeniedMessage,
+      );
+      expect(micPermissionDeniedMessage, contains('Settings'));
+    });
+
+    test('any other failure keeps the platform reason', () {
+      expect(
+        describeMicFailure('Unable to getUserMedia: NotFoundError'),
+        'Microphone unavailable: NotFoundError',
+      );
+    });
+
+    test('an empty reason still reads as a mic failure', () {
+      expect(describeMicFailure(''), 'Microphone unavailable');
+    });
+  });
 }

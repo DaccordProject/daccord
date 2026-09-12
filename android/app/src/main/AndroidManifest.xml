@@ -31,6 +31,16 @@
         android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission
         android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- Voice calls over a Bluetooth headset: flutter_webrtc's AudioSwitch only
+         enumerates/routes to Bluetooth SCO devices when the app holds the
+         Bluetooth permission — BLUETOOTH up to Android 11 (a normal permission,
+         granted at install) and the runtime BLUETOOTH_CONNECT from Android 12.
+         Neither plugin declares these itself. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_CONNECT" />
     <!-- REQUEST_INSTALL_PACKAGES (in-app self-update) is declared only in the
          `github` flavor (src/github/AndroidManifest.xml). The Play build omits it
          and updates through Google Play. -->
