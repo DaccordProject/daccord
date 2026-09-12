@@ -73,10 +73,20 @@ class _ActiveConnections extends ConnectionsController {
 /// exactly as the real one does, or fails with [failJoinWith] the way a
 /// rejected `POST /channels/{id}/voice/join` does.
 class _StubVoice extends VoiceController {
-  _StubVoice({this.initial = const VoiceConnection(), this.failJoinWith});
+  _StubVoice({
+    this.initial = const VoiceConnection(),
+    this.failJoinWith,
+    this.joinServerKey = _serverKey,
+  });
 
   final VoiceConnection initial;
   final String? failJoinWith;
+
+  /// The connection the join pins to. Defaults to the harness's own server;
+  /// set to something [_FakeAuth] doesn't recognise to simulate the
+  /// connection disappearing between the join resolving and the ring going
+  /// out (`_clientFor` then finds no client for it).
+  final String joinServerKey;
   int leaves = 0;
 
   @override
@@ -92,7 +102,7 @@ class _StubVoice extends VoiceController {
     state = state.copyWith(
       channelId: channelId,
       spaceId: spaceId,
-      serverKey: _serverKey,
+      serverKey: joinServerKey,
       clearError: true,
     );
   }
@@ -404,4 +414,36 @@ void main() {
     expect(container.read(callControllerProvider).hasOutgoing, isFalse);
     expect(container.read(voiceControllerProvider).channelId, isNull);
   });
+
+  testWidgets(
+    'a connection that vanishes right after a successful join hangs the '
+    'call up instead of ringing',
+    (tester) async {
+      // The join is pinned to a serverKey no client exists for by the time it
+      // resolves — the connection was dropped mid-join. `_clientFor` then
+      // returns null and `startCall` must not fall through to ringing on
+      // whatever connection happens to be active now.
+      final h = _Harness(voice: _StubVoice(joinServerKey: 'gone@nowhere'));
+      await _openConversation(tester, h);
+
+      await tester.tap(find.byTooltip('Start voice call'));
+      await _settle(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(VoiceChannelView), findsNothing);
+      expect(
+        h.requests,
+        isNot(contains('POST /api/v1/channels/dm1/call/ring')),
+      );
+      expect(h.voice.leaves, 1);
+      expect(
+        find.text('Could not start the call — no connection'),
+        findsOneWidget,
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byTooltip('Start voice call')),
+      );
+      expect(container.read(callControllerProvider).hasOutgoing, isFalse);
+    },
+  );
 }
