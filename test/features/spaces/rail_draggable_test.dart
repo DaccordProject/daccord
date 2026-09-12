@@ -203,6 +203,29 @@ void main() {
       expect(find.text('Mute server'), findsNothing);
     }, variant: touch);
 
+    testWidgets('a system pointer cancel after lifting opens no menu', (
+      tester,
+    ) async {
+      final log = <String>[];
+      await tester.pumpWidget(_app(log));
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(_tile('space5')),
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pump(_hold);
+      expect(_feedback('space5'), findsOneWidget, reason: 'lifted');
+
+      // An incoming call or notification shade cancels the pointer without
+      // a release — must not be read as "release in place" (#327).
+      await gesture.cancel();
+      await tester.pumpAndSettle();
+
+      expect(log, isEmpty);
+      expect(find.text('Mute server'), findsNothing);
+      expect(_feedback('space5'), findsNothing);
+    }, variant: touch);
+
     testWidgets('a quick finger-scroll still scrolls the rail', (tester) async {
       final log = <String>[];
       await tester.pumpWidget(_app(log));
