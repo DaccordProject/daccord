@@ -61,8 +61,9 @@ void bindMessageEvents(
         mentionEveryone: message.mentionEveryone,
         suppressEveryone: settings.suppressEveryone,
       );
+      final isDirectMessage = message.spaceId == null;
       final spaceMuted =
-          message.spaceId != null &&
+          !isDirectMessage &&
           settings.isSpaceMuted(serverKey, message.spaceId!);
 
       // Channel cache: only touch channels the UI has actually opened (see
@@ -157,7 +158,9 @@ void bindMessageEvents(
       // Mention notifications: fire for *any* mentioning message, even in
       // channels the UI hasn't opened and on servers that aren't currently
       // active (so a message on server B still notifies while you're on server
-      // A). [currentUserId] is per-connection, so author matching is correct on
+      // A). Direct messages notify without a mention (#326) — the gate handles
+      // that, so an unread DM pings you while you're reading another channel.
+      // [currentUserId] is per-connection, so author matching is correct on
       // every server; only the *visible-channel* skip is active-connection
       // -scoped, since that pointer belongs to the on-screen session.
       final notify = MessageNotificationGate.shouldNotify(
@@ -172,16 +175,22 @@ void bindMessageEvents(
           serverKey,
           message.channelId,
         ),
+        isDirectMessage: isDirectMessage,
       );
       if (notify) {
         final author = ref
             .read(accordUsersControllerProvider(serverKey).notifier)
             .cached(message.authorId, client: client);
-        final name = accordUserName(author, fallback: 'New mention');
+        final name = accordUserName(
+          author,
+          fallback: isDirectMessage ? 'New message' : 'New mention',
+        );
         final body = message.content.trim();
         showMentionNotification(
           title: name,
-          body: body.isEmpty ? 'mentioned you' : body,
+          body: body.isEmpty
+              ? (isDirectMessage ? 'Sent you a message' : 'mentioned you')
+              : body,
         );
       }
 
@@ -190,9 +199,11 @@ void bindMessageEvents(
       // focus, and never chimes for our own messages, a muted space (which stays
       // silent like its suppressed banner), or the channel that's on screen
       // (only the active connection owns the visible-channel pointer).
+      // A DM chimes like a mention: it is addressed to you, so it should be
+      // heard even while the window is focused on something else (#326).
       if (settings.soundsEnabled && !spaceMuted && !isOwn) {
         soundManager.playForMessage(
-          isMention: countsAsMention,
+          isMention: countsAsMention || isDirectMessage,
           isVisibleChannel: isVisibleChannel,
           isMemberJoin: message.type == 'member_join',
         );
