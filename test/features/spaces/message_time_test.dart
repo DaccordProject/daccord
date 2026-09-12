@@ -91,15 +91,39 @@ void main() {
       );
     });
 
-    test('yesterday is based on calendar dates across DST changes', () {
-      // In Europe/London, these midnights are only 23 hours apart because the
-      // clocks advance on 29 March 2026.
-      final afterDstChange = DateTime(2026, 3, 30, 12, 0);
-      final local = DateTime(2026, 3, 29, 8, 0);
-      expect(
-        messageTimeString(local, now: afterDstChange),
-        'Yesterday at 08:00',
-      );
+    // DateTime's "local" clock always follows the host's configured
+    // timezone, and Dart has no way to pin a specific IANA zone for a single
+    // test. The test below is skipped rather than left to pass vacuously
+    // when the host zone (e.g. plain UTC, as most CI runners default to) has
+    // no DST transition around this date, since then the 23-hour day it
+    // exists to catch never actually occurs.
+    final hostObservesDstOnThisDate =
+        DateTime(2026, 3, 28).timeZoneOffset !=
+        DateTime(2026, 3, 30).timeZoneOffset;
+
+    test(
+      'yesterday is based on calendar dates across DST changes',
+      () {
+        // In Europe/London, these midnights are only 23 hours apart because
+        // the clocks advance on 29 March 2026.
+        final afterDstChange = DateTime(2026, 3, 30, 12, 0);
+        final local = DateTime(2026, 3, 29, 8, 0);
+        expect(
+          messageTimeString(local, now: afterDstChange),
+          'Yesterday at 08:00',
+        );
+      },
+      skip: hostObservesDstOnThisDate
+          ? false
+          : 'host timezone has no DST transition around 2026-03-29; rerun '
+                'with TZ=Europe/London to exercise this case',
+    );
+
+    test('week boundary is still correct when "now" is a Sunday', () {
+      // 2026-06-14 is a Sunday; this week's Monday is 2026-06-08.
+      final sundayNow = DateTime(2026, 6, 14, 12, 0);
+      final local = DateTime(2026, 6, 8, 14, 30); // Monday, start of week
+      expect(messageTimeString(local, now: sundayNow), 'Monday at 14:30');
     });
   });
 
