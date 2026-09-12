@@ -40,6 +40,10 @@ class MessageNotificationGate {
   /// [spaceMuted] mirrors a per-space mute (`AccordSettings.isSpaceMuted`): when
   /// true the message's space is muted and no notification is shown, regardless
   /// of mentions — matching the old client's "Mute Server" action.
+  /// [isDirectMessage] is true for a DM / group-DM message (no parent space).
+  /// A DM is addressed to you by definition, so it notifies without needing an
+  /// `@mention` (#326); an explicit per-channel `'mentions'` level still
+  /// narrows it back to mention-only, and `'nothing'` still silences it.
   static bool shouldNotify({
     required bool notificationsEnabled,
     required bool suppressEveryone,
@@ -49,6 +53,7 @@ class MessageNotificationGate {
     required bool mentionEveryone,
     bool spaceMuted = false,
     String? channelLevel,
+    bool isDirectMessage = false,
   }) {
     if (!notificationsEnabled) return false;
     if (isOwnMessage) return false;
@@ -60,6 +65,9 @@ class MessageNotificationGate {
     // explicitly-disabled stream.
     if (channelLevel == 'nothing') return false;
     if (channelLevel == 'all') return true;
+    // A direct message is inherently "for you": the default (unset) level
+    // notifies for every DM, not only mentioning ones.
+    if (isDirectMessage && channelLevel == null) return true;
     return countsAsMention(
       mentionsMe: mentionsMe,
       mentionEveryone: mentionEveryone,

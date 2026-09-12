@@ -17,17 +17,18 @@ void main() {
     bool mentionEveryone = false,
     bool spaceMuted = false,
     String? channelLevel,
-  }) =>
-      MessageNotificationGate.shouldNotify(
-        notificationsEnabled: notificationsEnabled,
-        suppressEveryone: suppressEveryone,
-        isOwnMessage: isOwnMessage,
-        isVisibleChannel: isVisibleChannel,
-        mentionsMe: mentionsMe,
-        mentionEveryone: mentionEveryone,
-        spaceMuted: spaceMuted,
-        channelLevel: channelLevel,
-      );
+    bool isDirectMessage = false,
+  }) => MessageNotificationGate.shouldNotify(
+    notificationsEnabled: notificationsEnabled,
+    suppressEveryone: suppressEveryone,
+    isOwnMessage: isOwnMessage,
+    isVisibleChannel: isVisibleChannel,
+    mentionsMe: mentionsMe,
+    mentionEveryone: mentionEveryone,
+    spaceMuted: spaceMuted,
+    channelLevel: channelLevel,
+    isDirectMessage: isDirectMessage,
+  );
 
   group('MessageNotificationGate.shouldNotify', () {
     test('a direct mention notifies', () {
@@ -49,7 +50,11 @@ void main() {
 
       test('a direct mention still notifies even with suppressEveryone', () {
         expect(
-          notify(mentionsMe: true, mentionEveryone: true, suppressEveryone: true),
+          notify(
+            mentionsMe: true,
+            mentionEveryone: true,
+            suppressEveryone: true,
+          ),
           isTrue,
         );
       });
@@ -74,7 +79,45 @@ void main() {
         expect(notify(channelLevel: 'all', isOwnMessage: true), isFalse);
         expect(notify(channelLevel: 'all', isVisibleChannel: true), isFalse);
         expect(
-            notify(channelLevel: 'all', notificationsEnabled: false), isFalse);
+          notify(channelLevel: 'all', notificationsEnabled: false),
+          isFalse,
+        );
+      });
+    });
+
+    group('direct messages', () {
+      test('a DM notifies without any mention (#326)', () {
+        expect(notify(isDirectMessage: true), isTrue);
+      });
+
+      test('a DM still respects own/visible/disabled gates', () {
+        expect(notify(isDirectMessage: true, isOwnMessage: true), isFalse);
+        expect(notify(isDirectMessage: true, isVisibleChannel: true), isFalse);
+        expect(
+          notify(isDirectMessage: true, notificationsEnabled: false),
+          isFalse,
+        );
+      });
+
+      test('an explicit per-channel level still wins for a DM', () {
+        expect(notify(isDirectMessage: true, channelLevel: 'nothing'), isFalse);
+        expect(
+          notify(isDirectMessage: true, channelLevel: 'mentions'),
+          isFalse,
+        );
+        expect(
+          notify(
+            isDirectMessage: true,
+            channelLevel: 'mentions',
+            mentionsMe: true,
+          ),
+          isTrue,
+        );
+        expect(notify(isDirectMessage: true, channelLevel: 'all'), isTrue);
+      });
+
+      test('a space message without a mention still stays quiet', () {
+        expect(notify(isDirectMessage: false), isFalse);
       });
     });
 
@@ -118,15 +161,18 @@ void main() {
     /// Read state with one unread, 2-mention channel in [spaceId] (plus an
     /// unrelated unread channel in another space, which must never leak into
     /// [spaceId]'s roll-up).
-    const state = ReadStateSnapshot(entries: {
-      channelId: ReadEntry(channelId: channelId, spaceId: spaceId, mentions: 2),
-      'other': ReadEntry(channelId: 'other', spaceId: 's2', mentions: 5),
-    });
+    const state = ReadStateSnapshot(
+      entries: {
+        channelId: ReadEntry(
+          channelId: channelId,
+          spaceId: spaceId,
+          mentions: 2,
+        ),
+        'other': ReadEntry(channelId: 'other', spaceId: 's2', mentions: 5),
+      },
+    );
 
-    AccordSettings settings({
-      bool spaceMuted = false,
-      String? channelLevel,
-    }) =>
+    AccordSettings settings({bool spaceMuted = false, String? channelLevel}) =>
         AccordSettings(
           mutedSpaces: spaceMuted
               ? [ServerEntityKey(serverKey, spaceId).encoded]
@@ -138,26 +184,26 @@ void main() {
 
     /// What the UI would render for [spaceId] / [channelId] under [s].
     ({bool railDot, int railBadge, bool channelPip, int channelBadge})
-        indicators(AccordSettings s, {ReadStateSnapshot from = state}) => (
-              railDot: from.spaceShowsUnread(
-                spaceId,
-                spaceMuted: s.isSpaceMuted(serverKey, spaceId),
-                channelLevels: s.channelNotificationsFor(serverKey),
-              ),
-              railBadge: from.visibleMentionsInSpace(
-                spaceId,
-                spaceMuted: s.isSpaceMuted(serverKey, spaceId),
-                channelLevels: s.channelNotificationsFor(serverKey),
-              ),
-              channelPip: from.isUnreadVisible(
-                channelId,
-                channelLevels: s.channelNotificationsFor(serverKey),
-              ),
-              channelBadge: from.visibleMentionCount(
-                channelId,
-                channelLevels: s.channelNotificationsFor(serverKey),
-              ),
-            );
+    indicators(AccordSettings s, {ReadStateSnapshot from = state}) => (
+      railDot: from.spaceShowsUnread(
+        spaceId,
+        spaceMuted: s.isSpaceMuted(serverKey, spaceId),
+        channelLevels: s.channelNotificationsFor(serverKey),
+      ),
+      railBadge: from.visibleMentionsInSpace(
+        spaceId,
+        spaceMuted: s.isSpaceMuted(serverKey, spaceId),
+        channelLevels: s.channelNotificationsFor(serverKey),
+      ),
+      channelPip: from.isUnreadVisible(
+        channelId,
+        channelLevels: s.channelNotificationsFor(serverKey),
+      ),
+      channelBadge: from.visibleMentionCount(
+        channelId,
+        channelLevels: s.channelNotificationsFor(serverKey),
+      ),
+    );
 
     test('unmuted, default level: dot and badge both show', () {
       final i = indicators(settings());
@@ -218,25 +264,35 @@ void main() {
     });
 
     test('a silenced channel does not hide its space\'s other unread', () {
-      const mixed = ReadStateSnapshot(entries: {
-        channelId:
-            ReadEntry(channelId: channelId, spaceId: spaceId, mentions: 2),
-        otherChannelId:
-            ReadEntry(channelId: otherChannelId, spaceId: spaceId, mentions: 1),
-      });
+      const mixed = ReadStateSnapshot(
+        entries: {
+          channelId: ReadEntry(
+            channelId: channelId,
+            spaceId: spaceId,
+            mentions: 2,
+          ),
+          otherChannelId: ReadEntry(
+            channelId: otherChannelId,
+            spaceId: spaceId,
+            mentions: 1,
+          ),
+        },
+      );
       final i = indicators(settings(channelLevel: 'nothing'), from: mixed);
       expect(i.railDot, isTrue, reason: '$otherChannelId is still unread');
       expect(i.railBadge, 1, reason: 'only the silenced channel is excluded');
       expect(i.channelPip, isFalse);
     });
 
-    test('muting is a pure read-side filter: unmuting reveals prior unread',
-        () {
-      // Same snapshot, different settings — no new message, no reconnect.
-      expect(indicators(settings(spaceMuted: true)).railDot, isFalse);
-      expect(indicators(settings()).railDot, isTrue);
-      expect(indicators(settings()).railBadge, 2);
-    });
+    test(
+      'muting is a pure read-side filter: unmuting reveals prior unread',
+      () {
+        // Same snapshot, different settings — no new message, no reconnect.
+        expect(indicators(settings(spaceMuted: true)).railDot, isFalse);
+        expect(indicators(settings()).railDot, isTrue);
+        expect(indicators(settings()).railBadge, 2);
+      },
+    );
 
     test('the READY hydrate path yields the same mute-aware result', () {
       // The gateway seed is deliberately unfiltered, so verify the filter still
@@ -249,13 +305,21 @@ void main() {
       ]);
       final hydrated = container.read(readStateControllerProvider(key));
 
-      expect(indicators(settings(spaceMuted: true), from: hydrated).railDot,
-          isFalse);
-      expect(indicators(settings(spaceMuted: true), from: hydrated).railBadge,
-          0);
-      expect(indicators(settings(channelLevel: 'nothing'), from: hydrated)
-          .channelPip,
-          isFalse);
+      expect(
+        indicators(settings(spaceMuted: true), from: hydrated).railDot,
+        isFalse,
+      );
+      expect(
+        indicators(settings(spaceMuted: true), from: hydrated).railBadge,
+        0,
+      );
+      expect(
+        indicators(
+          settings(channelLevel: 'nothing'),
+          from: hydrated,
+        ).channelPip,
+        isFalse,
+      );
       expect(indicators(settings(), from: hydrated).railDot, isTrue);
       expect(indicators(settings(), from: hydrated).railBadge, 2);
     });
@@ -269,10 +333,15 @@ void main() {
           .markUnread(channelId, spaceId: spaceId, isMention: true);
       final live = container.read(readStateControllerProvider(key));
 
-      expect(live.isUnread(channelId), isTrue,
-          reason: 'the write path never filters');
-      expect(indicators(settings(spaceMuted: true), from: live).railDot,
-          isFalse);
+      expect(
+        live.isUnread(channelId),
+        isTrue,
+        reason: 'the write path never filters',
+      );
+      expect(
+        indicators(settings(spaceMuted: true), from: live).railDot,
+        isFalse,
+      );
       expect(indicators(settings(), from: live).railBadge, 1);
     });
   });
