@@ -91,6 +91,22 @@ Future<void> _settle() async {
 }
 
 void main() {
+  test(
+    'reconnect discovers a moderator release of a rejected upload',
+    () async {
+      final c = _container();
+      _notifier(c).track(_message, ['u1']);
+      _notifier(c).applyStatus(_event('u1', AutomodUploadStatus.rejected));
+      final asked = <String>[];
+      final client = _clientAnswering({
+        'u1': {'status': 'published'},
+      }, asked: asked);
+      await _notifier(c).reconcile(client);
+      expect(asked, ['u1']);
+      expect(_state(c).uploads, isEmpty);
+    },
+  );
+
   group('tracking', () {
     test('a 202 records one pending entry per upload id', () {
       final c = _container();

@@ -12,19 +12,18 @@ abstract final class AutomodUploadStatus {
   /// Released: the attachment now appears on the message.
   static const String published = 'published';
 
-  /// Refused — the file will never be published.
+  /// Rejected for now; a moderator may release it before retention expires.
   static const String rejected = 'rejected';
 
   /// Withdrawn after publication, or expired from the held queue.
   static const String removed = 'removed';
 
   /// True while the server may still change its mind: the attachment is
-  /// neither published nor finally refused.
+  /// not published or permanently removed.
   static bool isOutstanding(String status) =>
-      status == pending || status == quarantined;
+      status == pending || status == quarantined || status == rejected;
 
-  /// True once the attachment has been finally refused and will not appear
-  /// on the message.
+  /// True when the attachment currently has a refusal/removal decision.
   static bool isRefused(String status) =>
       status == rejected || status == removed;
 }
