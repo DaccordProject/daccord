@@ -132,11 +132,19 @@ dependency_overrides:
       url: https://github.com/flutter-webrtc/flutter-webrtc.git
       ref: 978849b90adfaa6d52381c82cf1fbd74ccf5731b
 
+  # Local fork of media_kit 1.1.11, vendored from the same upstream commit the
+  # other two media-kit packages below are pinned to (652c49e), carrying one
+  # patch: [NativePlayer.dispose] used to close the libmpv wakeup NativeCallable
+  # immediately while leaving the callback registered on a still-live mpv handle
+  # that is only torn down 5s later. Any wakeup arriving in that window invoked a
+  # deleted callback, which aborts the process ("Callback invoked after it has
+  # been deleted") — reproducible on Linux by disposing any inline video
+  # attachment. The fork unregisters the callback up front and defers close()
+  # until after mpv_terminate_destroy has joined the mpv core thread. This is
+  # upstream PR #1424, which is unmerged; drop the fork once it lands and the
+  # pinned ref moves past it.
   media_kit:
-    git:
-      url: https://github.com/media-kit/media-kit.git
-      ref: 652c49e02701bb6bb80953a6fdf650a5c8f002f9
-      path: ./media_kit
+    path: packages/media_kit
   media_kit_video:
     git:
       url: https://github.com/media-kit/media-kit.git

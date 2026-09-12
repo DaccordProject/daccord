@@ -1,6 +1,8 @@
 dist/app-store-release-notes.sh
 dist/build-deb.sh
 dist/verify-android-signing.sh
+packages/media_kit/test/ci/macos/scripts/relink_dylibs.sh
+packages/media_kit/test/ci/macos/scripts/setup_dylibs.sh
 scripts/_common.sh
 scripts/bootstrap-signing.sh
 scripts/build.sh

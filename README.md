@@ -172,7 +172,7 @@ See the [open issue tracker](https://github.com/DaccordProject/daccord/issues) f
 | Credentials | [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage) | session tokens live in the OS credential vault; Hive keeps only opaque references |
 | Networking | `accordkit` | Accord protocol SDK — REST + gateway WebSocket + models. Vendored in-tree at `packages/accordkit` and maintained here |
 | Voice / video / screen share | [`livekit_client`](https://pub.dev/packages/livekit_client) | local fork at `packages/livekit_client`, over WebRTC |
-| Media | [`media_kit`](https://pub.dev/packages/media_kit) / [`video_player`](https://pub.dev/packages/video_player) / `cached_network_image` | media_kit everywhere except iOS, which uses AVFoundation via `video_player`; CDN URLs point at the Accord server |
+| Media | [`media_kit`](https://pub.dev/packages/media_kit) / [`video_player`](https://pub.dev/packages/video_player) / `cached_network_image` | media_kit everywhere except iOS, which uses AVFoundation via `video_player`; local fork at `packages/media_kit` for a player-dispose crash; CDN URLs point at the Accord server |
 | Markdown | `markdown_viewer` | custom renderer at `packages/markdown_viewer` |
 | Serialization | Hand-written JSON | most model types come from `accordkit` (`Accord*`) |
 
