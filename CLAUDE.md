@@ -170,6 +170,7 @@ When in doubt about Accord behaviour, read `packages/accordkit` (the vendored SD
   should verify commands against `pubspec.yaml` and workflows rather than copy
   volatile dependency versions or test counts.
 - Keep changes minimal and reuse-first; this is a port, not a rewrite.
+- Session credential references remain random and profile-local. Platform vault operations share an isolate-wide queue because the Linux backend rewrites the entire vault; see `test/features/authentication/session_credential_vault_test.dart`.
 - Don't reintroduce Discord endpoints, Discord branding, or Firebase push without explicit instruction.
 
 ## AutoMod

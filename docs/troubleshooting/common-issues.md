@@ -22,6 +22,14 @@ daccord automatically attempts to reconnect when the connection drops. If you se
 - Check your internet connection.
 - If the problem persists, close and reopen daccord to establish a fresh session.
 
+## Unexpected Sign-out
+
+If a saved credential is missing from the OS vault, sign in again to restore it.
+Session metadata reuses its existing opaque reference. Credentials in different
+device profiles stay independent, even for the same account. Vault operations
+are serialized within the app process to prevent overlapping Linux vault writes
+from losing credentials; this does not coordinate separate app processes.
+
 ## No Sound in Voice Channels
 
 - Check that your microphone and speakers are selected in **App Settings > Voice & Video**.

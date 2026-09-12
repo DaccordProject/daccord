@@ -62,6 +62,7 @@ This client is the front door: one native app for every screen you own.
 - 🎨 **Themes** — Dark, Light, Nord, Monokai, and Solarized built in, plus fully custom colors you can copy, paste, and share in chat.
 - 👥 **Multiple profiles** — keep separate local profiles on one device and switch between them without signing out.
 - 🔐 **Secure sign-in** — session tokens live in the OS credential vault, with optional TOTP two-factor authentication.
+- Credential writes are serialized across local profiles; each profile retains its own credential references, including when the same account is added twice.
 - ⬆️ **In-app updates** — desktop and sideloaded Android builds check for, download, and install new releases themselves.
 - 📱 **Responsive everywhere** — one UI that flows from phone to desktop, sharp at every size.
 
