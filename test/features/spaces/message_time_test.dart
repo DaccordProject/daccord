@@ -20,33 +20,38 @@ void main() {
   });
 
   group('messageTimeString', () {
-    // Fix "now" to a known Saturday so weekday assertions are deterministic.
-    // 2026-06-13 is a Saturday.
-    final now = DateTime(2026, 6, 13, 12, 0);
+    // Fix "now" to a known Thursday so current- and previous-week assertions
+    // are deterministic. 2026-06-11 is a Thursday.
+    final now = DateTime(2026, 6, 11, 12, 0);
 
     test('today shows bare clock', () {
-      final local = DateTime(2026, 6, 13, 18, 43);
+      final local = DateTime(2026, 6, 11, 18, 43);
       expect(messageTimeString(local, now: now), '18:43');
     });
 
     test('yesterday shows "Yesterday at HH:MM"', () {
-      final local = DateTime(2026, 6, 12, 9, 5);
+      final local = DateTime(2026, 6, 10, 9, 5);
       expect(messageTimeString(local, now: now), 'Yesterday at 09:05');
     });
 
-    test('2 days ago shows weekday', () {
-      final local = DateTime(2026, 6, 11, 14, 30); // Thursday
-      expect(messageTimeString(local, now: now), 'Thursday at 14:30');
+    test('earlier in the current calendar week shows weekday', () {
+      final local = DateTime(2026, 6, 8, 14, 30); // Monday
+      expect(messageTimeString(local, now: now), 'Monday at 14:30');
     });
 
-    test('6 days ago shows weekday (boundary — still within week)', () {
+    test('previous calendar week prefixes weekday with "Last"', () {
       final local = DateTime(2026, 6, 7, 8, 0); // Sunday
-      expect(messageTimeString(local, now: now), 'Sunday at 08:00');
+      expect(messageTimeString(local, now: now), 'Last Sunday at 08:00');
     });
 
-    test('7 days ago falls through to calendar date', () {
-      final local = DateTime(2026, 6, 6, 8, 0); // Saturday — same weekday as now
-      expect(messageTimeString(local, now: now), '06/06/2026 08:00');
+    test('previous Tuesday is clearly distinguished from this week', () {
+      final local = DateTime(2026, 6, 2, 2, 47);
+      expect(messageTimeString(local, now: now), 'Last Tuesday at 02:47');
+    });
+
+    test('message before the previous calendar week uses calendar date', () {
+      final local = DateTime(2026, 5, 31, 8, 0); // Sunday
+      expect(messageTimeString(local, now: now), '31/05/2026 08:00');
     });
 
     test('older message shows DD/MM/YYYY HH:MM', () {
@@ -55,24 +60,70 @@ void main() {
     });
 
     test('future timestamp (negative daysAgo) shows bare clock', () {
-      final local = DateTime(2026, 6, 14, 10, 0); // tomorrow
+      final local = DateTime(2026, 6, 12, 10, 0); // tomorrow
       expect(messageTimeString(local, now: now), '10:00');
     });
 
-    test('weekday names cover full week', () {
+    test('weekday names cover the previous week', () {
       const expectedNames = [
-        'Monday', 'Tuesday', 'Wednesday', 'Thursday',
-        'Friday', 'Saturday', 'Sunday',
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday',
       ];
-      // now is Saturday 2026-06-13; 6 days back lands on Sunday 2026-06-07.
-      // Step through each day offset 2-6 from a known Monday anchor.
-      // Monday 2026-06-08 is 5 days before our Saturday.
-      for (var offset = 2; offset <= 6; offset++) {
-        final local = now.subtract(Duration(days: offset));
+      // The previous calendar week runs from 1–7 June.
+      for (var day = 1; day <= 7; day++) {
+        final local = DateTime(2026, 6, day, 12, 0);
         final result = messageTimeString(local, now: now);
-        final day = local.weekday; // 1 = Monday … 7 = Sunday
-        expect(result, contains(expectedNames[day - 1]));
+        expect(result, 'Last ${expectedNames[local.weekday - 1]} at 12:00');
       }
+    });
+
+    test('calendar-week labels work across a year boundary', () {
+      final januaryNow = DateTime(2027, 1, 4, 12, 0); // Monday
+      final local = DateTime(2026, 12, 29, 8, 0); // Tuesday
+      expect(
+        messageTimeString(local, now: januaryNow),
+        'Last Tuesday at 08:00',
+      );
+    });
+
+    // DateTime's "local" clock always follows the host's configured
+    // timezone, and Dart has no way to pin a specific IANA zone for a single
+    // test. The test below is skipped rather than left to pass vacuously
+    // when the host zone (e.g. plain UTC, as most CI runners default to) has
+    // no DST transition around this date, since then the 23-hour day it
+    // exists to catch never actually occurs.
+    final hostObservesDstOnThisDate =
+        DateTime(2026, 3, 28).timeZoneOffset !=
+        DateTime(2026, 3, 30).timeZoneOffset;
+
+    test(
+      'yesterday is based on calendar dates across DST changes',
+      () {
+        // In Europe/London, these midnights are only 23 hours apart because
+        // the clocks advance on 29 March 2026.
+        final afterDstChange = DateTime(2026, 3, 30, 12, 0);
+        final local = DateTime(2026, 3, 29, 8, 0);
+        expect(
+          messageTimeString(local, now: afterDstChange),
+          'Yesterday at 08:00',
+        );
+      },
+      skip: hostObservesDstOnThisDate
+          ? false
+          : 'host timezone has no DST transition around 2026-03-29; rerun '
+                'with TZ=Europe/London to exercise this case',
+    );
+
+    test('week boundary is still correct when "now" is a Sunday', () {
+      // 2026-06-14 is a Sunday; this week's Monday is 2026-06-08.
+      final sundayNow = DateTime(2026, 6, 14, 12, 0);
+      final local = DateTime(2026, 6, 8, 14, 30); // Monday, start of week
+      expect(messageTimeString(local, now: sundayNow), 'Monday at 14:30');
     });
   });
 
@@ -90,8 +141,18 @@ void main() {
 
     test('uses correct month names for all 12 months', () {
       const months = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December',
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
       ];
       for (var m = 1; m <= 12; m++) {
         final dt = DateTime(2026, m, 1, 0, 0);
@@ -101,8 +162,13 @@ void main() {
 
     test('uses correct weekday names for all 7 days', () {
       const weekdays = [
-        'Monday', 'Tuesday', 'Wednesday', 'Thursday',
-        'Friday', 'Saturday', 'Sunday',
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday',
       ];
       // 2026-06-01 is a Monday; iterate through the full week.
       for (var d = 0; d < 7; d++) {
