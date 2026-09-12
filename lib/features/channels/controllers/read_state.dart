@@ -364,6 +364,7 @@ class ReadStateController extends _$ReadStateController {
     }
     _retries.clear();
     _pending.clear();
+    _sending.clear();
     _latest.clear();
     _received.clear();
     _readThrough.clear();
