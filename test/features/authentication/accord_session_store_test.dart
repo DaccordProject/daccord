@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_session_store.dart';
 import 'package:bonfire/features/authentication/repositories/session_credential_vault.dart';
-import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/profiles/models/device_profile.dart';
 import 'package:bonfire/features/profiles/services/profile_store.dart';
+import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 

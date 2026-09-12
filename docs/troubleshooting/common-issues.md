@@ -55,9 +55,7 @@ daccord collects no first-party analytics, telemetry, or crash data. It does mak
 
 ## Unexpected Sign-out
 
-If a saved credential is missing from the OS vault, sign in again to restore it.
-Session metadata reuses its existing opaque reference. Credentials in different
-device profiles stay independent, even for the same account. Vault operations
-are serialized within the app process to prevent overlapping Linux vault writes
-from losing credentials; this does not coordinate separate app processes.
+- **A saved credential is missing from the OS vault** -- Sign in again; the existing session metadata is repaired in place, without changing your saved reference.
+- **Same account signed in on two device profiles** -- Each profile keeps its own credential, so signing out or clearing one profile never affects the other.
+- **Credentials disappear on Linux under heavy account switching** -- Vault writes are serialized within the app process to stop overlapping writes from silently dropping a credential; this does not coordinate across separate app processes (e.g. two windows of the app running at once).
 
