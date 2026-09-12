@@ -167,6 +167,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   @override
   void dispose() {
     mcpHomeBridge.clear();
+    accordVisibleChannel = null;
     super.dispose();
   }
 
@@ -569,9 +570,11 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     }
 
     // Let the notification layer skip the channel that's on screen.
-    accordVisibleChannel = activeKey == null || shownChannelId == null
-        ? null
-        : (serverKey: activeKey, channelId: shownChannelId);
+    if (ModalRoute.of(context)?.isCurrent != false) {
+      accordVisibleChannel = activeKey == null || shownChannelId == null
+          ? null
+          : (serverKey: activeKey, channelId: shownChannelId);
+    }
 
     mcpHomeBridge.setStateReader(
       () => (

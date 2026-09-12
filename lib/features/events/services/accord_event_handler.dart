@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/channels/controllers/dm_channels.dart';
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
@@ -82,6 +83,9 @@ VoidCallback handleAccordEvents(
       // and on every reconnect — this is what persists badges across a cold
       // start and what lights up servers the user hasn't opened yet.
       hydrateReadStateFromReady(ref, data, serverKey: serverKey);
+      ref
+          .read(readStateControllerProvider(serverKey).notifier)
+          .retryPending(client);
       // Presence is keyed by [serverKey] like read state, so seed it for every
       // connection too — a background server that READYs while you're looking at
       // another one used to be left permanently showing its whole roster as

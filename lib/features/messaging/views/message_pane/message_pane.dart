@@ -14,6 +14,8 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/muted_channels.dart';
+import 'package:bonfire/features/channels/controllers/read_state.dart';
+import 'package:bonfire/features/channels/utils/mark_channel_read.dart';
 import 'package:bonfire/features/channels/utils/toggle_channel_mute.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
@@ -149,6 +151,28 @@ class MessagePane extends ConsumerStatefulWidget {
 }
 
 class _MessagePaneState extends ConsumerState<MessagePane> {
+  AppLifecycleListener? _readLifecycle;
+  bool _readScheduled = false;
+
+  void _scheduleRead() {
+    if (_readScheduled) return;
+    _readScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _readScheduled = false;
+      if (!mounted) return;
+      final key = ref.readActiveServerKey();
+      final id = widget.channelId;
+      if (key == null || id == null || !isAccordChannelVisible(key, id)) return;
+      if (ModalRoute.of(context)?.isCurrent == false) return;
+      markChannelRead(
+        ref,
+        id,
+        serverKey: key,
+        fallbackMessageId: widget.channel?.lastMessageId,
+      );
+    });
+  }
+
   AccordMessage? _replyTo;
   final ScrollController _scroll = ScrollController();
 
@@ -163,6 +187,12 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
+    _readLifecycle = AppLifecycleListener(
+      onResume: () {
+        _scheduleRead();
+        WidgetsBinding.instance.scheduleFrame();
+      },
+    );
   }
 
   @override
@@ -246,6 +276,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
   @override
   void dispose() {
     _scroll.removeListener(_onScroll);
+    _readLifecycle?.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -313,6 +344,15 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
           style: Theme.of(context).textTheme.bodyMedium,
         ),
       );
+    }
+
+    final serverKey = ref.watchActiveServerKey();
+    if (serverKey != null) {
+      ref.listen(
+        readStateControllerProvider(serverKey),
+        (_, _) => _scheduleRead(),
+      );
+      _scheduleRead();
     }
 
     // In panel mode this pane *is* the voice view's chat panel — delegating

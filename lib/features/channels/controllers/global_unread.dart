@@ -90,18 +90,25 @@ GlobalUnread globalUnread(Ref ref) {
   );
   // Watch only the two settings slices the mute gate reads, so an unrelated
   // settings write (a draft keystroke) can't churn the badge.
-  final mutedSpaces = ref.watch(
-    settingsControllerProvider.select((s) => s.mutedSpaces),
-  );
-  final channelLevels = ref.watch(
-    settingsControllerProvider.select((s) => s.channelNotifications),
-  );
-  return foldGlobalUnread(
-    [
-      for (final connection in connections)
-        ref.watch(readStateControllerProvider(connection.key)),
-    ],
-    mutedSpaces: mutedSpaces,
-    channelLevels: channelLevels,
-  );
+  ref.watch(settingsControllerProvider.select((s) => s.mutedSpaces));
+  ref.watch(settingsControllerProvider.select((s) => s.channelNotifications));
+  final settings = ref.read(settingsControllerProvider);
+  var hasUnread = false;
+  var mentions = 0;
+  for (final connection in connections) {
+    final snapshot = ref.watch(readStateControllerProvider(connection.key));
+    final unread = foldGlobalUnread(
+      [snapshot],
+      mutedSpaces: {
+        for (final entry in snapshot.entries.values)
+          if (entry.spaceId != null &&
+              settings.isSpaceMuted(connection.key, entry.spaceId!))
+            entry.spaceId!,
+      },
+      channelLevels: settings.channelNotificationsFor(connection.key),
+    );
+    hasUnread = hasUnread || unread.hasUnread;
+    mentions += unread.mentionCount;
+  }
+  return GlobalUnread(hasUnread: hasUnread, mentionCount: mentions);
 }

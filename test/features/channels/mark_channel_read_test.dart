@@ -1,9 +1,16 @@
+import 'dart:convert';
+
+import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
+import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/channels/utils/mark_channel_read.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -34,6 +41,44 @@ void _seedUnread(WidgetRef ref, String serverKey, String channelId) =>
     ref
         .read(readStateControllerProvider(serverKey).notifier)
         .markUnread(channelId, spaceId: 's1');
+
+/// A minimal logged-in [AccordAuth] override whose [clientForKey] resolves
+/// only [key] to [client] — enough to exercise the REST ack without a real
+/// connection/session.
+class _Auth extends AccordAuth {
+  _Auth(this.key, this.client);
+  final String key;
+  @override
+  final AccordClient client;
+
+  @override
+  AccordAuthState build() => const AccordAuthLoggedOut();
+
+  @override
+  AccordClient? clientForKey(String k) => k == key ? client : null;
+}
+
+/// Like [_pumpRef], but with a live [AccordClient] wired to [key] so
+/// acknowledgements actually reach the (mocked) REST layer.
+Future<WidgetRef> _pumpRefWithClient(
+  WidgetTester tester, {
+  required String key,
+  required AccordClient client,
+}) async {
+  late WidgetRef ref;
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [accordAuthProvider.overrideWith(() => _Auth(key, client))],
+      child: Consumer(
+        builder: (context, r, _) {
+          ref = r;
+          return const SizedBox();
+        },
+      ),
+    ),
+  );
+  return ref;
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -101,6 +146,38 @@ void main() {
 
         expect(_isUnread(ref, pinnedKey, 'c1'), isFalse);
         expect(_isUnread(ref, activeKey, 'c1'), isTrue);
+      },
+    );
+
+    testWidgets(
+      'acknowledges the newest of tracker position and fallback, not a '
+      'stale fallback',
+      (tester) async {
+        final acked = <String>[];
+        final client = AccordClient(
+          baseUrl: 'https://example.test',
+          httpClient: MockClient((request) async {
+            if (request.url.path.endsWith('/ack')) {
+              acked.add(jsonDecode(request.body)['message_id'] as String);
+            }
+            return http.Response('{"data":null}', 200);
+          }),
+        );
+        addTearDown(client.dispose);
+        const key = 'u1@server.test';
+        final ref = await _pumpRefWithClient(tester, key: key, client: client);
+
+        // The gateway already advanced the tracker past the stale
+        // `last_message_id` fallback the caller happens to pass in.
+        ref
+            .read(readStateControllerProvider(key).notifier)
+            .markUnread('c1', spaceId: 's1', messageId: '20');
+
+        markChannelRead(ref, 'c1', serverKey: key, fallbackMessageId: '5');
+        await tester.pump();
+
+        expect(acked, ['20']);
+        expect(_isUnread(ref, key, 'c1'), isFalse);
       },
     );
   });

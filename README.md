@@ -362,3 +362,7 @@ Licensed under the **[GNU General Public License v3.0](LICENSE)** (GPLv3), inher
 Configure server and space rules, review held uploads, and block repeated file
 uploads through the AutoMod controls. See [the client AutoMod guide](docs/automod.md)
 for permissions, video sampling, private evidence, and cooldown behavior.
+
+Read positions synchronize across connected devices, with retries for failed
+acknowledgements and replay suppression for notifications. See the
+[read-state audit](docs/notification-read-state-audit.md) for behavior and limits.

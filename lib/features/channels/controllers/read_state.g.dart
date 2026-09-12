@@ -18,8 +18,9 @@ part of 'read_state.dart';
 ///    lights up *background* servers;
 ///  * the gateway message handler [markUnread]s on incoming traffic for live
 ///    updates (every connection, not just the active one);
-///  * the home screen / context menu / voice panel [markRead]s the channel the
-///    user opens, which separately POSTs `channels.ack` to the server.
+///  * visible panes and explicit read actions call [acknowledge], which clears
+///    local state and queues the server read position;
+///  * [applyRemoteRead] consumes acknowledgements from other devices.
 
 @ProviderFor(ReadStateController)
 const readStateControllerProvider = ReadStateControllerFamily._();
@@ -34,8 +35,9 @@ const readStateControllerProvider = ReadStateControllerFamily._();
 ///    lights up *background* servers;
 ///  * the gateway message handler [markUnread]s on incoming traffic for live
 ///    updates (every connection, not just the active one);
-///  * the home screen / context menu / voice panel [markRead]s the channel the
-///    user opens, which separately POSTs `channels.ack` to the server.
+///  * visible panes and explicit read actions call [acknowledge], which clears
+///    local state and queues the server read position;
+///  * [applyRemoteRead] consumes acknowledgements from other devices.
 final class ReadStateControllerProvider
     extends $NotifierProvider<ReadStateController, ReadStateSnapshot> {
   /// Client-side read/unread tracker, one instance per connected server (keyed by
@@ -48,8 +50,9 @@ final class ReadStateControllerProvider
   ///    lights up *background* servers;
   ///  * the gateway message handler [markUnread]s on incoming traffic for live
   ///    updates (every connection, not just the active one);
-  ///  * the home screen / context menu / voice panel [markRead]s the channel the
-  ///    user opens, which separately POSTs `channels.ack` to the server.
+  ///  * visible panes and explicit read actions call [acknowledge], which clears
+  ///    local state and queues the server read position;
+  ///  * [applyRemoteRead] consumes acknowledgements from other devices.
   const ReadStateControllerProvider._({
     required ReadStateControllerFamily super.from,
     required String super.argument,
@@ -95,7 +98,7 @@ final class ReadStateControllerProvider
 }
 
 String _$readStateControllerHash() =>
-    r'7e600872e2089de2b7a4cc6be94f53a349d80335';
+    r'd1d85ccbbda46d95b6a3b611fb237f10354f5479';
 
 /// Client-side read/unread tracker, one instance per connected server (keyed by
 /// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
@@ -107,8 +110,9 @@ String _$readStateControllerHash() =>
 ///    lights up *background* servers;
 ///  * the gateway message handler [markUnread]s on incoming traffic for live
 ///    updates (every connection, not just the active one);
-///  * the home screen / context menu / voice panel [markRead]s the channel the
-///    user opens, which separately POSTs `channels.ack` to the server.
+///  * visible panes and explicit read actions call [acknowledge], which clears
+///    local state and queues the server read position;
+///  * [applyRemoteRead] consumes acknowledgements from other devices.
 
 final class ReadStateControllerFamily extends $Family
     with
@@ -138,8 +142,9 @@ final class ReadStateControllerFamily extends $Family
   ///    lights up *background* servers;
   ///  * the gateway message handler [markUnread]s on incoming traffic for live
   ///    updates (every connection, not just the active one);
-  ///  * the home screen / context menu / voice panel [markRead]s the channel the
-  ///    user opens, which separately POSTs `channels.ack` to the server.
+  ///  * visible panes and explicit read actions call [acknowledge], which clears
+  ///    local state and queues the server read position;
+  ///  * [applyRemoteRead] consumes acknowledgements from other devices.
 
   ReadStateControllerProvider call(String serverKey) =>
       ReadStateControllerProvider._(argument: serverKey, from: this);
@@ -158,8 +163,9 @@ final class ReadStateControllerFamily extends $Family
 ///    lights up *background* servers;
 ///  * the gateway message handler [markUnread]s on incoming traffic for live
 ///    updates (every connection, not just the active one);
-///  * the home screen / context menu / voice panel [markRead]s the channel the
-///    user opens, which separately POSTs `channels.ack` to the server.
+///  * visible panes and explicit read actions call [acknowledge], which clears
+///    local state and queues the server read position;
+///  * [applyRemoteRead] consumes acknowledgements from other devices.
 
 abstract class _$ReadStateController extends $Notifier<ReadStateSnapshot> {
   late final _$args = ref.$arg as String;

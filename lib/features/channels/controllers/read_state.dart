@@ -1,3 +1,11 @@
+import 'dart:async';
+
+import 'package:bonfire/features/channels/utils/message_position.dart';
+import 'package:bonfire/features/notifications/services/notification.dart';
+export 'package:bonfire/features/channels/utils/message_position.dart';
+
+import 'package:accordkit/accordkit.dart';
+import 'package:flutter/foundation.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -40,16 +48,26 @@ class UnreadIndicatorGate {
 /// server-level badge up from per-channel state) and how many pending mentions
 /// it carries. [spaceId] is null for DMs, which never appear in the space rail.
 class ReadEntry {
-  const ReadEntry({required this.channelId, this.spaceId, this.mentions = 0});
+  const ReadEntry({
+    required this.channelId,
+    this.spaceId,
+    this.mentions = 0,
+    this.lastMessageId,
+    this.lastReadMessageId,
+  });
 
   final String channelId;
   final String? spaceId;
   final int mentions;
+  final String? lastMessageId;
+  final String? lastReadMessageId;
 
   ReadEntry copyWith({String? spaceId, int? mentions}) => ReadEntry(
     channelId: channelId,
     spaceId: spaceId ?? this.spaceId,
     mentions: mentions ?? this.mentions,
+    lastMessageId: lastMessageId,
+    lastReadMessageId: lastReadMessageId,
   );
 }
 
@@ -149,64 +167,217 @@ class ReadStateSnapshot {
 ///    lights up *background* servers;
 ///  * the gateway message handler [markUnread]s on incoming traffic for live
 ///    updates (every connection, not just the active one);
-///  * the home screen / context menu / voice panel [markRead]s the channel the
-///    user opens, which separately POSTs `channels.ack` to the server.
+///  * visible panes and explicit read actions call [acknowledge], which clears
+///    local state and queues the server read position;
+///  * [applyRemoteRead] consumes acknowledgements from other devices.
 @Riverpod(keepAlive: true)
 class ReadStateController extends _$ReadStateController {
-  @override
-  ReadStateSnapshot build(String serverKey) => const ReadStateSnapshot();
+  final _latest = <String, String>{};
+  final _received = <String, String>{};
+  final _readThrough = <String, String>{};
+  final _syncedThrough = <String, String>{};
+  final _pending = <String, String>{};
+  final _sending = <String>{};
+  final _retries = <String, Timer>{};
+  final _mentionIds = <String, Set<String>>{};
 
-  /// Records a new unseen message in [channelId]. When [isMention] is true the
-  /// channel's mention count is bumped (rendered as a numeric badge). [spaceId]
-  /// lets the rail roll the unread up to the owning server.
-  void markUnread(String channelId, {String? spaceId, bool isMention = false}) {
-    if (channelId.isEmpty) return;
-    final existing = state.entries[channelId];
-    // Already unread and this isn't a mention: nothing to bump, but backfill a
-    // previously-unknown spaceId so the rail rollup stays correct.
-    if (existing != null && !isMention) {
-      if (existing.spaceId == null && spaceId != null) {
-        final entries = Map<String, ReadEntry>.from(state.entries);
-        entries[channelId] = existing.copyWith(spaceId: spaceId);
-        state = ReadStateSnapshot(entries: entries);
+  @override
+  ReadStateSnapshot build(String serverKey) {
+    ref.onDispose(() {
+      for (final timer in _retries.values) {
+        timer.cancel();
       }
-      return;
+    });
+    return const ReadStateSnapshot();
+  }
+
+  String? latestMessageId(String channelId) => _latest[channelId];
+
+  /// Records delivery before notifications/sounds are considered. A replay or
+  /// a message already read on another device must not alert a second time.
+  bool receiveMessage(String channelId, String messageId) {
+    final previous = _received[channelId];
+    _advance(_latest, channelId, messageId);
+    if (_atOrBefore(messageId, previous)) return false;
+    _advance(_received, channelId, messageId);
+    return !_atOrBefore(messageId, _readThrough[channelId]);
+  }
+
+  void markUnread(
+    String channelId, {
+    String? spaceId,
+    bool isMention = false,
+    String? messageId,
+  }) {
+    if (channelId.isEmpty) return;
+    if (messageId != null) {
+      _advance(_latest, channelId, messageId);
+      if (_atOrBefore(messageId, _readThrough[channelId])) return;
+      if (isMention &&
+          !(_mentionIds[channelId] ??= <String>{}).add(messageId)) {
+        return;
+      }
     }
+    final existing = state.entries[channelId];
     final entries = Map<String, ReadEntry>.from(state.entries);
     entries[channelId] = ReadEntry(
       channelId: channelId,
       spaceId: spaceId ?? existing?.spaceId,
       mentions: (existing?.mentions ?? 0) + (isMention ? 1 : 0),
+      lastMessageId: _latest[channelId],
     );
     state = ReadStateSnapshot(entries: entries);
   }
 
-  /// Clears [channelId]'s unread + mention state. Called when the user opens
-  /// the channel; the caller separately POSTs `channels.ack` to update server
-  /// read state.
-  void markRead(String channelId) {
-    if (!state.entries.containsKey(channelId)) return;
-    final entries = Map<String, ReadEntry>.from(state.entries)
-      ..remove(channelId);
+  /// Clears only messages up to the acknowledged position. Old acknowledgements
+  /// from another device cannot hide messages that arrived after that position.
+  void markRead(String channelId, {String? messageId}) {
+    final position = messageId ?? _latest[channelId];
+    if (position != null) _advance(_readThrough, channelId, position);
+    unawaited(
+      dismissReadNotifications(
+        serverKey: serverKey,
+        channelId: channelId,
+        messageId: position,
+      ),
+    );
+    final existing = state.entries[channelId];
+    if (existing == null) return;
+    final entries = Map<String, ReadEntry>.from(state.entries);
+    final latest = existing.lastMessageId ?? _latest[channelId];
+    if (position != null &&
+        latest != null &&
+        compareMessageIds(latest, position) > 0) {
+      final mentions = _mentionIds[channelId];
+      var cleared = 0;
+      mentions?.removeWhere((id) {
+        if (!_atOrBefore(id, position)) return false;
+        cleared++;
+        return true;
+      });
+      entries[channelId] = existing.copyWith(
+        mentions: (existing.mentions - cleared).clamp(0, existing.mentions),
+      );
+    } else {
+      entries.remove(channelId);
+      _mentionIds.remove(channelId);
+    }
     state = ReadStateSnapshot(entries: entries);
   }
 
-  /// Replaces the whole snapshot from the server's authoritative unread list
-  /// (the READY payload's `unread` array, or `GET /users/@me/read-states`).
-  /// This is what gives persistence across restarts.
+  void applyRemoteRead(String channelId, String messageId) {
+    _advance(_syncedThrough, channelId, messageId);
+    markRead(channelId, messageId: messageId);
+  }
+
+  /// Optimistic local read plus a serialized, coalesced server acknowledgement.
+  /// Failed requests remain queued and are retried; they are never considered
+  /// synced just because the local badge disappeared.
+  void acknowledge(AccordClient? client, String channelId, String? messageId) {
+    markRead(channelId, messageId: messageId);
+    if (messageId == null || messageId.isEmpty) return;
+    if (_atOrBefore(messageId, _syncedThrough[channelId])) return;
+    _advance(_pending, channelId, messageId);
+    if (client != null) unawaited(_flush(client, channelId));
+  }
+
+  void retryPending(AccordClient client) {
+    for (final channelId in _pending.keys.toList()) {
+      unawaited(_flush(client, channelId));
+    }
+  }
+
+  Future<void> _flush(AccordClient client, String channelId) async {
+    if (!_sending.add(channelId)) return;
+    _retries.remove(channelId)?.cancel();
+    try {
+      while (ref.mounted) {
+        final position = _pending[channelId];
+        if (position == null) break;
+        if (_atOrBefore(position, _syncedThrough[channelId])) {
+          _pending.remove(channelId);
+          break;
+        }
+        final result = await client.channels.ack(channelId, position);
+        if (!ref.mounted) return;
+        if (!result.ok || result.statusCode < 200 || result.statusCode >= 300) {
+          debugPrint(
+            'Failed to acknowledge channel $channelId: ${result.error}',
+          );
+          break;
+        }
+        _advance(_syncedThrough, channelId, position);
+        if (_pending[channelId] == position) _pending.remove(channelId);
+      }
+    } catch (error) {
+      debugPrint('Failed to acknowledge channel $channelId: $error');
+    } finally {
+      _sending.remove(channelId);
+      if (ref.mounted && _pending.containsKey(channelId)) {
+        _retries[channelId] = Timer(const Duration(seconds: 5), () {
+          if (ref.mounted) unawaited(_flush(client, channelId));
+        });
+      }
+    }
+  }
+
+  /// READY is authoritative, except for local reads still awaiting delivery.
   void hydrate(Iterable<ReadEntry> unread) {
-    state = ReadStateSnapshot(
-      entries: {
-        for (final e in unread)
-          if (e.channelId.isNotEmpty) e.channelId: e,
-      },
-    );
+    _mentionIds.clear();
+    final entries = <String, ReadEntry>{};
+    for (final entry in unread) {
+      final id = entry.channelId;
+      if (id.isEmpty) continue;
+      final last = entry.lastMessageId;
+      final read = entry.lastReadMessageId;
+      if (last != null) {
+        _advance(_latest, id, last);
+        _advance(_received, id, last);
+      }
+      if (read != null) {
+        _advance(_readThrough, id, read);
+        _advance(_syncedThrough, id, read);
+        unawaited(
+          dismissReadNotifications(
+            serverKey: serverKey,
+            channelId: id,
+            messageId: read,
+          ),
+        );
+      }
+      if (last != null && _atOrBefore(last, _readThrough[id])) continue;
+      entries[id] = entry;
+    }
+    // A fresh READY can replace missed remote read events after disconnection.
+    for (final id in state.entries.keys) {
+      if (entries.containsKey(id)) continue;
+      final last = _latest[id];
+      if (last != null) _advance(_readThrough, id, last);
+      unawaited(dismissReadNotifications(serverKey: serverKey, channelId: id));
+    }
+    state = ReadStateSnapshot(entries: entries);
   }
 
-  /// Drops every entry — used when a server disconnects / the account is
-  /// removed so a stale snapshot doesn't linger.
   void clear() {
-    if (state.entries.isEmpty) return;
+    for (final timer in _retries.values) {
+      timer.cancel();
+    }
+    _retries.clear();
+    _pending.clear();
+    _sending.clear();
+    _latest.clear();
+    _received.clear();
+    _readThrough.clear();
+    _syncedThrough.clear();
+    _mentionIds.clear();
     state = const ReadStateSnapshot();
   }
+}
+
+bool _atOrBefore(String id, String? position) =>
+    position != null && compareMessageIds(id, position) <= 0;
+
+void _advance(Map<String, String> positions, String channelId, String id) {
+  if (id.isEmpty || _atOrBefore(id, positions[channelId])) return;
+  positions[channelId] = id;
 }

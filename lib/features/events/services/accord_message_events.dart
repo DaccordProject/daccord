@@ -56,9 +56,7 @@ void bindMessageEvents(
       final isOwn = isSelf(message.authorId);
       final mentionsMe = mentionsSelf(message.mentions);
       final isVisibleChannel =
-          active &&
-          accordVisibleChannel ==
-              (serverKey: serverKey, channelId: message.channelId);
+          active && isAccordChannelVisible(serverKey, message.channelId);
       final settings = ref.read(settingsControllerProvider);
       final countsAsMention = MessageNotificationGate.countsAsMention(
         mentionsMe: mentionsMe,
@@ -157,22 +155,20 @@ void bindMessageEvents(
       // READY (a restart, or any reconnect that re-identifies). That is what
       // made a channel highlight for messages the user wrote themselves. The
       // ack also echoes to our other sessions via `read_state.update`.
-      if (isOwn) {
-        ref
-            .read(readStateControllerProvider(serverKey).notifier)
-            .markRead(message.channelId);
-        if (message.id.isNotEmpty) {
-          unawaited(client.channels.ack(message.channelId, message.id));
-        }
-      } else if (!isVisibleChannel) {
-        ref
-            .read(readStateControllerProvider(serverKey).notifier)
-            .markUnread(
-              message.channelId,
-              spaceId: message.spaceId,
-              isMention: countsAsMention,
-            );
+      final tracker = ref.read(readStateControllerProvider(serverKey).notifier);
+      final fresh = tracker.receiveMessage(message.channelId, message.id);
+      if (isOwn || isVisibleChannel) {
+        tracker.acknowledge(client, message.channelId, message.id);
+      } else if (fresh) {
+        tracker.markUnread(
+          message.channelId,
+          spaceId: message.spaceId,
+          isMention: countsAsMention,
+          messageId: message.id,
+        );
       }
+      // Keep cache updates for replays, but suppress duplicate alerts.
+      if (!fresh) return;
 
       // Mention notifications: fire for *any* mentioning message, even in
       // channels the UI hasn't opened and on servers that aren't currently
@@ -206,6 +202,9 @@ void bindMessageEvents(
         );
         final body = message.content.trim();
         showMentionNotification(
+          serverKey: serverKey,
+          channelId: message.channelId,
+          messageId: message.id,
           title: name,
           body: body.isEmpty
               ? (isDirectMessage ? 'Sent you a message' : 'mentioned you')
@@ -220,7 +219,11 @@ void bindMessageEvents(
       // (only the active connection owns the visible-channel pointer).
       // A DM chimes like a mention: it is addressed to you, so it should be
       // heard even while the window is focused on something else (#326).
-      if (settings.soundsEnabled && !spaceMuted && !isOwn) {
+      if (settings.soundsEnabled &&
+          !spaceMuted &&
+          !isOwn &&
+          settings.channelNotificationLevel(serverKey, message.channelId) !=
+              'nothing') {
         soundManager.playForMessage(
           isMention: countsAsMention || isDirectMessage,
           isVisibleChannel: isVisibleChannel,
@@ -487,9 +490,11 @@ void bindMessageEvents(
     client.onReadStateUpdate.listen((data) {
       final channelId = data['channel_id']?.toString();
       if (channelId == null || channelId.isEmpty) return;
+      final messageId = data['last_read_message_id']?.toString();
+      if (messageId == null || messageId.isEmpty) return;
       ref
           .read(readStateControllerProvider(serverKey).notifier)
-          .markRead(channelId);
+          .applyRemoteRead(channelId, messageId);
     }),
   );
 
