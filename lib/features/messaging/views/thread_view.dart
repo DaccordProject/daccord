@@ -228,20 +228,21 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     return 'Thread';
   }
 
-  /// Offers two share links for this post: a `daccord://` deep link that opens
-  /// directly in a daccord client, and the public `/s/...` web URL that anyone
-  /// (and search-engine crawlers) can open.
+  /// Offers two share links for this post: a Daccord Universal Link that opens
+  /// the installed client (with a website fallback), and the public `/s/...`
+  /// web URL that anyone and search-engine crawlers can open.
   void _showShareMenu([Offset? position]) {
     final spaceId = widget.spaceId;
     if (spaceId == null) return;
 
     final entries = <AccordMenuEntry>[
       AccordMenuEntry(
-        label: 'Share with those who have the app',
+        label: 'Share Daccord link',
         icon: Icons.rocket_launch_outlined,
         onSelected: () => _copyShareLink(
-          'daccord://navigate/$spaceId/${widget.channelId}?msg=${_root.id}',
-          'App link copied to clipboard',
+          'https://www.daccord.gg/open/navigate/$spaceId/'
+              '${widget.channelId}?msg=${_root.id}',
+          'Daccord link copied to clipboard',
         ),
       ),
     ];

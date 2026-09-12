@@ -83,6 +83,8 @@ Grab the latest build from the **[Releases page](https://github.com/DaccordProje
 
 Every release ships a `SHA256SUMS.txt` so you can verify what you downloaded. Step-by-step instructions per platform live in [Installing daccord](docs/getting-started/installation.md).
 
+Shared app links use `https://www.daccord.gg/open/`. iOS Universal Link handling requires the website association and matching signing profile described in [App Store deployment](docs/app-store-deploy.md#universal-links).
+
 iOS and the store channels are built and submitted by the release workflow; public store listings aren't live yet, so the downloads above are the way in today.
 
 ### Platform support

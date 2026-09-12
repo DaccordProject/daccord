@@ -7,6 +7,8 @@
 # Prereqs:
 #   - An App Store Connect API key (.p8) with Admin or App Manager role.
 #   - The app record + bundle id (com.cattrall.daccord) already exist.
+#   - Associated Domains is enabled for that iOS App ID in Certificates,
+#     Identifiers & Profiles.
 #
 # Usage:
 #   ASC_ISSUER_ID=<uuid> APPLE_TEAM_ID=<10char> \
@@ -17,6 +19,7 @@
 # It is idempotent-ish: fastlane reuses an existing matching cert/profile rather
 # than always creating new ones (Apple caps distribution certs).
 set -euo pipefail
+SIGNING_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 P8="${1:?usage: bootstrap-signing.sh /path/to/AuthKey_XXXX.p8}"
 : "${ASC_ISSUER_ID:?set ASC_ISSUER_ID (App Store Connect → Users and Access → Integrations)}"
@@ -72,6 +75,7 @@ run_profile() {  # <platform> <name> <out_basename>
     platform:"$platform" \
     team_id:"$APPLE_TEAM_ID" \
     provisioning_name:"$name" \
+    force:true \
     filename:"$base.profile" \
     output_path:"$WORK" >/dev/null
 }
@@ -87,6 +91,12 @@ run_cert developer_id_application macos developer_id
 
 echo "==> iOS App Store provisioning profile"
 run_profile ios "$IOS_PROFILE_NAME" ios_profile
+if ! security cms -D -i "$WORK/ios_profile.profile" 2>/dev/null \
+  | python3 "$SIGNING_SCRIPT_DIR/verify-associated-domains.py"; then
+  echo "error: generated iOS profile does not authorize applinks:www.daccord.gg" >&2
+  echo "enable Associated Domains for $BUNDLE_ID in the Apple Developer portal, then rerun" >&2
+  exit 1
+fi
 
 echo "==> Mac App Store provisioning profile"
 run_profile macos "$MAC_PROFILE_NAME" mac_profile

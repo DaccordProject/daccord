@@ -103,7 +103,8 @@ class ServerUri {
     );
   }
 
-  /// Parses a `daccord://` deep link. Supported routes (matching
+  /// Parses either a `daccord://` deep link or its public Universal Link form
+  /// at `https://www.daccord.gg/open/...`. Supported routes (matching
   /// `uri_handler.gd`):
   ///   `daccord://connect/<host>[:<port>][/<space-slug>][?token=&invite=]`
   ///   `daccord://invite/<code>@<host>[:<port>]`
@@ -112,8 +113,21 @@ class ServerUri {
   static ParsedServerUrl? parseDeepLink(String uri) {
     var text = uri.trim();
     const scheme = 'daccord://';
-    if (!text.startsWith(scheme)) return null;
-    text = text.substring(scheme.length);
+    if (text.startsWith(scheme)) {
+      text = text.substring(scheme.length);
+    } else {
+      final web = Uri.tryParse(text);
+      if (web == null ||
+          web.scheme != 'https' ||
+          (web.host != 'www.daccord.gg' && web.host != 'daccord.gg') ||
+          web.userInfo.isNotEmpty ||
+          web.hasPort ||
+          !web.path.startsWith('/open/')) {
+        return null;
+      }
+      text = web.path.substring('/open/'.length);
+      if (web.hasQuery) text += '?${web.query}';
+    }
     if (text.isEmpty) return null;
 
     final slash = text.indexOf('/');
@@ -284,6 +298,5 @@ class ServerUri {
   /// here — a user may legitimately point at a self-hosted dev server.
   static bool _isValidHost(String host) => isValidHost(host);
 
-  static String? _blankToNull(String? v) =>
-      (v == null || v.isEmpty) ? null : v;
+  static String? _blankToNull(String? v) => (v == null || v.isEmpty) ? null : v;
 }
