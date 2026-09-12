@@ -113,9 +113,14 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
     // Validate the upload budgets before anything is sent: the server rejects
     // an out-of-range value, and a rejected PATCH would drop every other
     // change on this form with it.
+    final sendBudgets = shouldSendUploadBudgets(
+      hasUploadBudgets: _hasUploadBudgets,
+      requestsText: _uploadRequests.text,
+      mbText: _uploadMb.text,
+    );
     int? uploadRequests;
     int? uploadBytes;
-    if (_hasUploadBudgets) {
+    if (sendBudgets) {
       uploadRequests = parseUploadRequestsPerMinute(_uploadRequests.text);
       uploadBytes = parseUploadMbPerMinute(_uploadMb.text);
       if (uploadRequests == null) {
@@ -147,7 +152,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
       'tos_enabled': _tosEnabled,
       'tos_text': tosText.isEmpty ? null : tosText,
       'tos_url': tosUrl.isEmpty ? null : tosUrl,
-      if (_hasUploadBudgets) ...{
+      if (sendBudgets) ...{
         'upload_requests_per_minute': uploadRequests,
         'upload_bytes_per_minute': uploadBytes,
       },

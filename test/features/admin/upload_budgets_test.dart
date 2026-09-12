@@ -52,6 +52,59 @@ void main() {
     });
   });
 
+  group('shouldSendUploadBudgets', () {
+    test('false when the server never reported the keys', () {
+      expect(
+        shouldSendUploadBudgets(
+          hasUploadBudgets: false,
+          requestsText: '6',
+          mbText: '50',
+        ),
+        isFalse,
+      );
+    });
+
+    test(
+        'false when the server reported the keys but neither is configured '
+        'yet (e.g. sent as null)', () {
+      expect(
+        shouldSendUploadBudgets(
+          hasUploadBudgets: true,
+          requestsText: '',
+          mbText: '  ',
+        ),
+        isFalse,
+      );
+    });
+
+    test('true once either field has been given a value', () {
+      expect(
+        shouldSendUploadBudgets(
+          hasUploadBudgets: true,
+          requestsText: '6',
+          mbText: '',
+        ),
+        isTrue,
+      );
+      expect(
+        shouldSendUploadBudgets(
+          hasUploadBudgets: true,
+          requestsText: '',
+          mbText: '50',
+        ),
+        isTrue,
+      );
+      expect(
+        shouldSendUploadBudgets(
+          hasUploadBudgets: true,
+          requestsText: '6',
+          mbText: '50',
+        ),
+        isTrue,
+      );
+    });
+  });
+
   group('formatUploadMbPerMinute', () {
     test('round-trips the server default and fractions', () {
       expect(formatUploadMbPerMinute(52428800), '50');

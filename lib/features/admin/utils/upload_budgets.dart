@@ -43,6 +43,19 @@ int? parseUploadMbPerMinute(String text) {
   return bytes;
 }
 
+/// Whether the admin panel should validate and send the upload-budget fields
+/// on save. False when the server doesn't report the keys at all, or when
+/// both fields are blank — the server reported the keys but nothing is
+/// configured yet (e.g. it sent them as `null`) — so an admin saving an
+/// unrelated change isn't forced to pick budget values first.
+bool shouldSendUploadBudgets({
+  required bool hasUploadBudgets,
+  required String requestsText,
+  required String mbText,
+}) =>
+    hasUploadBudgets &&
+    (requestsText.trim().isNotEmpty || mbText.trim().isNotEmpty);
+
 /// Renders `upload_bytes_per_minute` for the MB field: whole numbers stay
 /// whole ("50"), fractions keep up to six decimals ("0.5", "12.25",
 /// "0.000001" for a single byte) so every server value round-trips through
