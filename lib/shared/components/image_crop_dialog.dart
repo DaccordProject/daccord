@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:bonfire/shared/utils/cropped_image.dart';
+
 import 'package:bonfire/theme/theme.dart';
 import 'package:crop_your_image/crop_your_image.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +20,7 @@ Future<Uint8List?> showImageCropDialog(
   required double aspectRatio,
   bool circular = false,
   String title = 'Edit image',
+  int? maxOutputDimension,
 }) {
   return showDialog<Uint8List?>(
     context: context,
@@ -27,6 +30,7 @@ Future<Uint8List?> showImageCropDialog(
       aspectRatio: aspectRatio,
       circular: circular,
       title: title,
+      maxOutputDimension: maxOutputDimension,
     ),
   );
 }
@@ -37,12 +41,14 @@ class _ImageCropDialog extends StatefulWidget {
     required this.aspectRatio,
     required this.circular,
     required this.title,
+    required this.maxOutputDimension,
   });
 
   final Uint8List imageBytes;
   final double aspectRatio;
   final bool circular;
   final String title;
+  final int? maxOutputDimension;
 
   @override
   State<_ImageCropDialog> createState() => _ImageCropDialogState();
@@ -51,9 +57,11 @@ class _ImageCropDialog extends StatefulWidget {
 class _ImageCropDialogState extends State<_ImageCropDialog> {
   final _controller = CropController();
   bool _busy = false;
+  bool _ready = false;
+  String? _error;
 
   void _apply() {
-    if (_busy) return;
+    if (_busy || !_ready) return;
     setState(() => _busy = true);
     _controller.crop();
   }
@@ -92,13 +100,31 @@ class _ImageCropDialogState extends State<_ImageCropDialog> {
                     maskColor: Colors.black.withValues(alpha: 0.55),
                     radius: widget.circular ? 0 : 6,
                     cornerDotBuilder: (_, _) => const SizedBox.shrink(),
-                    onCropped: (result) {
+                    onStatusChanged: (status) {
+                      if (mounted) setState(() => _ready = status == CropStatus.ready);
+                    },
+                    onCropped: (result) async {
                       if (!mounted) return;
-                      switch (result) {
-                        case CropSuccess(:final croppedImage):
-                          Navigator.of(context).pop(croppedImage);
-                        case CropFailure():
-                          setState(() => _busy = false);
+                      try {
+                        switch (result) {
+                          case CropSuccess(:final croppedImage):
+                            final png = await prepareCroppedImage(
+                              croppedImage,
+                              maxDimension: widget.maxOutputDimension,
+                            );
+                            if (context.mounted) Navigator.of(context).pop(png);
+                          case CropFailure():
+                            setState(() {
+                              _busy = false;
+                              _error = 'Could not crop this image. Try another image.';
+                            });
+                        }
+                      } catch (_) {
+                        if (!mounted) return;
+                        setState(() {
+                          _busy = false;
+                          _error = 'Could not prepare this image. Try another image.';
+                        });
                       }
                     },
                   ),
@@ -109,6 +135,7 @@ class _ImageCropDialogState extends State<_ImageCropDialog> {
                 'Drag to reposition · scroll or pinch to zoom',
                 style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
               ),
+              if (_error != null) Text(_error!, style: TextStyle(color: colors.red)),
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -121,7 +148,7 @@ class _ImageCropDialogState extends State<_ImageCropDialog> {
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
-                    onPressed: _busy ? null : _apply,
+                    onPressed: _busy || !_ready ? null : _apply,
                     child: _busy
                         ? const SizedBox(
                             width: 18,

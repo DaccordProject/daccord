@@ -267,6 +267,7 @@ class _SpaceIcon extends ConsumerWidget {
                         width: 48,
                         height: 48,
                         fit: BoxFit.cover,
+                        filterQuality: FilterQuality.medium,
                         placeholder: (_, _) => fallback,
                         errorWidget: (_, _, _) => fallback,
                       ),

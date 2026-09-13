@@ -1,9 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:bonfire/features/automod/views/automod_panel.dart';
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/components/section_header.dart';
-import 'package:bonfire/shared/components/ticker_aware_circle_avatar.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
@@ -11,7 +12,9 @@ import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/utils/space_display.dart';
+import 'package:bonfire/features/spaces/utils/space_media_cache.dart';
 import 'package:bonfire/features/spaces/views/accord_audit_log.dart';
+import 'package:bonfire/features/spaces/views/accord_space_settings_media.dart';
 import 'package:bonfire/features/spaces/views/accord_ban_list.dart';
 import 'package:bonfire/features/spaces/views/accord_emoji_management.dart';
 import 'package:bonfire/features/spaces/views/accord_reports.dart';
@@ -20,7 +23,6 @@ import 'package:bonfire/features/spaces/views/accord_soundboard.dart';
 import 'package:bonfire/features/spaces/views/accord_transfer_ownership.dart';
 import 'package:bonfire/shared/components/image_crop_dialog.dart';
 import 'package:bonfire/theme/theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -92,7 +94,9 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
   bool _guestAccess = true;
   String? _rulesChannelId;
   String? _systemChannelId;
-  String? _pendingIconDataUri;
+  Uint8List? _pendingIconBytes;
+  Uint8List? _pendingBannerBytes;
+  bool _bannerRemoved = false;
   bool _iconRemoved = false;
   bool _formInitialized = false;
 
@@ -130,23 +134,43 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     return ref.readAccordPermissions(space, widget.spaceId);
   }
 
-  Future<void> _update(Map<String, dynamic> body, String failure) async {
+  Future<bool> _update(Map<String, dynamic> body, String failure) async {
     final client = _client;
-    if (client == null || _busy) return;
+    if (client == null || _busy) return false;
+    final previous = ref.read(spacesControllerProvider)
+        ?.firstWhereOrNull((s) => s.id == widget.spaceId);
+    final cdnUrl = ref.readCdnUrl();
     setState(() {
       _busy = true;
       _error = null;
     });
     final result = await client.spaces.update(widget.spaceId, body);
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      if (!result.ok) _error = result.errorOr(failure);
-    });
+    if (!mounted) return false;
     final space = result.data;
     if (result.ok && space is AccordSpace) {
+      // A removal must also work with servers that omit cleared fields.
+      if (body.containsKey('icon') && body['icon'] == null) space.icon = null;
+      if (body.containsKey('banner') && body['banner'] == null) space.banner = null;
+      await spaceMediaCache.invalidate({
+        if (body.containsKey('icon')) ...[
+          if (previous != null) accordSpaceIconUrl(previous, cdnUrl, versioned: false),
+          accordSpaceIconUrl(space, cdnUrl, versioned: false),
+        ],
+        if (body.containsKey('banner')) ...[
+          if (previous != null) accordSpaceBannerUrl(previous, cdnUrl, versioned: false),
+          accordSpaceBannerUrl(space, cdnUrl, versioned: false),
+        ],
+      }.whereType<String>());
+      if (!mounted) return false;
       ref.read(spacesControllerProvider.notifier).upsertSpace(space);
+      setState(() => _busy = false);
+      return true;
     }
+    setState(() {
+      _busy = false;
+      _error = result.ok ? failure : result.errorOr(failure);
+    });
+    return false;
   }
 
   Future<void> _pickBanner() async {
@@ -161,14 +185,28 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
       imageBytes: file!.bytes!,
       aspectRatio: 16 / 9,
       title: 'Crop banner',
+      maxOutputDimension: 1024,
     );
-    if (cropped == null) return;
-    final dataUri = AccordCDN.buildDataUri(cropped, 'banner.png');
-    await _update({'banner': dataUri}, 'Failed to update banner');
+    if (cropped == null || !mounted) return;
+    setState(() {
+      _pendingBannerBytes = cropped;
+      _bannerRemoved = false;
+    });
+    if (await _update({'banner': AccordCDN.buildDataUri(cropped, 'banner.png')},
+        'Failed to update banner') && mounted) {
+      setState(() => _pendingBannerBytes = null);
+    }
   }
 
-  Future<void> _removeBanner() =>
-      _update({'banner': null}, 'Failed to remove banner');
+  Future<void> _removeBanner() async {
+    setState(() {
+      _pendingBannerBytes = null;
+      _bannerRemoved = true;
+    });
+    if (await _update({'banner': null}, 'Failed to remove banner') && mounted) {
+      setState(() => _bannerRemoved = false);
+    }
+  }
 
   Future<void> _pickIcon() async {
     final picked = await FilePicker.platform.pickFiles(
@@ -183,17 +221,18 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
       aspectRatio: 1,
       circular: true,
       title: 'Crop icon',
+      maxOutputDimension: 512,
     );
-    if (cropped == null) return;
+    if (cropped == null || !mounted) return;
     setState(() {
-      _pendingIconDataUri = AccordCDN.buildDataUri(cropped, 'icon.png');
+      _pendingIconBytes = cropped;
       _iconRemoved = false;
     });
   }
 
   void _markIconRemoved() {
     setState(() {
-      _pendingIconDataUri = null;
+      _pendingIconBytes = null;
       _iconRemoved = true;
     });
   }
@@ -218,16 +257,22 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
       'rules_channel_id': _rulesChannelId,
       'system_channel_id': _systemChannelId,
     };
-    if (_pendingIconDataUri != null) {
-      body['icon'] = _pendingIconDataUri;
+    if (_pendingIconBytes != null) {
+      body['icon'] = AccordCDN.buildDataUri(_pendingIconBytes!, 'icon.png');
     } else if (_iconRemoved) {
       body['icon'] = null;
     }
-    await _update(body, 'Failed to save settings');
-    if (mounted && _error == null) {
+    if (_pendingBannerBytes != null) {
+      body['banner'] = AccordCDN.buildDataUri(_pendingBannerBytes!, 'banner.png');
+    } else if (_bannerRemoved) {
+      body['banner'] = null;
+    }
+    if (await _update(body, 'Failed to save settings') && mounted) {
       setState(() {
-        _pendingIconDataUri = null;
+        _pendingIconBytes = null;
         _iconRemoved = false;
+        _pendingBannerBytes = null;
+        _bannerRemoved = false;
       });
     }
   }
@@ -431,7 +476,8 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
       body: _AdaptiveSettingsBody(
         form: [
           _BannerSection(
-            bannerUrl: bannerUrl,
+            bannerUrl: _bannerRemoved ? null : bannerUrl,
+            pendingBytes: _pendingBannerBytes,
             canManage: canManageSpace,
             busy: _busy,
             onPick: _pickBanner,
@@ -443,7 +489,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
               nameController: _name,
               descriptionController: _description,
               iconUrl: iconUrl,
-              pendingIconDataUri: _pendingIconDataUri,
+              pendingIconBytes: _pendingIconBytes,
               iconRemoved: _iconRemoved,
               busy: _busy,
               onPickIcon: _pickIcon,

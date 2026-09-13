@@ -13,6 +13,15 @@ If you have admin permissions, you can manage your space's channels, roles, and 
 
 Right-click a space icon in the space bar and select **Space Settings** (or the equivalent admin option) to open the management panel.
 
+## Icon and Banner
+
+Upload an icon in **Overview**, apply the crop, then choose **Save settings**.
+The pending preview shows the selected crop immediately. Icons are exported as
+PNG up to 512 pixels; banners use a 16:9 crop up to 1024 pixels wide. Banner
+changes and removal save immediately, with **Save settings** available to retry
+an unsuccessful change. Saved replacements refresh the settings preview and
+space bar during the same session, even when the server reuses the image URL.
+
 ## Channels
 
 ### Creating a Channel

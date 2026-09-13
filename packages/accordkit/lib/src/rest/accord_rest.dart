@@ -119,7 +119,8 @@ class AccordRest {
       send: () => _send(method, uri, headers, bodyText),
       interpret: (response) => _parseResponse(
         response.statusCode,
-        utf8.decode(response.bodyBytes),
+        utf8.decode(response.bodyBytes, allowMalformed: true),
+        contentType: response.headers['content-type'],
       ),
     );
   }
@@ -204,7 +205,8 @@ class AccordRest {
       },
       interpret: (response) => _parseResponse(
         response.statusCode,
-        utf8.decode(response.bodyBytes),
+        utf8.decode(response.bodyBytes, allowMalformed: true),
+        contentType: response.headers['content-type'],
       ),
     );
   }
@@ -323,7 +325,7 @@ class AccordRest {
   }
 
   /// Parses a JSON response envelope into a [RestResult].
-  RestResult _parseResponse(int status, String body) {
+  RestResult _parseResponse(int status, String body, {String? contentType}) {
     final isSuccess = status >= 200 && status < 300;
 
     if (body.trim().isEmpty) {
@@ -338,10 +340,13 @@ class AccordRest {
     try {
       parsed = jsonDecode(body);
     } catch (_) {
-      if (isSuccess) return RestResult.success(status, null);
+      final type = contentType == null ? '' : ' ($contentType)';
+      final detail = status == 413
+          ? 'The upload is too large for this server. Try a smaller image.'
+          : 'The server returned a non-JSON response.';
       return RestResult.failure(
         status,
-        _internalError('Failed to parse JSON response'),
+        AccordError(code: 'HTTP_$status', message: 'HTTP $status$type: $detail'),
       );
     }
 

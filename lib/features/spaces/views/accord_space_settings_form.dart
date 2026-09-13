@@ -38,6 +38,7 @@ class _SettingsDropdown<T> extends StatelessWidget {
 class _BannerSection extends StatelessWidget {
   const _BannerSection({
     required this.bannerUrl,
+    required this.pendingBytes,
     required this.canManage,
     required this.busy,
     required this.onPick,
@@ -45,6 +46,7 @@ class _BannerSection extends StatelessWidget {
   });
 
   final String? bannerUrl;
+  final Uint8List? pendingBytes;
   final bool canManage;
   final bool busy;
   final VoidCallback onPick;
@@ -55,6 +57,7 @@ class _BannerSection extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     final bannerUrl = this.bannerUrl;
+    final hasBanner = pendingBytes != null || bannerUrl != null;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -65,32 +68,7 @@ class _BannerSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  height: 130,
-                  width: double.infinity,
-                  color: colors.darkGray,
-                  child: bannerUrl == null
-                      ? Center(
-                          child: Icon(
-                            Icons.image_outlined,
-                            color: colors.gray,
-                            size: 32,
-                          ),
-                        )
-                      : CachedNetworkImage(
-                          imageUrl: bannerUrl,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, _, _) => Center(
-                            child: Icon(
-                              Icons.broken_image_outlined,
-                              color: colors.gray,
-                            ),
-                          ),
-                        ),
-                ),
-              ),
+              SpaceSettingsBannerPreview(url: bannerUrl, pendingBytes: pendingBytes),
               if (canManage) ...[
                 const SizedBox(height: 8),
                 Row(
@@ -98,10 +76,10 @@ class _BannerSection extends StatelessWidget {
                     FilledButton.icon(
                       onPressed: busy ? null : onPick,
                       icon: const Icon(Icons.upload, size: 18),
-                      label: Text(bannerUrl == null ? 'Upload' : 'Change'),
+                      label: Text(hasBanner ? 'Change' : 'Upload'),
                     ),
                     const SizedBox(width: 8),
-                    if (bannerUrl != null)
+                    if (hasBanner)
                       TextButton(
                         onPressed: busy ? null : onRemove,
                         style: TextButton.styleFrom(
@@ -137,7 +115,7 @@ class _OverviewSection extends StatelessWidget {
     required this.nameController,
     required this.descriptionController,
     required this.iconUrl,
-    required this.pendingIconDataUri,
+    required this.pendingIconBytes,
     required this.iconRemoved,
     required this.busy,
     required this.onPickIcon,
@@ -147,7 +125,7 @@ class _OverviewSection extends StatelessWidget {
   final TextEditingController nameController;
   final TextEditingController descriptionController;
   final String? iconUrl;
-  final String? pendingIconDataUri;
+  final Uint8List? pendingIconBytes;
   final bool iconRemoved;
   final bool busy;
   final VoidCallback onPickIcon;
@@ -169,26 +147,18 @@ class _OverviewSection extends StatelessWidget {
             children: [
               Column(
                 children: [
-                  TickerAwareCircleAvatar(
-                    radius: 28,
-                    backgroundColor: colors.darkGray,
-                    foregroundImage: pendingIconDataUri != null
-                        ? null
-                        : (iconRemoved || iconUrl == null
-                              ? null
-                              : CachedNetworkImageProvider(iconUrl)),
-                    child:
-                        (pendingIconDataUri != null ||
-                            (!iconRemoved && iconUrl != null))
-                        ? null
-                        : Icon(Icons.image_outlined, color: colors.gray),
+                  SpaceSettingsIconPreview(
+                    url: iconUrl,
+                    pendingBytes: pendingIconBytes,
+                    removed: iconRemoved,
                   ),
                   const SizedBox(height: 4),
                   TextButton(
                     onPressed: busy ? null : onPickIcon,
-                    child: Text(iconUrl == null ? 'Upload' : 'Change'),
+                    child: Text(pendingIconBytes != null || (!iconRemoved && iconUrl != null)
+                        ? 'Change' : 'Upload'),
                   ),
-                  if (iconUrl != null || pendingIconDataUri != null)
+                  if (pendingIconBytes != null || (!iconRemoved && iconUrl != null))
                     TextButton(
                       onPressed: busy ? null : onRemoveIcon,
                       style: TextButton.styleFrom(
