@@ -53,6 +53,7 @@ This client is the front door: one native app for every screen you own.
 **Servers & communities**
 
 - 🌐 **Multi-server** — connect to many Daccord servers at once and switch between them seamlessly. Your work crew and your gaming crew, side by side.
+- 📁 **Space folders** — collapsed folders show a 2×2 preview of their first four available space icons.
 - 🧭 **Discovery** — browse public spaces from the server directory and join them, even before you've signed in anywhere.
 - 🛡️ **Server admin tools** — manage channels, roles, permissions, bans, invites, and custom emoji without ever leaving the app.
 - 🔗 **Destination-aware app links** — `daccord://` links open the right server, space, channel, thread, or message once the owning account is ready.
@@ -62,7 +63,7 @@ This client is the front door: one native app for every screen you own.
 - 🎨 **Themes** — Dark, Light, Nord, Monokai, and Solarized built in, plus fully custom colors you can copy, paste, and share in chat.
 - 👥 **Multiple profiles** — keep separate local profiles on one device and switch between them without signing out.
 - 🔐 **Secure sign-in** — session tokens live in the OS credential vault, with optional TOTP two-factor authentication; each device profile keeps its own credential, even for the same account.
-- ⬆️ **In-app updates** — desktop and sideloaded Android builds check for, download, and install new releases themselves.
+- ⬆️ **In-app updates** — direct-download desktop and sideloaded Android builds check for, download, and install new releases themselves. Package-managed builds leave updates to their manager.
 - 📱 **Responsive everywhere** — one UI that flows from phone to desktop, sharp at every size.
 - 🛠️ **Local MCP tools** — opt-in desktop automation with bearer authentication and configurable tool groups. See [local MCP troubleshooting](docs/troubleshooting/common-issues.md#local-mcp-tools-not-connecting).
 
@@ -86,6 +87,8 @@ Grab the latest build from the **[Releases page](https://github.com/DaccordProje
 | Web | `daccord-web.zip` |
 
 The Google Play build receives updates through Play; the GitHub sideload APK includes the in-app updater.
+
+Package-manager listings are being prepared; see [packaging status and maintainer setup](docs/packaging.md). Install commands for public catalogues will be advertised after their submissions are accepted.
 
 Every release ships a `SHA256SUMS.txt` so you can verify what you downloaded. Step-by-step instructions per platform live in [Installing daccord](docs/getting-started/installation.md).
 

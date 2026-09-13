@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.DaccordProject.daccord</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>Daccord</name>
+  <summary>Chat with communities on Accord servers</summary>
+  <developer id="io.github.DaccordProject"><name>The Daccord Project</name></developer>
+  <description>
+    <p>Daccord is a community chat client for Accord servers. Connect to your server to send messages and share voice, video, and your screen.</p>
+    <p>The app supports multiple accounts, channels, forums, file sharing, and moderation tools.</p>
+  </description>
+  <launchable type="desktop-id">io.github.DaccordProject.daccord.desktop</launchable>
+  <url type="homepage">https://github.com/DaccordProject/daccord</url>
+  <url type="bugtracker">https://github.com/DaccordProject/daccord/issues</url>
+  <url type="vcs-browser">https://github.com/DaccordProject/daccord</url>
+  <provides><binary>daccord</binary><mediatype>x-scheme-handler/daccord</mediatype></provides>
+  <content_rating type="oars-1.1"><content_attribute id="social-chat">intense</content_attribute></content_rating>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/DaccordProject/daccord/@@TAG@@/store-media/screenshots-tablet/tablet-01.png</image>
+      <caption>Daccord community messaging on a tablet</caption>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="@@VERSION@@" date="@@RELEASE_DATE@@">
+      <url>https://github.com/DaccordProject/daccord/releases/tag/@@TAG@@</url>
+      <description><p>See the linked release notes for changes in this version.</p></description>
+    </release>
+  </releases>
+</component>

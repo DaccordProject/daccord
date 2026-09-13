@@ -1,0 +1,52 @@
+name: Prepare package manifests
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Published stable release tag
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published stable release tag (vMAJOR.MINOR.PATCH)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download published metadata and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo 'Expected a stable vMAJOR.MINOR.PATCH tag' >&2
+            exit 1
+          fi
+          mkdir -p release-metadata
+          gh api "repos/DaccordProject/daccord/releases/tags/$RELEASE_TAG" > release-metadata/release.json
+          gh release download "$RELEASE_TAG" --repo DaccordProject/daccord --pattern SHA256SUMS.txt --dir release-metadata
+      - name: Generate review artifacts
+        run: |
+          python3 scripts/package_manifests.py --release-json release-metadata/release.json --checksums release-metadata/SHA256SUMS.txt --output package-manifests
+          python3 -m unittest discover -s test/packaging -p 'test_*.py'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-manifests-${{ inputs.tag }}
+          path: |
+            package-manifests/
+            release-metadata/
+          if-no-files-found: error
+          retention-days: 30

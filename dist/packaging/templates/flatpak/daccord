@@ -1,0 +1,4 @@
+#!/bin/sh
+export DACCORD_PACKAGE_MANAGER=flatpak
+export LD_LIBRARY_PATH="/app/daccord/lib:/app/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec /app/daccord/daccord "$@"

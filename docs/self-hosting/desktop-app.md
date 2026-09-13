@@ -105,3 +105,14 @@ The tray menu reflects the progress (`Checking…`, `Downloading…`, `Update re
 ## When to move to a full deployment
 
 The desktop app is ideal for getting started and for smaller communities, but it only serves while your computer is awake and online. When you outgrow it — you want guaranteed uptime, a real domain with HTTPS, PostgreSQL, or a listing in the public server browser — move to a [server deployment](deploying-a-server.md). Both run the same accordserver, so members reconnect to the new address and carry on.
+
+## Package-manager distribution
+
+WinGet, Scoop, Chocolatey, Homebrew and Flathub recipes are being prepared. They
+are not yet live catalogue listings. See [packaging status](../packaging.md) for
+the release, platform validation and submission requirements.
+
+When installed through a supported package-manager recipe, Daccord leaves updates
+to that manager. Direct GitHub downloads keep the in-app updater. Packagers can
+build with `--dart-define=PACKAGE_MANAGER=true`; this does not change access to
+desktop Developer Mode or local MCP tools.

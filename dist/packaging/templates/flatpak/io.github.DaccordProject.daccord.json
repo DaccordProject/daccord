@@ -1,0 +1,73 @@
+{
+  "app-id": "io.github.DaccordProject.daccord",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "49",
+  "sdk": "org.gnome.Sdk",
+  "command": "daccord",
+  "finish-args": [
+    "--share=network",
+    "--share=ipc",
+    "--socket=wayland",
+    "--socket=fallback-x11",
+    "--socket=pulseaudio",
+    "--device=all",
+    "--filesystem=xdg-run/pipewire-0:ro",
+    "--filesystem=xdg-documents/daccord:create",
+    "--talk-name=org.freedesktop.secrets",
+    "--env=DACCORD_PACKAGE_MANAGER=flatpak"
+  ],
+  "cleanup": ["/include", "/lib/pkgconfig", "/share/man", "*.a", "*.la"],
+  "modules": [
+    {
+      "name": "ffmpeg",
+      "buildsystem": "autotools",
+      "no-autogen": true,
+      "config-opts": ["--disable-static", "--enable-shared", "--disable-programs", "--disable-doc", "--disable-debug", "--disable-autodetect", "--enable-gnutls", "--enable-gpl", "--enable-version3"],
+      "sources": [{"type": "git", "url": "https://github.com/FFmpeg/FFmpeg.git", "tag": "n9.0.1", "commit": "bf1b838f2ab88b4f8fd83443325c782ea0e0f7fa"}]
+    },
+    {
+      "name": "libass",
+      "buildsystem": "autotools",
+      "config-opts": ["--disable-static"],
+      "sources": [{"type": "git", "url": "https://github.com/libass/libass.git", "tag": "0.17.5", "commit": "4a05d8127f525943ebf45fdc6497c9e665947f0d"}]
+    },
+    {
+      "name": "libplacebo",
+      "buildsystem": "meson",
+      "config-opts": ["-Dvulkan=disabled", "-Dshaderc=disabled", "-Dglslang=disabled", "-Dopengl=enabled", "-Ddemos=false", "-Dtests=false"],
+      "sources": [{"type": "git", "url": "https://github.com/haasn/libplacebo.git", "tag": "v7.360.1", "commit": "cee9b076f2c63104ccfd497fa79c39a867293ec4"}]
+    },
+    {
+      "name": "libmpv",
+      "buildsystem": "meson",
+      "config-opts": ["-Dlibmpv=true", "-Dcplayer=false", "-Dbuild-date=false", "-Dlua=disabled", "-Djavascript=disabled", "-Dvulkan=disabled", "-Dpulse=enabled", "-Dgl=enabled", "-Degl=enabled"],
+      "sources": [{"type": "git", "url": "https://github.com/mpv-player/mpv.git", "tag": "v0.41.0", "commit": "41f6a645068483470267271e1d09966ca3b9f413"}]
+    },
+    {
+      "name": "daccord",
+      "buildsystem": "simple",
+      "build-commands": [
+        "install -d /app/daccord",
+        "cp -a bundle/. /app/daccord/",
+        "install -Dm755 daccord /app/bin/daccord",
+        "install -Dm644 io.github.DaccordProject.daccord.desktop /app/share/applications/io.github.DaccordProject.daccord.desktop",
+        "install -Dm644 io.github.DaccordProject.daccord.metainfo.xml /app/share/metainfo/io.github.DaccordProject.daccord.metainfo.xml",
+        "install -Dm644 daccord.png /app/share/icons/hicolor/256x256/apps/io.github.DaccordProject.daccord.png"
+      ],
+      "sources": [
+        {
+          "type": "archive", "url": "@@LINUX_URL@@", "sha256": "@@LINUX_SHA256@@", "dest": "bundle", "strip-components": 0, "only-arches": ["x86_64"],
+          "x-checker-data": {
+            "type": "json", "url": "https://api.github.com/repos/DaccordProject/daccord/releases/latest",
+            "version-query": ".tag_name | sub(\"^v\"; \"\")", "timestamp-query": ".published_at",
+            "url-query": ".assets[] | select(.name == \"daccord-linux-x86_64.tgz\") | .browser_download_url", "is-main-source": true
+          }
+        },
+        {"type": "file", "path": "daccord"},
+        {"type": "file", "path": "io.github.DaccordProject.daccord.desktop"},
+        {"type": "file", "path": "io.github.DaccordProject.daccord.metainfo.xml"},
+        {"type": "file", "path": "daccord.png"}
+      ]
+    }
+  ]
+}

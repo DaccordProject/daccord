@@ -221,3 +221,16 @@ external playback. Keep poster/player requests behind explicit consent and
 release player resources on visibility/lifecycle changes. `showEmbeds` is a
 local preference; the message suppression bit is separate. Server-side author
 suppression and asynchronous unfurl policy remain tracked by #352.
+
+### Package-manager distribution
+
+`docs/packaging.md` tracks manifest generation, distribution credentials and
+catalogue acceptance. Run `python3 -m unittest discover -s test/packaging -p 'test_*.py'`
+for changes to the generator or recipes; CI includes it in Release tooling. Package-managed builds use `--dart-define=PACKAGE_MANAGER=true`;
+wrappers can set `DACCORD_PACKAGE_MANAGER`, and Windows installers/Scoop write
+`daccord.package-manager` beside the executable. The shared `isSelfUpdateEnabled`
+gate disables checks, downloads and staged installation without disabling desktop
+Developer Mode. Existing releases predating this gate must not be submitted with
+marker-based recipes. Do not advertise catalogue install commands before acceptance.
+Collapsed rail folders reuse the size-aware space icon renderer for their first
+four resolved members; keep normal and drag previews consistent.

@@ -99,6 +99,9 @@ jobs:
       - name: Verify Mac upload metadata isolation
         run: bundle exec ruby fastlane/test/mac_upload_metadata_test.rb
 
+      - name: Verify package manifest generation
+        run: python3 -m unittest discover -s test/packaging -p 'test_*.py'
+
   analyze:
     name: Analyze & Test (${{ matrix.channel }})
     runs-on: ubuntu-latest

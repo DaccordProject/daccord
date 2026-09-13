@@ -620,6 +620,18 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: artifacts/*
 
+  # Prepare reviewable manifests after publication. The reusable job is advisory
+  # and does not submit to catalogues or need package-manager credentials.
+  package-manifests:
+    name: Prepare package-manager submissions
+    needs: release
+    if: ${{ success() && github.event_name == 'push' && !contains(github.ref_name, '-') }}
+    uses: ./.github/workflows/package-manifests.yml
+    permissions:
+      contents: read
+    with:
+      tag: ${{ github.ref_name }}
+
   # ---------------------------------------------------------------------------
   # Rebuild daccord.gg. The website image bakes in the `daccord-web.zip` asset
   # from *this* repo's latest release and serves it at daccord.gg/chat/, so a new

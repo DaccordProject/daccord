@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
+PackageIdentifier: DaccordProject.Daccord
+PackageVersion: @@VERSION@@
+PackageLocale: en-US
+Publisher: daccord-projects
+PublisherUrl: https://github.com/DaccordProject
+PublisherSupportUrl: https://github.com/DaccordProject/daccord/issues
+PackageName: Daccord
+PackageUrl: https://github.com/DaccordProject/daccord
+License: GPL-3.0-only
+LicenseUrl: https://github.com/DaccordProject/daccord/blob/@@TAG@@/LICENSE
+ShortDescription: Chat, voice, video, and screen sharing for Daccord communities
+Tags:
+- chat
+- communities
+- messaging
+- voice
+ReleaseNotesUrl: https://github.com/DaccordProject/daccord/releases/tag/@@TAG@@
+ManifestType: defaultLocale
+ManifestVersion: 1.12.0

@@ -1,0 +1,28 @@
+{
+  "##": "Review only until the release honors daccord.package-manager. User data is in Documents/daccord/data; do not persist the application directory.",
+  "version": "@@VERSION@@",
+  "description": "Chat, voice, video, and screen sharing for Daccord communities",
+  "homepage": "https://github.com/DaccordProject/daccord",
+  "license": "GPL-3.0-only",
+  "architecture": {
+    "64bit": {
+      "url": "@@WINDOWS_PORTABLE_URL@@",
+      "hash": "@@WINDOWS_PORTABLE_SHA256@@"
+    }
+  },
+  "bin": "daccord.exe",
+  "shortcuts": [["daccord.exe", "Daccord"]],
+  "post_install": "Set-Content -LiteralPath (Join-Path $dir 'daccord.package-manager') -Value 'scoop' -Encoding ascii",
+  "checkver": "github",
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/DaccordProject/daccord/releases/download/v$version/daccord-windows-x86_64.zip",
+        "hash": {
+          "url": "$baseurl/SHA256SUMS.txt",
+          "regex": "(?m)^([a-fA-F0-9]{64})[ \\t]+\\*?daccord-windows-x86_64\\.zip$"
+        }
+      }
+    }
+  }
+}
