@@ -56,7 +56,10 @@ class _AddServerResetAuth extends AccordAuth {
   AccordClient? get client => initial.client;
 
   @override
-  String? keyForBaseUrl(String baseUrl) => null;
+  String? keyForBaseUrl(String baseUrl) => pending.key;
+
+  @override
+  Future<String?> ensureConnectionForBaseUrl(String baseUrl) async => null;
 
   @override
   Future<AddServerOutcome> addServerWithCredentials({

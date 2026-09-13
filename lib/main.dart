@@ -279,24 +279,67 @@ class _MainWindowState extends ConsumerState<MainWindow> {
           break;
         case 'connect':
         case 'invite':
-          final loggedIn = ref.read(accordAuthProvider) is AccordAuthLoggedIn;
-          if (loggedIn) {
-            final ctx = rootNavigatorKey.currentContext;
-            if (ctx != null) {
-              showAddServerDialog(ctx, initialUrl: uri.toString());
-            }
-          } else {
-            if (parsed.route == 'connect' &&
-                (parsed.spaceName != null || parsed.channelName != null)) {
-              final destination = PendingDeepLinkDestination.fromParsed(parsed);
+          final auth = ref.read(accordAuthProvider.notifier);
+          // Settle startup first so restoring the former active account cannot
+          // navigate over this join or replace the user's chosen connection.
+          await auth.restoreSession();
+          if (!mounted) return;
+          final base = parsed.server?.baseUrl;
+          if (base == null) break;
+          try {
+            final key = await auth.ensureConnectionForBaseUrl(base);
+            if (!mounted) return;
+            if (key != null) {
+              final outcome = await auth.joinOnConnection(
+                key,
+                spaceId: parsed.spaceName,
+                invite: parsed.invite,
+              );
+              if (!mounted) return;
+              if (outcome.error != null) {
+                final ctx = rootNavigatorKey.currentContext;
+                if (ctx != null && ctx.mounted) showInfoSnack(ctx, outcome.error!);
+                break;
+              }
+              final destination = outcome.spaceId == null
+                  ? PendingDeepLinkDestination.fromParsed(parsed)
+                  : PendingDeepLinkDestination(
+                      serverBaseUrl: base,
+                      spaceId: outcome.spaceId,
+                      channelName: parsed.channelName,
+                    );
               if (destination != null) {
                 ref.read(pendingDeepLinkProvider.notifier).hold(destination);
               }
+              auth.setActiveServer(key);
+              routerController.go('/spaces');
+              _scheduleDeepLinkResolution();
+              break;
             }
-            final base = parsed.server?.baseUrl;
-            if (base != null) {
-              ProfileStore.sessionBox.put('last-server', base);
+          } catch (error) {
+            final ctx = rootNavigatorKey.currentContext;
+            if (ctx != null && ctx.mounted) {
+              showInfoSnack(ctx, 'Could not use the saved account: $error');
             }
+            break;
+          }
+          final loggedIn = ref.read(accordAuthProvider) is AccordAuthLoggedIn;
+          if (loggedIn) {
+            // Allow restore's login-to-home frame to finish before opening a
+            // dialog owned by the root navigator.
+            await WidgetsBinding.instance.endOfFrame;
+            if (!mounted) return;
+            final ctx = rootNavigatorKey.currentContext;
+            if (ctx != null && ctx.mounted) {
+              showAddServerDialog(
+                ctx,
+                initialUrl: uri.toString(),
+                autoConnect: true,
+              );
+            }
+          } else {
+            ref.read(pendingServerJoinProvider.notifier).hold(parsed);
+            ProfileStore.sessionBox.put('last-server', base);
             routerController.go('/login');
           }
           break;

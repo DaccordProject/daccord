@@ -27,6 +27,33 @@ AccordConnection connection({
 );
 
 void main() {
+  test('joined destination prefers the active matching account and keeps message target', () {
+    final first = connection(
+      host: 'chat.example',
+      status: ConnectionStatus.connecting,
+      userId: 'first',
+      spaces: [AccordSpace(id: 'joined')],
+    );
+    final active = connection(
+      host: 'chat.example',
+      status: ConnectionStatus.connecting,
+      userId: 'active',
+      spaces: [AccordSpace(id: 'joined')],
+    );
+    final resolution = resolveDeepLinkDestination(
+      const PendingDeepLinkDestination(
+        serverBaseUrl: 'https://CHAT.example:443/',
+        spaceId: 'joined',
+        channelId: 'channel',
+        messageId: 'message',
+      ),
+      ConnectionsState(connections: [first, active], activeKey: active.key),
+    ) as DeepLinkResolved;
+    expect(resolution.destination.serverKey, active.key);
+    expect(resolution.destination.channelId, 'channel');
+    expect(resolution.destination.messageId, 'message');
+  });
+
   test(
     'pending controller retains a cold-start destination until consumed',
     () {

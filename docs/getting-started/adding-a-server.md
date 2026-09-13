@@ -53,3 +53,15 @@ You can connect to as many servers as you like. Each one appears as a separate i
 ## Removing a Server
 
 Right-click a space icon in the space bar and select **Remove Server** to disconnect from that server.
+
+## Joining with a saved account
+
+Discovery, pasted server/invite URLs and `daccord://connect` or
+`daccord://invite` links first look for a saved account on the target server,
+including accounts whose background connection has not started yet. Daccord
+reconnects that account, joins the space and opens it. The active account is
+preferred when more than one account matches. Credentials are requested only
+when no saved account matches; invite details survive the login flow.
+
+Host spelling, default ports and trailing slashes are normalized. HTTP and HTTPS,
+nondefault ports and case-sensitive server paths remain separate endpoints.

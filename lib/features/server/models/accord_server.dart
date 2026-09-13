@@ -53,6 +53,15 @@ class AccordServer {
     return v;
   }
 
+  /// Endpoint identity for account lookup. Keep transport, non-default ports,
+  /// and case-sensitive paths distinct: a token must never cross origins just
+  /// because two endpoints share a hostname.
+  static String endpointIdentity(String input) =>
+      Uri.parse(normalizeBaseUrl(input)).toString();
+
+  static bool sameEndpoint(String first, String second) =>
+      endpointIdentity(first) == endpointIdentity(second);
+
   /// The server's federation home domain — the base URL host (e.g.
   /// `a.example`). Qualified IDs minted by this server suffix `@<homeDomain>`,
   /// so this is what recognises the local user's own actions when they echo back

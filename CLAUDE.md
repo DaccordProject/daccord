@@ -209,3 +209,8 @@ MCP's optional `space_management` group provides create/update space and
 create/update/delete/reorder channel tools. Its schemas and validated handlers
 live in `mcp_tools/space_management.dart`; mutations fetch fresh permissions and
 return entity data while refreshing caches. See `docs/developer/mcp-space-management.md`.
+
+Saved-account joins use `AccordAuth.ensureConnectionForBaseUrl` and
+`joinOnConnection` before requesting credentials. Endpoint identity preserves
+transport/port/path boundaries. `pendingServerJoinProvider` retains the invite
+through login; `pendingDeepLinkProvider` opens the hydrated space on its account.

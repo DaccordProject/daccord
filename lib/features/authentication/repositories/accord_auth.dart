@@ -62,8 +62,12 @@ class _AuthAttempt {
 /// connection without re-authenticating.
 @Riverpod(keepAlive: true)
 class AccordAuth extends _$AccordAuth {
-  final _store = AccordSessionStore();
+  AccordAuth({AccordSessionStore? sessionStore})
+      : _store = sessionStore ?? AccordSessionStore();
+
+  final AccordSessionStore _store;
   final Map<String, _Conn> _connections = {};
+  Future<AccordAuthState>? _restoration;
 
   /// Connection keys currently being torn down after a 401, so the burst of
   /// simultaneous unauthorized responses (spaces, members, emojis, …) triggers
@@ -84,10 +88,129 @@ class AccordAuth extends _$AccordAuth {
   /// The connection key (`userId@baseUrl`) currently connected to [baseUrl], if
   /// any — used by the deep-link/add-server flow to detect "already connected".
   String? keyForBaseUrl(String baseUrl) {
+    final activeKey = ref.read(connectionsControllerProvider).activeKey;
+    final active = _connections[activeKey];
+    if (active != null &&
+        AccordServer.sameEndpoint(active.session.server.baseUrl, baseUrl)) {
+      return activeKey;
+    }
     for (final conn in _connections.values) {
-      if (conn.session.server.baseUrl == baseUrl) return conn.session.key;
+      if (AccordServer.sameEndpoint(conn.session.server.baseUrl, baseUrl)) {
+        return conn.session.key;
+      }
     }
     return null;
+  }
+
+  /// Finds a saved account even before startup has created its live client.
+  /// Prefer the active account, including the persisted active pointer while
+  /// restoration is still reading credentials from the platform vault.
+  Future<AccordSession?> accountForBaseUrl(String baseUrl) async {
+    AccordSession? activeLiveSession() {
+      final key = ref.read(connectionsControllerProvider).activeKey;
+      final active = _connections[key]?.session;
+      return active != null &&
+              AccordServer.sameEndpoint(active.server.baseUrl, baseUrl)
+          ? active
+          : null;
+    }
+    final liveActive = activeLiveSession();
+    if (liveActive != null) return liveActive;
+    final accounts = await listAccounts();
+    final active = await _store.readRestorableActive();
+    // Restoration may have published the active account during the vault read.
+    final currentActive = activeLiveSession();
+    if (currentActive != null) return currentActive;
+    if (active != null &&
+        AccordServer.sameEndpoint(active.server.baseUrl, baseUrl)) {
+      return active;
+    }
+    final liveKey = keyForBaseUrl(baseUrl);
+    if (liveKey != null) return _connections[liveKey]?.session;
+    for (final account in accounts) {
+      if (AccordServer.sameEndpoint(account.server.baseUrl, baseUrl)) {
+        return account;
+      }
+    }
+    return null;
+  }
+
+  /// Ensures a saved account has a REST/gateway client without switching the
+  /// visible account or publishing a login-in-progress state. Null means no
+  /// saved account exists; connection errors must be shown instead of asking
+  /// for a second set of credentials.
+  Future<String?> ensureConnectionForBaseUrl(String baseUrl) async {
+    final liveKey = keyForBaseUrl(baseUrl);
+    if (liveKey != null &&
+        liveKey == ref.read(connectionsControllerProvider).activeKey) {
+      return liveKey;
+    }
+    final session = await accountForBaseUrl(baseUrl);
+    if (session == null) return null;
+    if (clientForKey(session.key) != null) return session.key;
+    await _addConnection(session, makeActive: false, replaceExisting: true);
+    if (clientForKey(session.key) == null) {
+      throw StateError('Could not reconnect the saved account');
+    }
+    return session.key;
+  }
+
+  /// Joins on the selected account and populates its rail cache before callers
+  /// activate it. A 409 means existing membership; fetch the space if needed.
+  Future<({String? spaceId, String? error})> joinOnConnection(
+    String key, {
+    String? spaceId,
+    String? invite,
+  }) async {
+    if (spaceId == null && invite == null) return (spaceId: null, error: null);
+    if (invite == null) {
+      final cached = ref.read(connectionsControllerProvider).connectionFor(key);
+      for (final space in cached?.spaces ?? const <AccordSpace>[]) {
+        if (space.id == spaceId || space.slug == spaceId || space.name == spaceId) {
+          // Existing private membership can be opened without attempting the
+          // public-space join endpoint, which correctly rejects private spaces.
+          return (spaceId: space.id, error: null);
+        }
+      }
+    }
+    final target = clientForKey(key);
+    if (target == null) return (spaceId: null, error: 'Connection unavailable');
+    final result = invite != null
+        ? await target.invites.accept(invite)
+        : await target.spaces.join(spaceId!);
+    if (!result.ok && result.statusCode != 409) {
+      return (spaceId: null, error: result.error?.message ?? 'Failed to join');
+    }
+    var space = result.data;
+    var joinedSpaceId = spaceId;
+    // Both join endpoints currently expose raw JSON through accordkit.
+    if (space is Map) {
+      final nested = space['space'];
+      if (nested is Map) {
+        space = AccordSpace.fromJson(Map<String, dynamic>.from(nested));
+      } else if (space['id'] != null) {
+        space = AccordSpace.fromJson(Map<String, dynamic>.from(space));
+      } else {
+        joinedSpaceId = space['space_id']?.toString() ?? joinedSpaceId;
+      }
+    }
+    if (space is! AccordSpace && joinedSpaceId == null && invite != null) {
+      final details = await target.invites.fetch(invite);
+      final invitation = details.data;
+      if (invitation is AccordInvite) joinedSpaceId = invitation.spaceId;
+    }
+    if (space is! AccordSpace && joinedSpaceId != null) {
+      final fetched = await target.spaces.fetch(joinedSpaceId);
+      space = fetched.data;
+    }
+    if (space is! AccordSpace || space.id.isEmpty) {
+      return (spaceId: null, error: 'Server returned no joined space');
+    }
+    ref.read(connectionsControllerProvider.notifier).upsertSpace(key, space);
+    if (ref.read(connectionsControllerProvider).activeKey == key) {
+      ref.read(spacesControllerProvider.notifier).upsertSpace(space);
+    }
+    return (spaceId: space.id, error: null);
   }
 
   @override
@@ -307,7 +430,11 @@ class AccordAuth extends _$AccordAuth {
   /// logged-in state returned for navigation; the rest connect in the
   /// background so the rail can show every server's spaces. Returns
   /// [AccordAuthLoggedOut] when nothing is stored.
-  Future<AccordAuthState> restoreSession() async {
+  Future<AccordAuthState> restoreSession() =>
+      _restoration ??= _restoreSession().whenComplete(() => _restoration = null);
+
+  Future<AccordAuthState> _restoreSession() async {
+    if (state is AccordAuthLoggedIn) return state;
     AccordSession? active;
     try {
       active = await _store.readRestorableActive();
@@ -320,7 +447,11 @@ class AccordAuth extends _$AccordAuth {
     }
     if (active == null) return const AccordAuthLoggedOut();
 
-    final result = await _addConnection(active, makeActive: true);
+    // A join can activate another saved account while the vault read awaits.
+    final result = await _addConnection(
+      active,
+      makeActive: state is! AccordAuthLoggedIn,
+    );
 
     // Reconnect every other saved account in the background.
     final activeKey = active.key;
@@ -801,6 +932,7 @@ class AccordAuth extends _$AccordAuth {
   Future<AccordAuthState> _addConnection(
     AccordSession session, {
     required bool makeActive,
+    bool replaceExisting = false,
   }) async {
     final key = _accountKey(session);
     if (_connections.containsKey(key)) {
@@ -813,8 +945,12 @@ class AccordAuth extends _$AccordAuth {
     // connection onto the same server (which would duplicate its rail group).
     final existingOnServer = keyForBaseUrl(session.server.baseUrl);
     if (existingOnServer != null && existingOnServer != key) {
-      if (!makeActive) return state;
+      if (!makeActive && !replaceExisting) return state;
       await _evictConnection(existingOnServer);
+      // Another lookup may have installed this same session during disposal.
+      if (_connections.containsKey(key)) {
+        return makeActive ? _makeActive(key) : state;
+      }
     }
 
     ref

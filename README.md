@@ -379,3 +379,6 @@ settings includes optional relay-only connections; see [network privacy](docs/pr
 The opt-in [MCP space management tools](docs/developer/mcp-space-management.md)
 create spaces and manage their settings, categories and channels through the
 active account's permissions.
+
+Discovery and invite joins reuse saved accounts, including during startup;
+see [adding a server](docs/getting-started/adding-a-server.md#joining-with-a-saved-account).

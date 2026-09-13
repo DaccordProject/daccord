@@ -1,4 +1,5 @@
 import 'package:bonfire/features/server/controllers/connections.dart';
+import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -98,26 +99,49 @@ class DeepLinkResolved extends DeepLinkResolution {
   final ResolvedDeepLinkDestination destination;
 }
 
-/// Resolves a pending destination only from a READY connection's authoritative
-/// space cache. Missing connections remain pending because background account
-/// restoration is asynchronous; a known READY server with a missing named
-/// space is a final, user-visible failure.
+/// Resolves names from a READY connection's authoritative space cache, or a
+/// server-qualified space ID already hydrated by a successful join. Missing
+/// connections remain pending while background restoration is asynchronous.
 DeepLinkResolution resolveDeepLinkDestination(
   PendingDeepLinkDestination pending,
   ConnectionsState connections,
 ) {
   final targetBaseUrl = pending.serverBaseUrl;
   if (targetBaseUrl != null) {
-    AccordConnection? owner;
+    AccordConnection? owner = connections.active;
+    if (owner != null && !AccordServer.sameEndpoint(
+      owner.session.server.baseUrl,
+      targetBaseUrl,
+    )) {
+      owner = null;
+    }
     for (final connection in connections.connections) {
-      if (connection.session.server.baseUrl == targetBaseUrl) {
+      if (owner != null) break;
+      if (AccordServer.sameEndpoint(
+        connection.session.server.baseUrl,
+        targetBaseUrl,
+      )) {
         owner = connection;
         break;
       }
     }
-    if (owner == null ||
-        owner.status != ConnectionStatus.ready ||
-        !owner.spacesReady) {
+    if (owner == null) return const DeepLinkWaiting();
+    // A successful REST join has already hydrated this exact space; opening
+    // it need not wait for a background gateway to reach READY.
+    final joinedSpaceId = pending.spaceId;
+    if (joinedSpaceId != null &&
+        owner.spaces.any((space) => space.id == joinedSpaceId)) {
+      return DeepLinkResolved(
+        ResolvedDeepLinkDestination(
+          serverKey: owner.key,
+          spaceId: joinedSpaceId,
+          channelId: pending.channelId,
+          channelName: pending.channelName,
+          messageId: pending.messageId,
+        ),
+      );
+    }
+    if (owner.status != ConnectionStatus.ready || !owner.spacesReady) {
       return const DeepLinkWaiting();
     }
     final requestedSpace = pending.spaceName;
@@ -190,4 +214,20 @@ class PendingDeepLinkController extends Notifier<PendingDeepLinkDestination?> {
 final pendingDeepLinkProvider =
     NotifierProvider<PendingDeepLinkController, PendingDeepLinkDestination?>(
       PendingDeepLinkController.new,
+    );
+
+/// A join that still needs credentials. Keep the complete server-qualified
+/// request across login/MFA instead of discarding an invite in `/login`.
+class PendingServerJoinController extends Notifier<ParsedServerUrl?> {
+  @override
+  ParsedServerUrl? build() => null;
+
+  void hold(ParsedServerUrl request) => state = request;
+
+  void clear() => state = null;
+}
+
+final pendingServerJoinProvider =
+    NotifierProvider<PendingServerJoinController, ParsedServerUrl?>(
+      PendingServerJoinController.new,
     );

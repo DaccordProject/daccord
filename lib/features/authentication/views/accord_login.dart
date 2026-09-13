@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/authentication/utils/credential_validation.dart';
@@ -12,7 +11,8 @@ import 'package:bonfire/features/authentication/views/terms_gate.dart';
 import 'package:bonfire/features/authentication/views/welcome_view.dart';
 import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
-import 'package:bonfire/features/spaces/controllers/spaces.dart';
+import 'package:bonfire/features/server/services/deep_link_navigation.dart';
+import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -99,6 +99,8 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   /// True until the launch-time session restore attempt settles, so we show a
   /// loader instead of flashing the login form for returning users.
   bool _restoring = true;
+  bool _lookingUpAccount = false;
+  bool _finishingLogin = false;
 
   @override
   void initState() {
@@ -106,6 +108,12 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     _termsAccepted = hasAcceptedAppTerms();
     final lastServer = ProfileStore.sessionBox.get('last-server');
     if (lastServer is String) _serverController.text = lastServer;
+    final pending = ref.read(pendingServerJoinProvider);
+    final pendingServer = pending?.server;
+    if (pendingServer != null) {
+      _serverController.text = pendingServer.baseUrl;
+      _view = _LoggedOutView.credentials;
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final notifier = ref.read(accordAuthProvider.notifier);
@@ -192,6 +200,12 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   /// `serverUrl` before joining `spaceId`: switch to the credentials form,
   /// pre-fill it, and remember the space so the next successful login joins it.
   void _onDiscoveryJoinRequiresAuth(String serverUrl, String spaceId) {
+    ref.read(pendingServerJoinProvider.notifier).hold(
+      ParsedServerUrl(
+        server: AccordServer.fromBaseUrl(serverUrl),
+        spaceId: spaceId,
+      ),
+    );
     ProfileStore.sessionBox.put('last-server', serverUrl);
     setState(() {
       _serverController.text = serverUrl;
@@ -202,22 +216,40 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     });
   }
 
-  Future<void> _joinPendingSpace(AccordClient client, String spaceId) async {
-    final result = await client.spaces.join(spaceId);
-    if (!mounted) return;
-    final space = result.data;
-    if ((result.ok || result.statusCode == 409) && space is AccordSpace) {
-      ref.read(spacesControllerProvider.notifier).upsertSpace(space);
-    }
-  }
-
-  void _submit() {
+  Future<void> _submit() async {
+    if (_lookingUpAccount) return;
     final rawServer = _serverController.text.trim();
     if (rawServer.isEmpty) return;
-    final server = _serverFromInput(rawServer);
-    if (server == null) return;
-    ProfileStore.sessionBox.put('last-server', rawServer);
+    final parsed = ServerUri.parseServerUrl(rawServer);
+    final server = parsed?.server;
+    if (parsed == null || server == null) {
+      setState(() => _authLocalError = 'Enter a valid server URL');
+      return;
+    }
+    final pending = ref.read(pendingServerJoinProvider);
+    if (parsed.hasInvite || parsed.spaceName != null || pending == null ||
+        pending.server == null ||
+        !AccordServer.sameEndpoint(pending.server!.baseUrl, server.baseUrl)) {
+      ref.read(pendingServerJoinProvider.notifier).hold(parsed);
+    }
+    ProfileStore.sessionBox.put('last-server', server.baseUrl);
     final notifier = ref.read(accordAuthProvider.notifier);
+    setState(() => _lookingUpAccount = true);
+    try {
+      final key = await notifier.ensureConnectionForBaseUrl(server.baseUrl);
+      if (!mounted) return;
+      if (key != null) {
+        notifier.setActiveServer(key);
+        return;
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _authLocalError = 'Could not use the saved account: $error');
+      }
+      return;
+    } finally {
+      if (mounted) setState(() => _lookingUpAccount = false);
+    }
 
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
@@ -278,9 +310,72 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
 
   void _navigateToHome() => context.go('/spaces');
 
+  Future<void> _finishLogin(AccordAuthLoggedIn loggedIn) async {
+    if (_finishingLogin) return;
+    _finishingLogin = true;
+    final pending = ref.read(pendingServerJoinProvider);
+    if (pending != null && pending.server != null &&
+        AccordServer.sameEndpoint(
+          pending.server!.baseUrl,
+          loggedIn.session.server.baseUrl,
+        )) {
+      try {
+        final outcome = await ref.read(accordAuthProvider.notifier).joinOnConnection(
+          loggedIn.session.key,
+          spaceId: pending.spaceId ?? pending.spaceName,
+          invite: pending.invite,
+        );
+        if (!mounted) return;
+        if (outcome.error != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(outcome.error!)),
+          );
+        } else {
+          // A newer link may have arrived while this join was in flight.
+          if (identical(ref.read(pendingServerJoinProvider), pending)) {
+            ref.read(pendingServerJoinProvider.notifier).clear();
+          }
+          final destination = outcome.spaceId == null
+              ? (pending.spaceName != null || pending.channelName != null
+                  ? PendingDeepLinkDestination.fromParsed(pending)
+                  : null)
+              : PendingDeepLinkDestination(
+                  serverBaseUrl: loggedIn.session.server.baseUrl,
+                  spaceId: outcome.spaceId,
+                  channelName: pending.channelName,
+                );
+          if (destination != null) {
+            ref.read(pendingDeepLinkProvider.notifier).hold(destination);
+          }
+        }
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not join: $error')),
+        );
+      }
+    }
+    if (!mounted) return;
+    _pendingJoinSpaceId = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && ref.read(pendingDeepLinkProvider) == null) {
+        _navigateToHome();
+      }
+    });
+    _finishingLogin = false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(accordAuthProvider);
+    ref.listen(pendingServerJoinProvider, (previous, next) {
+      final server = next?.server;
+      if (server == null) return;
+      setState(() {
+        _serverController.text = server.baseUrl;
+        _view = _LoggedOutView.credentials;
+      });
+    });
 
     // Covers a login that completes *while this screen is showing* — a state
     // change doesn't re-run router redirects. Landing on a sign-in route while
@@ -290,18 +385,13 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     // mounted underneath them.
     ref.listen(accordAuthProvider, (previous, next) {
       if (next is AccordAuthLoggedIn) {
-        final spaceId = _pendingJoinSpaceId;
-        _pendingJoinSpaceId = null;
-        if (spaceId != null) _joinPendingSpace(next.client, spaceId);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _navigateToHome();
-        });
+        _finishLogin(next);
       }
     });
 
     // Loading / MFA / forced-password-change: simple centered forms with no
     // onboarding chrome.
-    if (_restoring ||
+    if (_restoring || _lookingUpAccount ||
         state is AccordAuthInProgress ||
         state is AccordAuthLoggedIn) {
       return _centered(

@@ -1,4 +1,3 @@
-import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/authentication/utils/credential_validation.dart';
@@ -9,7 +8,6 @@ import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/services/deep_link_navigation.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:bonfire/features/server/services/federation_join.dart';
-import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -31,21 +29,31 @@ Future<void> showAddServerDialog(
   BuildContext context, {
   String? initialUrl,
   String? joinSpaceId,
+  bool autoConnect = false,
 }) {
   return showDialog<void>(
     context: context,
     builder: (_) =>
-        _AddServerDialog(initialUrl: initialUrl, joinSpaceId: joinSpaceId),
+        _AddServerDialog(
+          initialUrl: initialUrl,
+          joinSpaceId: joinSpaceId,
+          autoConnect: autoConnect,
+        ),
   );
 }
 
 enum _UrlStep { url, credentials, mfa, passwordReset }
 
 class _AddServerDialog extends ConsumerStatefulWidget {
-  const _AddServerDialog({this.initialUrl, this.joinSpaceId});
+  const _AddServerDialog({
+    this.initialUrl,
+    this.joinSpaceId,
+    this.autoConnect = false,
+  });
 
   final String? initialUrl;
   final String? joinSpaceId;
+  final bool autoConnect;
 
   @override
   ConsumerState<_AddServerDialog> createState() => _AddServerDialogState();
@@ -103,6 +111,11 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
       _pendingInviteCode = ServerUri.parseServerUrl(initial)?.invite;
     }
     _pendingJoinSpaceId = widget.joinSpaceId;
+    if (widget.autoConnect) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _continueFromUrl();
+      });
+    }
   }
 
   @override
@@ -129,30 +142,38 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
 
   /// Connection succeeded (and is now the active one). Joins a pending discovery
   /// space if any, then closes the dialog.
-  Future<void> _finishAfterConnect() async {
-    final client = _auth.client;
-    final spaceId = _pendingJoinSpaceId;
-    if (client != null && spaceId != null && spaceId.isNotEmpty) {
-      final result = await client.spaces.join(spaceId);
-      final space = result.data;
-      if (space is AccordSpace) {
-        ref.read(spacesControllerProvider.notifier).upsertSpace(space);
-      }
+  Future<void> _finishAfterConnect({String? connectionKey}) async {
+    final server = _server;
+    final key = connectionKey ??
+        (server == null ? null : _auth.keyForBaseUrl(server.baseUrl));
+    if (key == null) {
+      _fail('Connection unavailable');
+      return;
     }
-    // Redeem an invite code (deep link / ?invite=) against the now-active
-    // connection. The accept response carries the joined space.
-    final invite = _pendingInviteCode;
-    if (client != null && invite != null && invite.isNotEmpty) {
-      final result = await client.invites.accept(invite);
-      final space = result.data;
-      if (space is AccordSpace) {
-        ref.read(spacesControllerProvider.notifier).upsertSpace(space);
-      }
+    final auth = _auth;
+    final outcome = await auth.joinOnConnection(
+      key,
+      spaceId: _pendingJoinSpaceId ?? _pendingDeepLinkDestination?.spaceName,
+      invite: _pendingInviteCode,
+    );
+    if (!mounted) return;
+    if (outcome.error != null) {
+      setState(() => _step = _UrlStep.url);
+      _fail(outcome.error!);
+      return;
     }
-    final destination = _pendingDeepLinkDestination;
+    final destination = outcome.spaceId == null
+        ? _pendingDeepLinkDestination
+        : PendingDeepLinkDestination(
+            serverBaseUrl: server!.baseUrl,
+            spaceId: outcome.spaceId,
+            spaceName: _pendingDeepLinkDestination?.spaceName,
+            channelName: _pendingDeepLinkDestination?.channelName,
+          );
     if (destination != null) {
       ref.read(pendingDeepLinkProvider.notifier).hold(destination);
     }
+    auth.setActiveServer(key);
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -164,22 +185,12 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
       return;
     }
     // A pasted invite URL carries its code here too.
-    if (parsed.invite != null && parsed.invite!.isNotEmpty) {
-      _pendingInviteCode = parsed.invite;
-    }
+    _pendingInviteCode = parsed.invite;
     final destination = PendingDeepLinkDestination.fromParsed(parsed);
     _pendingDeepLinkDestination =
         parsed.spaceName != null || parsed.channelName != null
         ? destination
         : null;
-
-    // Already connected to this server: switch to it (and join a pending space).
-    final existing = _auth.keyForBaseUrl(server.baseUrl);
-    if (existing != null) {
-      _auth.setActiveServer(existing);
-      await _finishAfterConnect();
-      return;
-    }
 
     setState(() {
       _server = server;
@@ -187,6 +198,18 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
       _error = null;
       _busy = true;
     });
+
+    try {
+      final existing = await _auth.ensureConnectionForBaseUrl(server.baseUrl);
+      if (!mounted) return;
+      if (existing != null) {
+        await _finishAfterConnect(connectionKey: existing);
+        return;
+      }
+    } catch (error) {
+      if (mounted) _fail('Could not use the saved account: $error');
+      return;
+    }
 
     // A link that carries a token can authenticate directly.
     final token = parsed.token;

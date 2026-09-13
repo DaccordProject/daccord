@@ -9,9 +9,9 @@ import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
+import 'package:bonfire/features/server/services/deep_link_navigation.dart';
 import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
-import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -316,37 +316,42 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
       setState(() => _error = 'This listing is missing its server details');
       return;
     }
-    final baseUrl = AccordServer.fromBaseUrl(rawServerUrl).baseUrl;
-    final auth = ref.read(accordAuthProvider.notifier);
-    final existingKey = auth.keyForBaseUrl(baseUrl);
-
-    // Not connected to this instance yet — defer to the host to authenticate.
-    if (existingKey == null) {
-      final handler = widget.onJoinRequiresAuth;
-      if (handler != null) {
-        handler(baseUrl, spaceId);
-      } else {
-        showAddServerDialog(context, initialUrl: baseUrl, joinSpaceId: spaceId);
-      }
-      return;
-    }
-
-    // Already connected: join directly on that connection and switch to it.
-    final client = auth.clientForKey(existingKey);
-    if (client == null) return;
+    if (_joining.contains(spaceId)) return;
     setState(() => _joining.add(spaceId));
-    final result = await client.spaces.join(spaceId);
-    if (!mounted) return;
-    setState(() => _joining.remove(spaceId));
-    final space = result.data;
-    auth.setActiveServer(existingKey);
-    if ((result.ok || result.statusCode == 409) && space is AccordSpace) {
-      ref.read(spacesControllerProvider.notifier).upsertSpace(space);
-    } else if (!result.ok && result.statusCode != 409) {
-      setState(() => _error = result.errorOr('Failed to join'));
-      return;
+    try {
+      final baseUrl = AccordServer.fromBaseUrl(rawServerUrl).baseUrl;
+      final auth = ref.read(accordAuthProvider.notifier);
+      final existingKey = await auth.ensureConnectionForBaseUrl(baseUrl);
+      if (!mounted) return;
+      // Only an absent saved account needs the host's credentials flow.
+      if (existingKey == null) {
+        final handler = widget.onJoinRequiresAuth;
+        if (handler != null) {
+          handler(baseUrl, spaceId);
+        } else {
+          showAddServerDialog(context, initialUrl: baseUrl, joinSpaceId: spaceId);
+        }
+        return;
+      }
+      final outcome = await auth.joinOnConnection(existingKey, spaceId: spaceId);
+      if (!mounted) return;
+      if (outcome.error != null) {
+        setState(() => _error = outcome.error);
+        return;
+      }
+      ref.read(pendingDeepLinkProvider.notifier).hold(
+        PendingDeepLinkDestination(
+          serverBaseUrl: baseUrl,
+          spaceId: outcome.spaceId,
+        ),
+      );
+      auth.setActiveServer(existingKey);
+      if (mounted) Navigator.of(context).maybePop();
+    } catch (error) {
+      if (mounted) setState(() => _error = 'Could not join: $error');
+    } finally {
+      if (mounted) setState(() => _joining.remove(spaceId));
     }
-    if (mounted) Navigator.of(context).maybePop();
   }
 
   @override

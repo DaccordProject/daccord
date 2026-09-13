@@ -3,6 +3,7 @@ import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
+import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/services/deep_link_navigation.dart';
 import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/theme/app_theme.dart';
@@ -25,6 +26,10 @@ class _ExistingServerAuth extends AccordAuth {
   @override
   String? keyForBaseUrl(String baseUrl) =>
       baseUrl == loggedIn.session.server.baseUrl ? loggedIn.session.key : null;
+
+  @override
+  Future<String?> ensureConnectionForBaseUrl(String baseUrl) async =>
+      keyForBaseUrl(baseUrl);
 
   @override
   void setActiveServer(String key) => activatedKey = key;
@@ -73,6 +78,13 @@ void main() {
       ),
     );
 
+    final container = ProviderScope.containerOf(
+      tester.element(find.text('Open')),
+    );
+    container.read(connectionsControllerProvider.notifier).register(session);
+    container.read(connectionsControllerProvider.notifier).setSpaces(session.key, [
+      AccordSpace(id: 'team-space', slug: 'team-news', name: 'Team News'),
+    ]);
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Connect'));
@@ -80,9 +92,6 @@ void main() {
 
     expect(find.text('Add a Server'), findsNothing);
     expect(auth.activatedKey, session.key);
-    final container = ProviderScope.containerOf(
-      tester.element(find.text('Open')),
-    );
     final pending = container.read(pendingDeepLinkProvider);
     expect(pending?.serverBaseUrl, server.baseUrl);
     expect(pending?.spaceName, 'team-news');
