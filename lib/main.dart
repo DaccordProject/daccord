@@ -226,7 +226,6 @@ class _MainWindowState extends ConsumerState<MainWindow> {
   }
 
   void _handleUri(Uri uri) {
-    if (uri.scheme != 'daccord') return;
     final parsed = ServerUri.parseDeepLink(uri.toString());
     if (parsed == null) return;
 

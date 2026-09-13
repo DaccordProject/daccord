@@ -229,8 +229,8 @@ class _TabStripState extends ConsumerState<_TabStrip> {
   }
 }
 
-/// Builds a `daccord://connect/<host>[/<slug>][?channel=<name>]` share link,
-/// matching the reference client's `UriHandler.build_connect_url`.
+/// Builds a public Universal Link. It opens the installed app directly on iOS
+/// and falls back to the website launcher elsewhere.
 String _buildConnectLink(
   AccordServer server,
   AccordSpace? space,
@@ -240,7 +240,7 @@ String _buildConnectLink(
   final slash = host.indexOf('/');
   if (slash != -1) host = host.substring(0, slash);
   final slug = (space?.slug.isNotEmpty ?? false) ? space!.slug : '';
-  var url = 'daccord://connect/$host';
+  var url = 'https://www.daccord.gg/open/connect/$host';
   if (slug.isNotEmpty) url += '/${Uri.encodeComponent(slug)}';
   if (channelName.isNotEmpty) {
     url += '?channel=${Uri.encodeComponent(channelName)}';

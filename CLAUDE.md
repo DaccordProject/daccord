@@ -41,6 +41,8 @@ The Accord server backend is [`accordserver`](https://github.com/DaccordProject/
 
 ### Layout
 
+- Universal Links use `https://www.daccord.gg/open/`. Before releasing the iOS entitlement, verify the website association file, regenerated signing profile and physical-device launch; see `docs/app-store-deploy.md`.
+
 ```
 lib/
   features/        # feature modules: authentication, spaces, channels, messaging,

@@ -255,6 +255,48 @@ void main() {
     });
   });
 
+  group('ServerUri.parseDeepLink — Universal Links', () {
+    test('parses a www connect link with encoded destinations', () {
+      final parsed = ServerUri.parseDeepLink(
+        'https://www.daccord.gg/open/connect/chat.example.com:8443/'
+        'my%20space?channel=release%20notes',
+      );
+
+      expect(parsed, isNotNull);
+      expect(parsed!.route, 'connect');
+      expect(parsed.server?.baseUrl, 'https://chat.example.com:8443');
+      expect(parsed.spaceName, 'my space');
+      expect(parsed.channelName, 'release notes');
+    });
+
+    test('parses a root-domain navigation link', () {
+      final parsed = ServerUri.parseDeepLink(
+        'https://daccord.gg/open/navigate/space1/chan1?msg=msg1',
+      );
+
+      expect(parsed, isNotNull);
+      expect(parsed!.spaceId, 'space1');
+      expect(parsed.channelId, 'chan1');
+      expect(parsed.messageId, 'msg1');
+    });
+
+    test('rejects lookalike, insecure, userinfo, and unrelated web URLs', () {
+      for (final url in [
+        'https://daccord.gg.evil.example/open/navigate/space1',
+        'http://www.daccord.gg/open/navigate/space1',
+        'https://attacker@www.daccord.gg/open/navigate/space1',
+        'https://www.daccord.gg:8443/open/navigate/space1',
+        'https://www.daccord.gg/blog/',
+      ]) {
+        expect(
+          ServerUri.parseDeepLink(url),
+          isNull,
+          reason: 'expected $url to be rejected',
+        );
+      }
+    });
+  });
+
   group('ServerUri host validation', () {
     test('a host containing a space is rejected', () {
       expect(ServerUri.parseDeepLink('daccord://connect/bad host'), isNull);

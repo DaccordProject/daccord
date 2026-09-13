@@ -60,6 +60,26 @@ generates the certs/profiles and prints the `gh secret set` commands.
 | `MAC_PROFILE_BASE64` | base64 of the **Mac App Store** provisioning profile |
 | `MAC_PROFILE_NAME` | that profile's name |
 
+### Universal Links
+
+The iOS App ID must enable **Associated Domains**. The app claims
+`applinks:www.daccord.gg`; regenerate `IOS_PROFILE_BASE64` after enabling the
+capability. `scripts/bootstrap-signing.sh` verifies the decoded profile permits
+that domain, including profiles granting `*` rather than listing each domain.
+
+Before merging/releasing the entitlement and new share links, verify:
+
+- `https://www.daccord.gg/.well-known/apple-app-site-association` is public,
+  serves JSON without redirects, and associates `/open/*` with the signed
+  app's application identifier (App ID prefix plus bundle ID).
+- `/open/connect/...` and `/open/navigate/...` provide a browser fallback.
+- A freshly signed iOS install opens a link from another app and navigates to
+  the intended server/channel; also test the fallback without the app installed.
+
+The custom `daccord://` scheme remains accepted. Parser tests cover the HTTPS
+host/path allowlist, but cannot establish that Apple's association or signing
+configuration is deployed. See [Apple's Universal Links documentation](https://developer.apple.com/library/archive/documentation/General/Conceptual/AppSearch/UniversalLinks.html).
+
 ### Google Play (`android-play` job)
 
 | Secret | What it is |
