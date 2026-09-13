@@ -136,7 +136,9 @@ AccordClient _client() {
     overrides: [
       accordAuthProvider.overrideWith(() => _FakeAccordAuth(client)),
       connectionsControllerProvider.overrideWith(_ActiveConnections.new),
-      settingsControllerProvider.overrideWith(() => _FixedSettingsController(relayOnly: relayOnly)),
+      settingsControllerProvider.overrideWith(
+        () => _FixedSettingsController(relayOnly: relayOnly),
+      ),
       if (voice != null) voiceControllerProvider.overrideWith(voice),
     ],
   );
@@ -154,19 +156,25 @@ void main() {
 
   tearDown(() => soundManager.setVoiceSessionActive(false));
 
-  test('relay-only preference reaches initial join and gateway reconnect', () async {
-    final h = _harness(relayOnly: true);
-    final controller = h.container.read(voiceControllerProvider.notifier);
-    await controller.join('c1', 's1');
-    expect(h.session.connectedRelayOnly, isTrue);
-    controller.handleServerUpdate(AccordVoiceServerUpdate.fromJson({
-      'channel_id': 'c1', 'livekit_url': 'wss://livekit.example',
-      'token': 'refreshed',
-    }));
-    await pump();
-    expect(h.session.connects, 2);
-    expect(h.session.connectedRelayOnly, isTrue);
-  });
+  test(
+    'relay-only preference reaches initial join and gateway reconnect',
+    () async {
+      final h = _harness(relayOnly: true);
+      final controller = h.container.read(voiceControllerProvider.notifier);
+      await controller.join('c1', 's1');
+      expect(h.session.connectedRelayOnly, isTrue);
+      controller.handleServerUpdate(
+        AccordVoiceServerUpdate.fromJson({
+          'channel_id': 'c1',
+          'livekit_url': 'wss://livekit.example',
+          'token': 'refreshed',
+        }),
+      );
+      await pump();
+      expect(h.session.connects, 2);
+      expect(h.session.connectedRelayOnly, isTrue);
+    },
+  );
 
   group('initial mic publish (#325)', () {
     test('a denied microphone joins muted with the reason surfaced', () async {

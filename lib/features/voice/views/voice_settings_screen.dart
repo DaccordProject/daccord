@@ -15,9 +15,9 @@ import 'package:livekit_client/livekit_client.dart';
 /// sensitivity + live mic test, camera). Ports the reference client's
 /// `app_settings` Voice & Video page reached from the voice bar's gear.
 Future<void> showVoiceSettings(BuildContext context) {
-  return Navigator.of(context).push(
-    MaterialPageRoute(builder: (_) => const VoiceSettingsScreen()),
-  );
+  return Navigator.of(
+    context,
+  ).push(MaterialPageRoute(builder: (_) => const VoiceSettingsScreen()));
 }
 
 class VoiceSettingsScreen extends ConsumerStatefulWidget {
@@ -74,9 +74,11 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
         children: [
           SwitchListTile(
             title: const Text('Relay-only voice'),
-            subtitle: const Text('Route voice, video and screen sharing through '
-                'a TURN relay. Requires server support and may increase latency. '
-                'Applies on your next connection; leave and rejoin to apply now.'),
+            subtitle: const Text(
+              'Route voice, video and screen sharing through '
+              'a TURN relay. Requires server support and may increase latency. '
+              'Applies on your next connection; leave and rejoin to apply now.',
+            ),
             value: settings.voiceRelayOnly,
             onChanged: controller.setVoiceRelayOnly,
           ),
@@ -107,12 +109,11 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
                 Text(
                   connected
                       ? 'Speak — the bar lights up green when you cross the '
-                          'threshold (yellow marker).'
+                            'threshold (yellow marker).'
                       : 'Join a voice channel to test your microphone.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall!
-                      .copyWith(color: colors.gray),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall!.copyWith(color: colors.gray),
                 ),
               ],
             ),
@@ -151,9 +152,10 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
             ),
             trailing: DropdownButton<int>(
               key: const Key('afk-timeout-dropdown'),
-              value: afkTimeoutOptionsMinutes.contains(
-                settings.voiceAfkTimeoutMinutes,
-              )
+              value:
+                  afkTimeoutOptionsMinutes.contains(
+                    settings.voiceAfkTimeoutMinutes,
+                  )
                   ? settings.voiceAfkTimeoutMinutes
                   : defaultAfkTimeoutMinutes,
               underline: const SizedBox.shrink(),
@@ -210,9 +212,11 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
                 if (value != null) controller.setVideoResolution(value);
               },
               items: [
-                for (var i = 0;
-                    i < AccordSettings.videoResolutionLabels.length;
-                    i++)
+                for (
+                  var i = 0;
+                  i < AccordSettings.videoResolutionLabels.length;
+                  i++
+                )
                   DropdownMenuItem(
                     value: i,
                     child: Text(AccordSettings.videoResolutionLabels[i]),
@@ -259,9 +263,11 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
                 if (value != null) controller.setScreenShareResolution(value);
               },
               items: [
-                for (var i = 0;
-                    i < AccordSettings.screenShareResolutionLabels.length;
-                    i++)
+                for (
+                  var i = 0;
+                  i < AccordSettings.screenShareResolutionLabels.length;
+                  i++
+                )
                   DropdownMenuItem(
                     value: i,
                     child: Text(AccordSettings.screenShareResolutionLabels[i]),

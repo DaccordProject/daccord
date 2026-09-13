@@ -535,10 +535,14 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                           padding: const EdgeInsets.only(top: 4),
                           child: _PendingAttachmentTile(upload: upload),
                         ),
-                      if (ref.watch(settingsControllerProvider.select((s) => s.showEmbeds)) &&
+                      if (ref.watch(
+                            settingsControllerProvider.select(
+                              (s) => s.showEmbeds,
+                            ),
+                          ) &&
                           (message.flags & (1 << 2)) == 0)
-                      for (final embed in message.embeds)
-                        AccordEmbedBox(embed: embed, cdnUrl: cdnUrl),
+                        for (final embed in message.embeds)
+                          AccordEmbedBox(embed: embed, cdnUrl: cdnUrl),
                       if ((message.reactions ?? const []).isNotEmpty)
                         _buildReactions(message, theme, colors, cdnUrl),
                       if (message.replyCount > 0)

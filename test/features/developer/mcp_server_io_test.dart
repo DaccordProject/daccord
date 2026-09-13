@@ -36,24 +36,65 @@ void main() {
     expect(await server.start(0), isTrue);
     final client = HttpClient();
     try {
-      Future<Map<String, dynamic>> post(String method, {Map<String, dynamic>? params}) async {
-        final request = await client.postUrl(Uri.parse('http://127.0.0.1:${server.port}/mcp'));
+      Future<Map<String, dynamic>> post(
+        String method, {
+        Map<String, dynamic>? params,
+      }) async {
+        final request = await client.postUrl(
+          Uri.parse('http://127.0.0.1:${server.port}/mcp'),
+        );
         request.headers.contentType = ContentType.json;
         request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
-        request.write(jsonEncode({'jsonrpc': '2.0', 'id': 1, 'method': method, if (params != null) 'params': params}));
+        request.write(
+          jsonEncode({
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': method,
+            if (params != null) 'params': params,
+          }),
+        );
         final response = await request.close();
-        return jsonDecode(await utf8.decoder.bind(response).join()) as Map<String, dynamic>;
+        return jsonDecode(await utf8.decoder.bind(response).join())
+            as Map<String, dynamic>;
       }
 
       final hidden = await post('tools/list');
-      expect((hidden['result']['tools'] as List).any((tool) => tool['name'] == 'create_space'), isFalse);
-      final denied = await post('tools/call', params: {'name': 'create_space', 'arguments': {'name': 'Community'}});
-      expect(denied['error']['message'], contains("'space_management' is not enabled"));
+      expect(
+        (hidden['result']['tools'] as List).any(
+          (tool) => tool['name'] == 'create_space',
+        ),
+        isFalse,
+      );
+      final denied = await post(
+        'tools/call',
+        params: {
+          'name': 'create_space',
+          'arguments': {'name': 'Community'},
+        },
+      );
+      expect(
+        denied['error']['message'],
+        contains("'space_management' is not enabled"),
+      );
       allowedGroups = ['read', 'space_management'];
       final visible = await post('tools/list');
-      expect((visible['result']['tools'] as List).any((tool) => tool['name'] == 'create_space'), isTrue);
-      final accepted = await post('tools/call', params: {'name': 'create_space', 'arguments': {'name': 'Community'}});
-      expect(jsonDecode(accepted['result']['content'][0]['text'])['error'], 'Not connected');
+      expect(
+        (visible['result']['tools'] as List).any(
+          (tool) => tool['name'] == 'create_space',
+        ),
+        isTrue,
+      );
+      final accepted = await post(
+        'tools/call',
+        params: {
+          'name': 'create_space',
+          'arguments': {'name': 'Community'},
+        },
+      );
+      expect(
+        jsonDecode(accepted['result']['content'][0]['text'])['error'],
+        'Not connected',
+      );
     } finally {
       client.close(force: true);
     }

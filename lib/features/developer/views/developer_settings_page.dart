@@ -11,9 +11,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Pushes the Developer / Client MCP settings page.
 Future<void> showDeveloperSettings(BuildContext context) {
-  return Navigator.of(context).push(
-    MaterialPageRoute(builder: (_) => const DeveloperSettingsPage()),
-  );
+  return Navigator.of(
+    context,
+  ).push(MaterialPageRoute(builder: (_) => const DeveloperSettingsPage()));
 }
 
 /// Controls the local Client MCP server: enable toggle, bearer token
@@ -37,10 +37,12 @@ class DeveloperSettingsPage extends ConsumerWidget {
     final colors = BonfireThemeExtension.of(context);
     // The page only reads these two settings fields; select them so unrelated
     // settings changes (theme, notifications, …) don't rebuild the page.
-    final mcpEnabled = ref
-        .watch(settingsControllerProvider.select((s) => s.mcpEnabled));
-    final mcpAllowedGroups = ref
-        .watch(settingsControllerProvider.select((s) => s.mcpAllowedGroups));
+    final mcpEnabled = ref.watch(
+      settingsControllerProvider.select((s) => s.mcpEnabled),
+    );
+    final mcpAllowedGroups = ref.watch(
+      settingsControllerProvider.select((s) => s.mcpAllowedGroups),
+    );
     final controller = ref.read(settingsControllerProvider.notifier);
     final server = ref.watch(mcpServerControllerProvider);
 
@@ -57,17 +59,18 @@ class DeveloperSettingsPage extends ConsumerWidget {
               '127.0.0.1 so AI agents on this machine can read state and '
               'drive the app. Bound to loopback only and protected by a '
               'bearer token that never leaves this device.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: colors.gray),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.gray),
             ),
           ),
           SwitchListTile(
             title: const Text('Enable MCP server'),
-            subtitle: Text(server.listening
-                ? 'Listening on 127.0.0.1:${server.port}'
-                : 'Stopped'),
+            subtitle: Text(
+              server.listening
+                  ? 'Listening on 127.0.0.1:${server.port}'
+                  : 'Stopped',
+            ),
             value: mcpEnabled,
             onChanged: (v) => controller.setMcpEnabled(v),
           ),
@@ -97,11 +100,12 @@ class DeveloperSettingsPage extends ConsumerWidget {
             if (server.activity.isEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                child: Text('No tool calls yet.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: colors.gray)),
+                child: Text(
+                  'No tool calls yet.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: colors.gray),
+                ),
               )
             else
               for (final entry in server.activity.reversed)
@@ -115,10 +119,9 @@ class DeveloperSettingsPage extends ConsumerWidget {
                   title: Text(entry.tool),
                   trailing: Text(
                     _formatTime(entry.time),
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: colors.gray),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: colors.gray),
                   ),
                 ),
           ],
@@ -202,14 +205,17 @@ class _TokenTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
     final token = ref.watch(
-        settingsControllerProvider.select((s) => s.mcpToken));
+      settingsControllerProvider.select((s) => s.mcpToken),
+    );
     final masked = token.isEmpty
         ? '(none)'
         : '${token.substring(0, 8)}…${token.substring(token.length - 4)}';
     return ListTile(
       title: const Text('Bearer token'),
-      subtitle: Text(masked,
-          style: TextStyle(fontFamily: 'monospace', color: colors.gray)),
+      subtitle: Text(
+        masked,
+        style: TextStyle(fontFamily: 'monospace', color: colors.gray),
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

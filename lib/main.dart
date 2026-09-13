@@ -298,7 +298,8 @@ class _MainWindowState extends ConsumerState<MainWindow> {
               if (!mounted) return;
               if (outcome.error != null) {
                 final ctx = rootNavigatorKey.currentContext;
-                if (ctx != null && ctx.mounted) showInfoSnack(ctx, outcome.error!);
+                if (ctx != null && ctx.mounted)
+                  showInfoSnack(ctx, outcome.error!);
                 break;
               }
               final destination = outcome.spaceId == null

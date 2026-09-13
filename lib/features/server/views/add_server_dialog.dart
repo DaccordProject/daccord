@@ -33,12 +33,11 @@ Future<void> showAddServerDialog(
 }) {
   return showDialog<void>(
     context: context,
-    builder: (_) =>
-        _AddServerDialog(
-          initialUrl: initialUrl,
-          joinSpaceId: joinSpaceId,
-          autoConnect: autoConnect,
-        ),
+    builder: (_) => _AddServerDialog(
+      initialUrl: initialUrl,
+      joinSpaceId: joinSpaceId,
+      autoConnect: autoConnect,
+    ),
   );
 }
 
@@ -144,7 +143,8 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
   /// space if any, then closes the dialog.
   Future<void> _finishAfterConnect({String? connectionKey}) async {
     final server = _server;
-    final key = connectionKey ??
+    final key =
+        connectionKey ??
         (server == null ? null : _auth.keyForBaseUrl(server.baseUrl));
     if (key == null) {
       _fail('Connection unavailable');
@@ -650,8 +650,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               FilledButton(
-                onPressed:
-                    connected && !_fedBusy ? _submitFederatedJoin : null,
+                onPressed: connected && !_fedBusy ? _submitFederatedJoin : null,
                 child: _fedBusy
                     ? const SizedBox(
                         width: 16,
@@ -679,8 +678,12 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
       _fedBusy = true;
       _fedError = null;
     });
-    final outcome =
-        await joinFederatedSpace(ref, client, addr.domain, addr.spaceId);
+    final outcome = await joinFederatedSpace(
+      ref,
+      client,
+      addr.domain,
+      addr.spaceId,
+    );
     if (!mounted) return;
     if (outcome.error == null) {
       Navigator.of(context).pop();

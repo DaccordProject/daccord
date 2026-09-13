@@ -346,7 +346,8 @@ class AccordRest {
           : 'The server returned a non-JSON response.';
       return RestResult.failure(
         status,
-        AccordError(code: 'HTTP_$status', message: 'HTTP $status$type: $detail'),
+        AccordError(
+            code: 'HTTP_$status', message: 'HTTP $status$type: $detail'),
       );
     }
 

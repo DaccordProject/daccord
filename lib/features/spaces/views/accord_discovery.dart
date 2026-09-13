@@ -329,22 +329,31 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
         if (handler != null) {
           handler(baseUrl, spaceId);
         } else {
-          showAddServerDialog(context, initialUrl: baseUrl, joinSpaceId: spaceId);
+          showAddServerDialog(
+            context,
+            initialUrl: baseUrl,
+            joinSpaceId: spaceId,
+          );
         }
         return;
       }
-      final outcome = await auth.joinOnConnection(existingKey, spaceId: spaceId);
+      final outcome = await auth.joinOnConnection(
+        existingKey,
+        spaceId: spaceId,
+      );
       if (!mounted) return;
       if (outcome.error != null) {
         setState(() => _error = outcome.error);
         return;
       }
-      ref.read(pendingDeepLinkProvider.notifier).hold(
-        PendingDeepLinkDestination(
-          serverBaseUrl: baseUrl,
-          spaceId: outcome.spaceId,
-        ),
-      );
+      ref
+          .read(pendingDeepLinkProvider.notifier)
+          .hold(
+            PendingDeepLinkDestination(
+              serverBaseUrl: baseUrl,
+              spaceId: outcome.spaceId,
+            ),
+          );
       auth.setActiveServer(existingKey);
       if (mounted) Navigator.of(context).maybePop();
     } catch (error) {

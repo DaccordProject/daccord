@@ -7,7 +7,12 @@ import 'package:flutter/material.dart';
 
 /// The selected bytes take precedence over the saved, possibly stable URL.
 class SpaceSettingsIconPreview extends StatelessWidget {
-  const SpaceSettingsIconPreview({super.key, this.url, this.pendingBytes, this.removed = false});
+  const SpaceSettingsIconPreview({
+    super.key,
+    this.url,
+    this.pendingBytes,
+    this.removed = false,
+  });
 
   final String? url;
   final Uint8List? pendingBytes;
@@ -20,12 +25,16 @@ class SpaceSettingsIconPreview extends StatelessWidget {
         ? null
         : pendingBytes != null
         ? MemoryImage(pendingBytes!)
-        : url != null ? CachedNetworkImageProvider(url!) : null;
+        : url != null
+        ? CachedNetworkImageProvider(url!)
+        : null;
     return TickerAwareCircleAvatar(
       radius: 28,
       backgroundColor: colors.darkGray,
       foregroundImage: image,
-      child: image == null ? Icon(Icons.image_outlined, color: colors.gray) : null,
+      child: image == null
+          ? Icon(Icons.image_outlined, color: colors.gray)
+          : null,
     );
   }
 }
@@ -48,17 +57,30 @@ class SpaceSettingsBannerPreview extends StatelessWidget {
         child: ColoredBox(
           color: colors.darkGray,
           child: pendingBytes != null
-              ? Image.memory(pendingBytes!, fit: BoxFit.contain,
-                  filterQuality: FilterQuality.medium)
+              ? Image.memory(
+                  pendingBytes!,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.medium,
+                )
               : url != null
               ? CachedNetworkImage(
                   imageUrl: url!,
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.medium,
-                  errorWidget: (_, _, _) => Center(child: Icon(
-                    Icons.broken_image_outlined, color: colors.gray)),
+                  errorWidget: (_, _, _) => Center(
+                    child: Icon(
+                      Icons.broken_image_outlined,
+                      color: colors.gray,
+                    ),
+                  ),
                 )
-              : Center(child: Icon(Icons.image_outlined, color: colors.gray, size: 32)),
+              : Center(
+                  child: Icon(
+                    Icons.image_outlined,
+                    color: colors.gray,
+                    size: 32,
+                  ),
+                ),
         ),
       ),
     );

@@ -63,7 +63,7 @@ class _AuthAttempt {
 @Riverpod(keepAlive: true)
 class AccordAuth extends _$AccordAuth {
   AccordAuth({AccordSessionStore? sessionStore})
-      : _store = sessionStore ?? AccordSessionStore();
+    : _store = sessionStore ?? AccordSessionStore();
 
   final AccordSessionStore _store;
   final Map<String, _Conn> _connections = {};
@@ -114,6 +114,7 @@ class AccordAuth extends _$AccordAuth {
           ? active
           : null;
     }
+
     final liveActive = activeLiveSession();
     if (liveActive != null) return liveActive;
     final accounts = await listAccounts();
@@ -166,7 +167,9 @@ class AccordAuth extends _$AccordAuth {
     if (invite == null) {
       final cached = ref.read(connectionsControllerProvider).connectionFor(key);
       for (final space in cached?.spaces ?? const <AccordSpace>[]) {
-        if (space.id == spaceId || space.slug == spaceId || space.name == spaceId) {
+        if (space.id == spaceId ||
+            space.slug == spaceId ||
+            space.name == spaceId) {
           // Existing private membership can be opened without attempting the
           // public-space join endpoint, which correctly rejects private spaces.
           return (spaceId: space.id, error: null);
@@ -430,8 +433,8 @@ class AccordAuth extends _$AccordAuth {
   /// logged-in state returned for navigation; the rest connect in the
   /// background so the rail can show every server's spaces. Returns
   /// [AccordAuthLoggedOut] when nothing is stored.
-  Future<AccordAuthState> restoreSession() =>
-      _restoration ??= _restoreSession().whenComplete(() => _restoration = null);
+  Future<AccordAuthState> restoreSession() => _restoration ??= _restoreSession()
+      .whenComplete(() => _restoration = null);
 
   Future<AccordAuthState> _restoreSession() async {
     if (state is AccordAuthLoggedIn) return state;

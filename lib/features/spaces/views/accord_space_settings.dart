@@ -137,7 +137,8 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
   Future<bool> _update(Map<String, dynamic> body, String failure) async {
     final client = _client;
     if (client == null || _busy) return false;
-    final previous = ref.read(spacesControllerProvider)
+    final previous = ref
+        .read(spacesControllerProvider)
         ?.firstWhereOrNull((s) => s.id == widget.spaceId);
     final cdnUrl = ref.readCdnUrl();
     setState(() {
@@ -150,17 +151,22 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     if (result.ok && space is AccordSpace) {
       // A removal must also work with servers that omit cleared fields.
       if (body.containsKey('icon') && body['icon'] == null) space.icon = null;
-      if (body.containsKey('banner') && body['banner'] == null) space.banner = null;
-      await spaceMediaCache.invalidate({
-        if (body.containsKey('icon')) ...[
-          if (previous != null) accordSpaceIconUrl(previous, cdnUrl, versioned: false),
-          accordSpaceIconUrl(space, cdnUrl, versioned: false),
-        ],
-        if (body.containsKey('banner')) ...[
-          if (previous != null) accordSpaceBannerUrl(previous, cdnUrl, versioned: false),
-          accordSpaceBannerUrl(space, cdnUrl, versioned: false),
-        ],
-      }.whereType<String>());
+      if (body.containsKey('banner') && body['banner'] == null)
+        space.banner = null;
+      await spaceMediaCache.invalidate(
+        {
+          if (body.containsKey('icon')) ...[
+            if (previous != null)
+              accordSpaceIconUrl(previous, cdnUrl, versioned: false),
+            accordSpaceIconUrl(space, cdnUrl, versioned: false),
+          ],
+          if (body.containsKey('banner')) ...[
+            if (previous != null)
+              accordSpaceBannerUrl(previous, cdnUrl, versioned: false),
+            accordSpaceBannerUrl(space, cdnUrl, versioned: false),
+          ],
+        }.whereType<String>(),
+      );
       if (!mounted) return false;
       ref.read(spacesControllerProvider.notifier).upsertSpace(space);
       setState(() => _busy = false);
@@ -192,8 +198,10 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
       _pendingBannerBytes = cropped;
       _bannerRemoved = false;
     });
-    if (await _update({'banner': AccordCDN.buildDataUri(cropped, 'banner.png')},
-        'Failed to update banner') && mounted) {
+    if (await _update({
+          'banner': AccordCDN.buildDataUri(cropped, 'banner.png'),
+        }, 'Failed to update banner') &&
+        mounted) {
       setState(() => _pendingBannerBytes = null);
     }
   }
@@ -263,7 +271,10 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
       body['icon'] = null;
     }
     if (_pendingBannerBytes != null) {
-      body['banner'] = AccordCDN.buildDataUri(_pendingBannerBytes!, 'banner.png');
+      body['banner'] = AccordCDN.buildDataUri(
+        _pendingBannerBytes!,
+        'banner.png',
+      );
     } else if (_bannerRemoved) {
       body['banner'] = null;
     }

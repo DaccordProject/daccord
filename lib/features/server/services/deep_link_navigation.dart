@@ -109,10 +109,11 @@ DeepLinkResolution resolveDeepLinkDestination(
   final targetBaseUrl = pending.serverBaseUrl;
   if (targetBaseUrl != null) {
     AccordConnection? owner = connections.active;
-    if (owner != null && !AccordServer.sameEndpoint(
-      owner.session.server.baseUrl,
-      targetBaseUrl,
-    )) {
+    if (owner != null &&
+        !AccordServer.sameEndpoint(
+          owner.session.server.baseUrl,
+          targetBaseUrl,
+        )) {
       owner = null;
     }
     for (final connection in connections.connections) {

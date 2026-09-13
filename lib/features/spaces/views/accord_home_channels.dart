@@ -39,9 +39,7 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
           ref
               .read(channelsLoadFailedProvider(serverKey, spaceId).notifier)
               .set(false);
-          ref.invalidate(
-            accordChannelsControllerProvider(serverKey, spaceId),
-          );
+          ref.invalidate(accordChannelsControllerProvider(serverKey, spaceId));
         },
       );
     }
@@ -53,9 +51,7 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
         onRetry: () {
           final auth = ref.read(accordAuthProvider);
           if (auth is! AccordAuthLoggedIn) return;
-          unawaited(
-            ref.read(retryLoadSpacesProvider)(auth.client, serverKey),
-          );
+          unawaited(ref.read(retryLoadSpacesProvider)(auth.client, serverKey));
         },
       );
     }
@@ -193,51 +189,69 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
                 if (id != null && (canInvite || canManageChannels || canManage))
                   PopupMenuButton<_HeaderAction>(
                     tooltip: 'Space actions',
-                    icon: Icon(Icons.more_vert, size: 18, color: colors.dirtyWhite),
+                    icon: Icon(
+                      Icons.more_vert,
+                      size: 18,
+                      color: colors.dirtyWhite,
+                    ),
                     onSelected: (action) => action.onPressed(),
-                    itemBuilder: (context) => <_HeaderAction>[
-                    if (canInvite && id != null)
-                      _HeaderAction(
-                        tooltip: 'Invite people',
-                        icon: Icons.person_add,
-                        color: colors.dirtyWhite,
-                        onPressed: () => showAccordInvites(context, spaceId: id),
-                      ),
-                    if (canManageChannels && id != null)
-                      _HeaderAction(
-                        tooltip: 'Create channel',
-                        icon: Icons.add,
-                        color: colors.dirtyWhite,
-                        onPressed: () =>
-                            showCreateChannelDialog(context, spaceId: id),
-                      ),
-                    if (canManageChannels && id != null && channels != null)
-                      _HeaderAction(
-                        tooltip: 'Reorder channels',
-                        icon: Icons.reorder,
-                        color: colors.dirtyWhite,
-                        onPressed: () => showAccordChannelReorder(
-                          context,
-                          spaceId: id,
-                          channels: channels,
-                        ),
-                      ),
-                    if (canManage && id != null)
-                      _HeaderAction(
-                        tooltip: 'Space settings',
-                        icon: Icons.settings,
-                        color: colors.dirtyWhite,
-                        onPressed: () =>
-                            showAccordSpaceSettings(context, spaceId: id),
-                      ),
-                    ].map((action) => PopupMenuItem<_HeaderAction>(
-                      value: action,
-                      child: Row(children: [
-                        Icon(action.icon, size: 18),
-                        const SizedBox(width: 12),
-                        Text(action.tooltip),
-                      ]),
-                    )).toList(),
+                    itemBuilder: (context) =>
+                        <_HeaderAction>[
+                              if (canInvite && id != null)
+                                _HeaderAction(
+                                  tooltip: 'Invite people',
+                                  icon: Icons.person_add,
+                                  color: colors.dirtyWhite,
+                                  onPressed: () =>
+                                      showAccordInvites(context, spaceId: id),
+                                ),
+                              if (canManageChannels && id != null)
+                                _HeaderAction(
+                                  tooltip: 'Create channel',
+                                  icon: Icons.add,
+                                  color: colors.dirtyWhite,
+                                  onPressed: () => showCreateChannelDialog(
+                                    context,
+                                    spaceId: id,
+                                  ),
+                                ),
+                              if (canManageChannels &&
+                                  id != null &&
+                                  channels != null)
+                                _HeaderAction(
+                                  tooltip: 'Reorder channels',
+                                  icon: Icons.reorder,
+                                  color: colors.dirtyWhite,
+                                  onPressed: () => showAccordChannelReorder(
+                                    context,
+                                    spaceId: id,
+                                    channels: channels,
+                                  ),
+                                ),
+                              if (canManage && id != null)
+                                _HeaderAction(
+                                  tooltip: 'Space settings',
+                                  icon: Icons.settings,
+                                  color: colors.dirtyWhite,
+                                  onPressed: () => showAccordSpaceSettings(
+                                    context,
+                                    spaceId: id,
+                                  ),
+                                ),
+                            ]
+                            .map(
+                              (action) => PopupMenuItem<_HeaderAction>(
+                                value: action,
+                                child: Row(
+                                  children: [
+                                    Icon(action.icon, size: 18),
+                                    const SizedBox(width: 12),
+                                    Text(action.tooltip),
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(),
                   ),
               ],
             ),
@@ -681,9 +695,9 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
         );
     final voiceCount = isVoice
         ? ref.watch(
-            voiceStatesControllerProvider(ref.readActiveServerKey() ?? '').select(
-              (cache) => voiceUserCount(cache, channel.id),
-            ),
+            voiceStatesControllerProvider(
+              ref.readActiveServerKey() ?? '',
+            ).select((cache) => voiceUserCount(cache, channel.id)),
           )
         : 0;
     final iconColor = connectedHere

@@ -101,7 +101,8 @@ class _ImageCropDialogState extends State<_ImageCropDialog> {
                     radius: widget.circular ? 0 : 6,
                     cornerDotBuilder: (_, _) => const SizedBox.shrink(),
                     onStatusChanged: (status) {
-                      if (mounted) setState(() => _ready = status == CropStatus.ready);
+                      if (mounted)
+                        setState(() => _ready = status == CropStatus.ready);
                     },
                     onCropped: (result) async {
                       if (!mounted) return;
@@ -116,14 +117,16 @@ class _ImageCropDialogState extends State<_ImageCropDialog> {
                           case CropFailure():
                             setState(() {
                               _busy = false;
-                              _error = 'Could not crop this image. Try another image.';
+                              _error =
+                                  'Could not crop this image. Try another image.';
                             });
                         }
                       } catch (_) {
                         if (!mounted) return;
                         setState(() {
                           _busy = false;
-                          _error = 'Could not prepare this image. Try another image.';
+                          _error =
+                              'Could not prepare this image. Try another image.';
                         });
                       }
                     },
@@ -135,15 +138,14 @@ class _ImageCropDialogState extends State<_ImageCropDialog> {
                 'Drag to reposition · scroll or pinch to zoom',
                 style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
               ),
-              if (_error != null) Text(_error!, style: TextStyle(color: colors.red)),
+              if (_error != null)
+                Text(_error!, style: TextStyle(color: colors.red)),
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: _busy
-                        ? null
-                        : () => Navigator.of(context).pop(),
+                    onPressed: _busy ? null : () => Navigator.of(context).pop(),
                     child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 8),

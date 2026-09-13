@@ -200,12 +200,14 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   /// `serverUrl` before joining `spaceId`: switch to the credentials form,
   /// pre-fill it, and remember the space so the next successful login joins it.
   void _onDiscoveryJoinRequiresAuth(String serverUrl, String spaceId) {
-    ref.read(pendingServerJoinProvider.notifier).hold(
-      ParsedServerUrl(
-        server: AccordServer.fromBaseUrl(serverUrl),
-        spaceId: spaceId,
-      ),
-    );
+    ref
+        .read(pendingServerJoinProvider.notifier)
+        .hold(
+          ParsedServerUrl(
+            server: AccordServer.fromBaseUrl(serverUrl),
+            spaceId: spaceId,
+          ),
+        );
     ProfileStore.sessionBox.put('last-server', serverUrl);
     setState(() {
       _serverController.text = serverUrl;
@@ -227,7 +229,9 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
       return;
     }
     final pending = ref.read(pendingServerJoinProvider);
-    if (parsed.hasInvite || parsed.spaceName != null || pending == null ||
+    if (parsed.hasInvite ||
+        parsed.spaceName != null ||
+        pending == null ||
         pending.server == null ||
         !AccordServer.sameEndpoint(pending.server!.baseUrl, server.baseUrl)) {
       ref.read(pendingServerJoinProvider.notifier).hold(parsed);
@@ -244,7 +248,9 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
       }
     } catch (error) {
       if (mounted) {
-        setState(() => _authLocalError = 'Could not use the saved account: $error');
+        setState(
+          () => _authLocalError = 'Could not use the saved account: $error',
+        );
       }
       return;
     } finally {
@@ -314,22 +320,25 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     if (_finishingLogin) return;
     _finishingLogin = true;
     final pending = ref.read(pendingServerJoinProvider);
-    if (pending != null && pending.server != null &&
+    if (pending != null &&
+        pending.server != null &&
         AccordServer.sameEndpoint(
           pending.server!.baseUrl,
           loggedIn.session.server.baseUrl,
         )) {
       try {
-        final outcome = await ref.read(accordAuthProvider.notifier).joinOnConnection(
-          loggedIn.session.key,
-          spaceId: pending.spaceId ?? pending.spaceName,
-          invite: pending.invite,
-        );
+        final outcome = await ref
+            .read(accordAuthProvider.notifier)
+            .joinOnConnection(
+              loggedIn.session.key,
+              spaceId: pending.spaceId ?? pending.spaceName,
+              invite: pending.invite,
+            );
         if (!mounted) return;
         if (outcome.error != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(outcome.error!)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(outcome.error!)));
         } else {
           // A newer link may have arrived while this join was in flight.
           if (identical(ref.read(pendingServerJoinProvider), pending)) {
@@ -337,8 +346,8 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
           }
           final destination = outcome.spaceId == null
               ? (pending.spaceName != null || pending.channelName != null
-                  ? PendingDeepLinkDestination.fromParsed(pending)
-                  : null)
+                    ? PendingDeepLinkDestination.fromParsed(pending)
+                    : null)
               : PendingDeepLinkDestination(
                   serverBaseUrl: loggedIn.session.server.baseUrl,
                   spaceId: outcome.spaceId,
@@ -350,9 +359,9 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
         }
       } catch (error) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not join: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not join: $error')));
       }
     }
     if (!mounted) return;
@@ -391,7 +400,8 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
 
     // Loading / MFA / forced-password-change: simple centered forms with no
     // onboarding chrome.
-    if (_restoring || _lookingUpAccount ||
+    if (_restoring ||
+        _lookingUpAccount ||
         state is AccordAuthInProgress ||
         state is AccordAuthLoggedIn) {
       return _centered(
@@ -424,10 +434,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     // browser, and above all not the credentials form — is reachable before the
     // terms are accepted.
     if (!_termsAccepted) {
-      return _centered(
-        TermsGateView(onAccept: _acceptAppTerms),
-        maxWidth: 560,
-      );
+      return _centered(TermsGateView(onAccept: _acceptAppTerms), maxWidth: 560);
     }
 
     // Signed out: walk welcome → browse → credentials. Intercept system back to

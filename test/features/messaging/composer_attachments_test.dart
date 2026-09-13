@@ -73,11 +73,8 @@ class _FakeFilePicker extends FilePicker {
   }
 }
 
-PlatformFile _file(String name, {int bytes = 16}) => PlatformFile(
-      name: name,
-      size: bytes,
-      bytes: Uint8List(bytes),
-    );
+PlatformFile _file(String name, {int bytes = 16}) =>
+    PlatformFile(name: name, size: bytes, bytes: Uint8List(bytes));
 
 class _Harness {
   _Harness({
@@ -155,15 +152,14 @@ class _Harness {
   late final ProviderContainer container;
 
   Widget get app => UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: buildAppTheme(AppThemePreset.dark),
-          home: const Scaffold(
-            body: MessagePane(channel: null, channelId: _channelId,
-                spaceId: null),
-          ),
-        ),
-      );
+    container: container,
+    child: MaterialApp(
+      theme: buildAppTheme(AppThemePreset.dark),
+      home: const Scaffold(
+        body: MessagePane(channel: null, channelId: _channelId, spaceId: null),
+      ),
+    ),
+  );
 
   void dispose() => client.dispose();
 }
@@ -199,9 +195,8 @@ Future<void> _tapAttach(WidgetTester tester) async {
 
 /// Every visible text in the tree containing [needle] — the composer's error is
 /// rendered by `InlineError`, so this asserts what the user can actually read.
-Finder _visibleText(String needle) => find.byWidgetPredicate(
-      (w) => w is Text && (w.data ?? '').contains(needle),
-    );
+Finder _visibleText(String needle) =>
+    find.byWidgetPredicate((w) => w is Text && (w.data ?? '').contains(needle));
 
 void main() {
   testWidgets('web leaves paste to the browser editor', (tester) async {
@@ -210,14 +205,23 @@ void main() {
     await tester.tap(find.byType(TextField).last);
     await tester.pump();
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-    final result = field.focusNode!.onKeyEvent!(field.focusNode!,
-      const KeyDownEvent(physicalKey: PhysicalKeyboardKey.keyV,
-        logicalKey: LogicalKeyboardKey.keyV, timeStamp: Duration.zero));
+    final result = field.focusNode!.onKeyEvent!(
+      field.focusNode!,
+      const KeyDownEvent(
+        physicalKey: PhysicalKeyboardKey.keyV,
+        logicalKey: LogicalKeyboardKey.keyV,
+        timeStamp: Duration.zero,
+      ),
+    );
     expect(result, KeyEventResult.ignored);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     // Browser paste/context-menu input arrives on the text input channel.
-    tester.testTextInput.updateEditingValue(const TextEditingValue(
-      text: 'pasted text', selection: TextSelection.collapsed(offset: 11)));
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'pasted text',
+        selection: TextSelection.collapsed(offset: 11),
+      ),
+    );
     await tester.pump();
     expect(field.controller!.text, 'pasted text');
   }, skip: !kIsWeb);
@@ -237,8 +241,9 @@ void main() {
     if (original != null) FilePicker.platform = original!;
   });
 
-  testWidgets('a picker that throws surfaces an error instead of nothing',
-      (tester) async {
+  testWidgets('a picker that throws surfaces an error instead of nothing', (
+    tester,
+  ) async {
     // The #196 "nothing happens" path: on Windows the legacy picker can throw,
     // and the throw escaped an unawaited callback, leaving no trace on screen.
     FilePicker.platform = _FakeFilePicker(
@@ -258,8 +263,9 @@ void main() {
     expect(_visibleText("Couldn't open"), findsNothing);
   });
 
-  testWidgets('an oversize file is named in the composer, not dropped',
-      (tester) async {
+  testWidgets('an oversize file is named in the composer, not dropped', (
+    tester,
+  ) async {
     FilePicker.platform = _FakeFilePicker(
       () async => FilePickerResult([_file('podcast.mp3', bytes: 4096)]),
     );
@@ -275,9 +281,8 @@ void main() {
     // bytes == null is what a OneDrive placeholder that failed to hydrate
     // looks like coming back from the Windows picker.
     FilePicker.platform = _FakeFilePicker(
-      () async => FilePickerResult([
-        PlatformFile(name: 'cloud.mp3', size: 4096),
-      ]),
+      () async =>
+          FilePickerResult([PlatformFile(name: 'cloud.mp3', size: 4096)]),
     );
     await _pump(tester);
     await _tapAttach(tester);
@@ -285,26 +290,26 @@ void main() {
     expect(_visibleText("couldn't be read"), findsOneWidget);
   });
 
-  testWidgets("the server's per-message count limit is enforced and explained",
-      (tester) async {
-    FilePicker.platform = _FakeFilePicker(
-      () async => FilePickerResult([
-        _file('a.png'),
-        _file('b.png'),
-        _file('c.png'),
-      ]),
-    );
-    await _pump(tester, settings: const {'max_attachments_per_message': 2});
-    await _tapAttach(tester);
+  testWidgets(
+    "the server's per-message count limit is enforced and explained",
+    (tester) async {
+      FilePicker.platform = _FakeFilePicker(
+        () async =>
+            FilePickerResult([_file('a.png'), _file('b.png'), _file('c.png')]),
+      );
+      await _pump(tester, settings: const {'max_attachments_per_message': 2});
+      await _tapAttach(tester);
 
-    expect(_visibleText('at most 2 files per message'), findsOneWidget);
-    // The first two still attached — a full batch isn't lost over one extra.
-    expect(_visibleText('a.png'), findsOneWidget);
-    expect(_visibleText('b.png'), findsOneWidget);
-  });
+      expect(_visibleText('at most 2 files per message'), findsOneWidget);
+      // The first two still attached — a full batch isn't lost over one extra.
+      expect(_visibleText('a.png'), findsOneWidget);
+      expect(_visibleText('b.png'), findsOneWidget);
+    },
+  );
 
-  testWidgets('the attach button disables once the count limit is reached',
-      (tester) async {
+  testWidgets('the attach button disables once the count limit is reached', (
+    tester,
+  ) async {
     FilePicker.platform = _FakeFilePicker(
       () async => FilePickerResult([_file('a.png')]),
     );
@@ -321,8 +326,9 @@ void main() {
     expect(button.tooltip, contains('Attachment limit reached'));
   });
 
-  testWidgets('a failed upload shows the server error and keeps the file',
-      (tester) async {
+  testWidgets('a failed upload shows the server error and keeps the file', (
+    tester,
+  ) async {
     FilePicker.platform = _FakeFilePicker(
       () async => FilePickerResult([_file('song.mp3')]),
     );
@@ -339,76 +345,78 @@ void main() {
   });
 
   testWidgets(
-      'a rate-limited upload counts down, keeps the file and is sent once',
-      (tester) async {
-    // #330: the server's upload budget said no. The composer must not retry
-    // (the SDK sends exactly one request), must hand the file back, and must
-    // show the server's retry_after as a countdown with Send disabled until it
-    // lapses — then leave the retry to the user.
-    FilePicker.platform = _FakeFilePicker(
-      () async => FilePickerResult([_file('song.mp3')]),
-    );
-    final harness = await _pump(
-      tester,
-      settings: const {
-        'upload_requests_per_minute': 6,
-        'upload_bytes_per_minute': 52428800,
-      },
-      sendResponse: http.Response(
-        jsonEncode({
-          'error': {
-            'code': 'rate_limited',
-            'message': 'rate limited, retry after 30s',
-            'retry_after': 30,
-          },
-        }),
-        429,
-        headers: {'content-type': 'application/json', 'retry-after': '30'},
-      ),
-    );
-    await _tapAttach(tester);
-    expect(_visibleText('song.mp3'), findsOneWidget);
+    'a rate-limited upload counts down, keeps the file and is sent once',
+    (tester) async {
+      // #330: the server's upload budget said no. The composer must not retry
+      // (the SDK sends exactly one request), must hand the file back, and must
+      // show the server's retry_after as a countdown with Send disabled until it
+      // lapses — then leave the retry to the user.
+      FilePicker.platform = _FakeFilePicker(
+        () async => FilePickerResult([_file('song.mp3')]),
+      );
+      final harness = await _pump(
+        tester,
+        settings: const {
+          'upload_requests_per_minute': 6,
+          'upload_bytes_per_minute': 52428800,
+        },
+        sendResponse: http.Response(
+          jsonEncode({
+            'error': {
+              'code': 'rate_limited',
+              'message': 'rate limited, retry after 30s',
+              'retry_after': 30,
+            },
+          }),
+          429,
+          headers: {'content-type': 'application/json', 'retry-after': '30'},
+        ),
+      );
+      await _tapAttach(tester);
+      expect(_visibleText('song.mp3'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.send));
-    await _tick(tester);
+      await tester.tap(find.byIcon(Icons.send));
+      await _tick(tester);
 
-    expect(
-      harness.requests.where((r) => r.contains('/messages/upload')),
-      hasLength(1),
-    );
-    expect(_visibleText('Rate limited — try again in 30s'), findsOneWidget);
-    // The budget guidance rides along with the countdown.
-    expect(_visibleText('6 uploads and 50 MB per minute'), findsOneWidget);
-    // Not an error to dismiss, and the file is still attached for the retry.
-    expect(_visibleText('rate limited, retry after'), findsNothing);
-    expect(_visibleText('song.mp3'), findsOneWidget);
+      expect(
+        harness.requests.where((r) => r.contains('/messages/upload')),
+        hasLength(1),
+      );
+      expect(_visibleText('Rate limited — try again in 30s'), findsOneWidget);
+      // The budget guidance rides along with the countdown.
+      expect(_visibleText('6 uploads and 50 MB per minute'), findsOneWidget);
+      // Not an error to dismiss, and the file is still attached for the retry.
+      expect(_visibleText('rate limited, retry after'), findsNothing);
+      expect(_visibleText('song.mp3'), findsOneWidget);
 
-    IconButton sendButton() => tester.widget<IconButton>(
-          find.ancestor(
-            of: find.byIcon(Icons.send),
-            matching: find.byType(IconButton),
-          ),
-        );
-    expect(sendButton().onPressed, isNull);
-    expect(sendButton().tooltip, contains('Rate limited'));
+      IconButton sendButton() => tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(Icons.send),
+          matching: find.byType(IconButton),
+        ),
+      );
+      expect(sendButton().onPressed, isNull);
+      expect(sendButton().tooltip, contains('Rate limited'));
 
-    // Nothing is resent in the background while the countdown runs.
-    await tester.pump(const Duration(seconds: 5));
-    expect(
-      harness.requests.where((r) => r.contains('/messages/upload')),
-      hasLength(1),
-    );
+      // Nothing is resent in the background while the countdown runs.
+      await tester.pump(const Duration(seconds: 5));
+      expect(
+        harness.requests.where((r) => r.contains('/messages/upload')),
+        hasLength(1),
+      );
 
-    // Dropping the file frees text sends: this channel has no slowmode, so
-    // only uploads were ever held back.
-    await tester.tap(find.byIcon(Icons.close).last);
-    await _tick(tester);
-    expect(_visibleText('song.mp3'), findsNothing);
-    expect(sendButton().onPressed, isNotNull);
-  });
+      // Dropping the file frees text sends: this channel has no slowmode, so
+      // only uploads were ever held back.
+      await tester.tap(find.byIcon(Icons.close).last);
+      await _tick(tester);
+      expect(_visibleText('song.mp3'), findsNothing);
+      expect(sendButton().onPressed, isNotNull);
+    },
+  );
 
-  testWidgets('the attach tooltip shows the server upload budgets',
-      (tester) async {
+  testWidgets('the attach tooltip shows the server upload budgets', (
+    tester,
+  ) async {
     FilePicker.platform = _FakeFilePicker(() async => null);
     await _pump(
       tester,
@@ -432,8 +440,9 @@ void main() {
     );
   });
 
-  testWidgets('no upload budget is invented for an older server',
-      (tester) async {
+  testWidgets('no upload budget is invented for an older server', (
+    tester,
+  ) async {
     FilePicker.platform = _FakeFilePicker(() async => null);
     await _pump(tester, settings: const {'max_attachment_size': 1024});
     final button = tester.widget<IconButton>(
@@ -445,8 +454,9 @@ void main() {
     expect(button.tooltip, isNot(contains('per minute')));
   });
 
-  testWidgets('falls back to the compiled-in limits when /settings 403s',
-      (tester) async {
+  testWidgets('falls back to the compiled-in limits when /settings 403s', (
+    tester,
+  ) async {
     FilePicker.platform = _FakeFilePicker(
       () async => FilePickerResult([_file('small.png')]),
     );

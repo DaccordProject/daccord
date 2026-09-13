@@ -7,7 +7,7 @@ final spaceMediaCache = SpaceMediaCache();
 /// already mounted Image otherwise keeps its old image stream after a rebuild.
 class SpaceMediaCache {
   SpaceMediaCache({Future<void> Function(String)? evict})
-      : _evict = evict ?? _evictImage;
+    : _evict = evict ?? _evictImage;
 
   final Future<void> Function(String) _evict;
   final Map<String, int> _revisions = {};
@@ -17,8 +17,13 @@ class SpaceMediaCache {
     final revision = _revisions[url];
     if (revision == null) return url;
     final uri = Uri.parse(url);
-    return uri.replace(query: '${uri.hasQuery ? '${uri.query}&' : ''}'
-        '_daccord_media=$revision').toString();
+    return uri
+        .replace(
+          query:
+              '${uri.hasQuery ? '${uri.query}&' : ''}'
+              '_daccord_media=$revision',
+        )
+        .toString();
   }
 
   Future<void> invalidate(Iterable<String> urls) async {

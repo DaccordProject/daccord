@@ -15,7 +15,10 @@ Future<Uint8List> prepareCroppedImage(
   try {
     final scale = maxDimension == null
         ? 1.0
-        : math.min(1.0, maxDimension / math.max(descriptor.width, descriptor.height));
+        : math.min(
+            1.0,
+            maxDimension / math.max(descriptor.width, descriptor.height),
+          );
     final codec = await descriptor.instantiateCodec(
       targetWidth: math.max(1, (descriptor.width * scale).round()),
       targetHeight: math.max(1, (descriptor.height * scale).round()),
@@ -23,7 +26,9 @@ Future<Uint8List> prepareCroppedImage(
     try {
       final frame = await codec.getNextFrame();
       try {
-        final data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+        final data = await frame.image.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
         if (data == null) throw StateError('Could not encode cropped image');
         return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
       } finally {

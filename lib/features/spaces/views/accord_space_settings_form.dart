@@ -68,7 +68,10 @@ class _BannerSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SpaceSettingsBannerPreview(url: bannerUrl, pendingBytes: pendingBytes),
+              SpaceSettingsBannerPreview(
+                url: bannerUrl,
+                pendingBytes: pendingBytes,
+              ),
               if (canManage) ...[
                 const SizedBox(height: 8),
                 Row(
@@ -155,15 +158,18 @@ class _OverviewSection extends StatelessWidget {
                   const SizedBox(height: 4),
                   TextButton(
                     onPressed: busy ? null : onPickIcon,
-                    child: Text(pendingIconBytes != null || (!iconRemoved && iconUrl != null)
-                        ? 'Change' : 'Upload'),
+                    child: Text(
+                      pendingIconBytes != null ||
+                              (!iconRemoved && iconUrl != null)
+                          ? 'Change'
+                          : 'Upload',
+                    ),
                   ),
-                  if (pendingIconBytes != null || (!iconRemoved && iconUrl != null))
+                  if (pendingIconBytes != null ||
+                      (!iconRemoved && iconUrl != null))
                     TextButton(
                       onPressed: busy ? null : onRemoveIcon,
-                      style: TextButton.styleFrom(
-                        foregroundColor: colors.red,
-                      ),
+                      style: TextButton.styleFrom(foregroundColor: colors.red),
                       child: const Text('Remove'),
                     ),
                 ],

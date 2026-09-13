@@ -222,7 +222,11 @@ class VoiceSession {
     }
 
     try {
-      await room.connect(url, token, connectOptions: voiceConnectOptions(relayOnly));
+      await room.connect(
+        url,
+        token,
+        connectOptions: voiceConnectOptions(relayOnly),
+      );
       // The new connection is live — genuine drops from here are unintentional.
       _intentionalDisconnect = false;
       if (micTrack != null) {
@@ -240,8 +244,8 @@ class VoiceSession {
     } catch (e) {
       _lastError = relayOnly
           ? 'Relay-only voice could not connect. The server needs a reachable '
-              'TURN relay. Check the server configuration or turn off relay-only '
-              'voice in Voice & Video settings. ($e)'
+                'TURN relay. Check the server configuration or turn off relay-only '
+                'voice in Voice & Video settings. ($e)'
           : '$e';
       debugPrint('LiveKit connect failed: $e');
       _setState(VoiceSessionState.failed);

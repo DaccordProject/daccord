@@ -5,13 +5,16 @@ import 'package:test/test.dart';
 import 'support/test_helpers.dart';
 
 void main() {
-  test('space icon upload reports proxy size errors with status and type', () async {
+  test('space icon upload reports proxy size errors with status and type',
+      () async {
     final rest = mockRest(
       log: [],
-      responder: (_) => http.Response('<html>Request Entity Too Large</html>', 413,
+      responder: (_) => http.Response(
+          '<html>Request Entity Too Large</html>', 413,
           headers: {'content-type': 'text/html'}),
     );
-    final result = await SpacesApi(rest).update('space', {'icon': 'data:image/png;base64,eA=='});
+    final result = await SpacesApi(rest)
+        .update('space', {'icon': 'data:image/png;base64,eA=='});
     expect(result.ok, isFalse);
     expect(result.statusCode, 413);
     expect(result.error!.code, 'HTTP_413');
@@ -19,10 +22,12 @@ void main() {
     expect(result.error!.message, contains('smaller image'));
   });
 
-  test('non-JSON error preserves HTTP context without exposing proxy pages', () async {
+  test('non-JSON error preserves HTTP context without exposing proxy pages',
+      () async {
     final rest = mockRest(
       log: [],
-      responder: (_) => http.Response('<html>Private proxy diagnostics</html>', 502,
+      responder: (_) => http.Response(
+          '<html>Private proxy diagnostics</html>', 502,
           headers: {'content-type': 'text/html; charset=utf-8'}),
     );
     final result = await rest.makeRequest('PATCH', '/spaces/s');

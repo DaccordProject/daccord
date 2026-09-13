@@ -53,7 +53,7 @@ final class VoiceControllerProvider
   }
 }
 
-String _$voiceControllerHash() => r'9ad5dd605a2b045e92724d20550bf8230eed1482';
+String _$voiceControllerHash() => r'aadc0fe0eee0c092c704e23ee3ec5c99b3896588';
 
 /// Orchestrates voice channel join/leave and media toggles, the Dart port of
 /// the reference `client_voice.gd` + the voice slice of its `AppState`. Owns a

@@ -419,7 +419,9 @@ class _AppearanceSection extends StatelessWidget {
         ),
         SwitchListTile(
           title: const Text('Show embeds and link previews'),
-          subtitle: const Text('Hide previews only for you; message text stays visible'),
+          subtitle: const Text(
+            'Hide previews only for you; message text stays visible',
+          ),
           value: settings.showEmbeds,
           onChanged: controller.setShowEmbeds,
         ),

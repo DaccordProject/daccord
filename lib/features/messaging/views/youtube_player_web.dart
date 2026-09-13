@@ -17,7 +17,10 @@ extension type _YouTubeNamespace._(JSObject _) implements JSObject {
 
 @JS('YT.Player')
 extension type _YouTubeApiPlayer._(JSObject _) implements JSObject {
-  external factory _YouTubeApiPlayer(web.HTMLIFrameElement frame, JSObject options);
+  external factory _YouTubeApiPlayer(
+    web.HTMLIFrameElement frame,
+    JSObject options,
+  );
   external void destroy();
 }
 
@@ -51,13 +54,15 @@ Future<void> _insertApiScript() async {
   }).toJS;
   _onApiReady = callback;
   final error = ((web.Event _) {
-    if (!ready.isCompleted) ready.completeError(StateError('YouTube API could not load'));
+    if (!ready.isCompleted)
+      ready.completeError(StateError('YouTube API could not load'));
   }).toJS;
   script.addEventListener('error', error);
   web.document.head!.appendChild(script);
   try {
     await ready.future.timeout(const Duration(seconds: 20));
-    if (_youtube?.playerConstructor == null) throw StateError('YouTube API unavailable');
+    if (_youtube?.playerConstructor == null)
+      throw StateError('YouTube API unavailable');
   } catch (_) {
     _apiLoading = null;
     rethrow;
@@ -72,7 +77,12 @@ Future<void> _insertApiScript() async {
 /// API gives us video-owner/private-video errors that iframe.onload/onerror
 /// cannot detect. See developers.google.com/youtube/iframe_api_reference.
 class YouTubePlayer extends StatefulWidget {
-  const YouTubePlayer({super.key, required this.video, required this.onStopped, required this.onError});
+  const YouTubePlayer({
+    super.key,
+    required this.video,
+    required this.onStopped,
+    required this.onError,
+  });
   final YouTubeVideo video;
   final VoidCallback onStopped;
   final ValueChanged<String> onError;
@@ -147,14 +157,20 @@ class _YouTubePlayerState extends State<YouTubePlayer> {
       _readyTimeout = Timer(const Duration(seconds: 20), () {
         _stop(error: 'YouTube did not load. Try opening the video in YouTube.');
       });
-      _player = _YouTubeApiPlayer(frame, {
-        'events': {
-          'onReady': ((JSObject _) { _readyTimeout?.cancel(); }).toJS,
-          'onError': ((_YouTubeEvent event) {
-            _stop(error: youtubePlaybackError(event.data));
-          }).toJS,
-        },
-      }.jsify()! as JSObject);
+      _player = _YouTubeApiPlayer(
+        frame,
+        {
+              'events': {
+                'onReady': ((JSObject _) {
+                  _readyTimeout?.cancel();
+                }).toJS,
+                'onError': ((_YouTubeEvent event) {
+                  _stop(error: youtubePlaybackError(event.data));
+                }).toJS,
+              },
+            }.jsify()!
+            as JSObject,
+      );
     } catch (_) {
       _stop(error: 'YouTube could not load. Try opening the video in YouTube.');
     }
@@ -184,21 +200,34 @@ class _YouTubePlayerState extends State<YouTubePlayer> {
         ..referrerPolicy = 'strict-origin-when-cross-origin'
         ..allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture'
         ..allowFullscreen = true;
-      frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
-      frame.addEventListener('error', ((web.Event _) {
-        _stop(error: 'YouTube could not load. Try opening the video in YouTube.');
-      }).toJS);
-      _observer = web.IntersectionObserver(((JSArray<web.IntersectionObserverEntry> entries,
-          web.IntersectionObserver observer) {
-        for (final entry in entries.toDart) {
-          if (entry.isIntersecting && entry.intersectionRatio > 0) {
-            _wasVisible = true;
-            unawaited(_start());
-          } else if (_wasVisible || frame.isConnected) {
-            _stop();
-          }
-        }
-      }).toJS);
+      frame.setAttribute(
+        'sandbox',
+        'allow-scripts allow-same-origin allow-presentation',
+      );
+      frame.addEventListener(
+        'error',
+        ((web.Event _) {
+          _stop(
+            error: 'YouTube could not load. Try opening the video in YouTube.',
+          );
+        }).toJS,
+      );
+      _observer = web.IntersectionObserver(
+        ((
+              JSArray<web.IntersectionObserverEntry> entries,
+              web.IntersectionObserver observer,
+            ) {
+              for (final entry in entries.toDart) {
+                if (entry.isIntersecting && entry.intersectionRatio > 0) {
+                  _wasVisible = true;
+                  unawaited(_start());
+                } else if (_wasVisible || frame.isConnected) {
+                  _stop();
+                }
+              }
+            })
+            .toJS,
+      );
       // Observing the frame also waits for its DOM attachment before YT.Player
       // is constructed, as required by HtmlElementView.fromTagName.
       _observer!.observe(frame);

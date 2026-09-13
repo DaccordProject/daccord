@@ -82,9 +82,10 @@ void main() {
       tester.element(find.text('Open')),
     );
     container.read(connectionsControllerProvider.notifier).register(session);
-    container.read(connectionsControllerProvider.notifier).setSpaces(session.key, [
-      AccordSpace(id: 'team-space', slug: 'team-news', name: 'Team News'),
-    ]);
+    container.read(connectionsControllerProvider.notifier).setSpaces(
+      session.key,
+      [AccordSpace(id: 'team-space', slug: 'team-news', name: 'Team News')],
+    );
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Connect'));

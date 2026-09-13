@@ -76,8 +76,9 @@ class AccordEmbedBox extends StatelessWidget {
                 child: _LinkText(
                   text: authorName,
                   url: authorUrl,
-                  style: theme.textTheme.labelLarge!
-                      .copyWith(color: colors.dirtyWhite),
+                  style: theme.textTheme.labelLarge!.copyWith(
+                    color: colors.dirtyWhite,
+                  ),
                 ),
               ),
             ],
@@ -103,7 +104,11 @@ class AccordEmbedBox extends StatelessWidget {
         ],
         if (youtube != null) ...[
           const SizedBox(height: 8),
-          YouTubePreview(video: youtube, poster: thumbSource ?? imageSource, cdnUrl: cdnUrl),
+          YouTubePreview(
+            video: youtube,
+            poster: thumbSource ?? imageSource,
+            cdnUrl: cdnUrl,
+          ),
         ] else if (imageSource != null) ...[
           const SizedBox(height: 8),
           // Native playback accepts only direct media resources. HTML provider
@@ -113,8 +118,10 @@ class AccordEmbedBox extends StatelessWidget {
               source: embedUrl,
               trustedBaseUrl: cdnUrl,
               builder: (_, safeUrl) => InlineVideoPlayer(
-                url: safeUrl, filename: title ?? 'video',
-                width: _maxImageWidth, height: _maxImageHeight,
+                url: safeUrl,
+                filename: title ?? 'video',
+                width: _maxImageWidth,
+                height: _maxImageHeight,
               ),
             )
           else if (isVideo)
@@ -218,9 +225,13 @@ class _EmbedFields extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(_str(field['name']) ?? '',
-              style: theme.textTheme.labelMedium!
-                  .copyWith(color: colors.dirtyWhite, fontWeight: FontWeight.bold)),
+          Text(
+            _str(field['name']) ?? '',
+            style: theme.textTheme.labelMedium!.copyWith(
+              color: colors.dirtyWhite,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           AccordMarkdownBox(
             content: _str(field['value']) ?? '',
             trustedMediaBaseUrl: trustedMediaBaseUrl,
@@ -245,23 +256,27 @@ class _EmbedFields extends StatelessWidget {
           cells.add(Expanded(child: cell(f)));
           i++;
         }
-        rows.add(Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var c = 0; c < cells.length; c++) ...[
-                if (c > 0) const SizedBox(width: 12),
-                cells[c],
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var c = 0; c < cells.length; c++) ...[
+                  if (c > 0) const SizedBox(width: 12),
+                  cells[c],
+                ],
               ],
-            ],
+            ),
           ),
-        ));
+        );
       } else {
-        rows.add(Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: cell(field),
-        ));
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: cell(field),
+          ),
+        );
         i++;
       }
     }
@@ -362,16 +377,11 @@ class _VideoPoster extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: MouseRegion(
-        cursor: onTap == null
-            ? MouseCursor.defer
-            : SystemMouseCursors.click,
+        cursor: onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(6),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: 400,
-              maxHeight: 300,
-            ),
+            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 300),
             child: Stack(
               alignment: Alignment.center,
               children: [
@@ -386,8 +396,11 @@ class _VideoPoster extends StatelessWidget {
                     color: Color(0x99000000),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.play_arrow,
-                      color: Colors.white, size: 32),
+                  child: const Icon(
+                    Icons.play_arrow,
+                    color: Colors.white,
+                    size: 32,
+                  ),
                 ),
               ],
             ),
