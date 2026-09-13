@@ -64,3 +64,22 @@ When you're typing, other users in the channel see a typing indicator below the 
 On Web, keyboard and browser-menu text paste use the browser's normal editor
 input. Native clients also support clipboard images and the large-text attachment
 prompt.
+
+## Link previews
+
+**Show embeds and link previews** in appearance settings controls previews only
+for your account; hiding them leaves the message text and attachments visible.
+YouTube previews retain the title, 16:9 poster and **Open in YouTube** link. Web
+can load the official player after you select **Play · load from YouTube**;
+native clients and narrow message columns use the external link. Playback stops
+when its message leaves view, the channel changes or the app loses focus. A
+player error returns to the poster with the external link.
+
+External posters require the existing media consent. Starting the player also
+contacts YouTube's official player/API hosts; no player is loaded merely by
+opening message history. Player behavior follows the
+[YouTube IFrame API](https://developers.google.com/youtube/iframe_api_reference).
+
+Author/moderator suppression, angle-bracket link exclusion and asynchronous
+unfurl permission/federation behavior still require server support (#352).
+The client respects a suppression flag when supplied by the server.

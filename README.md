@@ -382,3 +382,7 @@ active account's permissions.
 
 Discovery and invite joins reuse saved accounts, including during startup;
 see [adding a server](docs/getting-started/adding-a-server.md#joining-with-a-saved-account).
+
+YouTube previews offer consent-gated playback on Web and an external link on
+native clients. Appearance settings can hide embeds locally; see
+[link previews](docs/messaging/sending-messages.md#link-previews).

@@ -28,6 +28,8 @@ dependencies:
   flutter_riverpod: ^3.0.3
   riverpod_annotation: ^3.0.3
 
+  # Browser iframe and visibility APIs for consent-gated YouTube playback.
+  web: ^1.1.1
   go_router: ^17.0.0
   flutter_prism: ^0.2.2
 

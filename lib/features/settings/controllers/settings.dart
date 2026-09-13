@@ -220,6 +220,8 @@ class SettingsController extends _$SettingsController {
     _update(state.copyWith(channelNotifications: next));
   }
 
+  void setShowEmbeds(bool enabled) => _update(state.copyWith(showEmbeds: enabled));
+
   void setCompactMode(bool enabled) =>
       _update(state.copyWith(compactMode: enabled));
 

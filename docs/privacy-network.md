@@ -47,3 +47,12 @@ Web browsers do not expose an OS credential vault to Flutter applications. On We
 ## What self-hosting controls
 
 Self-hosting keeps community accounts, messages, uploads, and the configured voice service under infrastructure you choose. daccord does not proxy those services. You can also replace the default public directory URL in settings. Ancillary update checks and explicitly initiated external requests remain separate from your server traffic as described above.
+
+## YouTube previews
+
+YouTube posters follow external-media consent. On Web, choosing **Play · load
+from YouTube** authorizes the official `www.youtube.com/iframe_api` script and
+`www.youtube-nocookie.com` embedded player; the provider may make additional
+media requests. History rendering alone does not load the script or player.
+The **Open in YouTube** action uses the external browser. You can hide all embed
+previews in appearance settings without changing the underlying messages.

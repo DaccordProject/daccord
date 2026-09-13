@@ -47,6 +47,13 @@ void main() {
     });
   });
 
+  test('embed visibility is local, defaults on and survives persistence', () {
+    expect(AccordSettings.fromJson(const {}).showEmbeds, isTrue);
+    final hidden = const AccordSettings().copyWith(showEmbeds: false);
+    expect(AccordSettings.fromJson(hidden.toJson()).showEmbeds, isFalse);
+    expect(hidden.copyWith(compactMode: true).showEmbeds, isFalse);
+  });
+
   group('AccordSettings.fromJson defaults', () {
     test('an empty map applies all documented defaults', () {
       final settings = AccordSettings.fromJson(const {});

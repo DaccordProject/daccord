@@ -109,6 +109,7 @@ class AccordSettings {
     this.lastSpaceId = '',
     this.lastChannelId = '',
     this.compactMode = false,
+    this.showEmbeds = true,
     this.convertEmoticons = true,
     this.reducedMotion = false,
     this.uiScale = 1.0,
@@ -286,6 +287,9 @@ class AccordSettings {
   /// cozy density. Mirrors the reference's layout-density setting.
   final bool compactMode;
 
+  /// Local display preference, independent of message suppression flags.
+  final bool showEmbeds;
+
   /// Whether text emoticons (`:)`, `<3`, `xD`, …) are replaced with the
   /// matching emoji when a message is sent or edited. On by default, matching
   /// Discord; see `applyEmoticons` in the messaging feature.
@@ -362,6 +366,7 @@ class AccordSettings {
     String? lastSpaceId,
     String? lastChannelId,
     bool? compactMode,
+    bool? showEmbeds,
     bool? convertEmoticons,
     bool? reducedMotion,
     double? uiScale,
@@ -415,6 +420,7 @@ class AccordSettings {
       lastSpaceId: lastSpaceId ?? this.lastSpaceId,
       lastChannelId: lastChannelId ?? this.lastChannelId,
       compactMode: compactMode ?? this.compactMode,
+      showEmbeds: showEmbeds ?? this.showEmbeds,
       convertEmoticons: convertEmoticons ?? this.convertEmoticons,
       reducedMotion: reducedMotion ?? this.reducedMotion,
       uiScale: uiScale ?? this.uiScale,
@@ -602,6 +608,7 @@ class AccordSettings {
     'lastSpaceId': lastSpaceId,
     'lastChannelId': lastChannelId,
     'compactMode': compactMode,
+    'showEmbeds': showEmbeds,
     'convertEmoticons': convertEmoticons,
     'reducedMotion': reducedMotion,
     'uiScale': uiScale,
@@ -700,6 +707,7 @@ class AccordSettings {
       lastSpaceId: (json['lastSpaceId'] as String?) ?? '',
       lastChannelId: (json['lastChannelId'] as String?) ?? '',
       compactMode: json['compactMode'] as bool? ?? false,
+      showEmbeds: json['showEmbeds'] as bool? ?? true,
       convertEmoticons: json['convertEmoticons'] as bool? ?? true,
       reducedMotion: json['reducedMotion'] as bool? ?? false,
       uiScale:

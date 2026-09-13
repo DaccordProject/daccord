@@ -1,4 +1,6 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/messaging/utils/youtube_video.dart';
+import 'package:bonfire/features/messaging/views/youtube_preview.dart';
 import 'package:bonfire/features/messaging/views/box/accord_markdown_box.dart';
 import 'package:bonfire/features/messaging/views/inline_video_player.dart';
 import 'package:bonfire/features/messaging/views/message_media_gate.dart';
@@ -46,6 +48,7 @@ class AccordEmbedBox extends StatelessWidget {
     final thumbSource = _imageUrl(embed.thumbnail);
     final footer = _footerText(embed.footer);
     final timestamp = _formatTimestamp(embed.timestamp);
+    final youtube = YouTubeVideo.parse(embedUrl);
     final isVideo = _str(embed.type)?.toLowerCase() == 'video';
     final borderColor = _color(embed.color) ?? colors.primary;
 
@@ -98,18 +101,21 @@ class AccordEmbedBox extends StatelessWidget {
           const SizedBox(height: 6),
           _EmbedFields(fields: fields, trustedMediaBaseUrl: cdnUrl),
         ],
-        if (imageSource != null) ...[
+        if (youtube != null) ...[
           const SizedBox(height: 8),
-          // For video-type embeds we play the linked URL inline via media_kit
-          // when present; otherwise we fall back to a tap-to-launch poster
-          // (no inline playback, but a clear play affordance vs. the previous
-          // static image). For non-video embeds the image renders as before.
-          if (isVideo && embedUrl != null)
-            InlineVideoPlayer(
-              url: embedUrl,
-              filename: title ?? 'video',
-              width: _maxImageWidth,
-              height: _maxImageHeight,
+          YouTubePreview(video: youtube, poster: thumbSource ?? imageSource, cdnUrl: cdnUrl),
+        ] else if (imageSource != null) ...[
+          const SizedBox(height: 8),
+          // Native playback accepts only direct media resources. HTML provider
+          // pages keep a poster and external link instead of reaching a decoder.
+          if (isVideo && isDirectEmbedVideo(embedUrl))
+            MessageMediaGate(
+              source: embedUrl,
+              trustedBaseUrl: cdnUrl,
+              builder: (_, safeUrl) => InlineVideoPlayer(
+                url: safeUrl, filename: title ?? 'video',
+                width: _maxImageWidth, height: _maxImageHeight,
+              ),
             )
           else if (isVideo)
             MessageMediaGate(
@@ -161,7 +167,7 @@ class AccordEmbedBox extends StatelessWidget {
         border: Border(left: BorderSide(color: borderColor, width: 4)),
       ),
       padding: const EdgeInsets.all(12),
-      child: thumbSource == null
+      child: thumbSource == null || youtube != null
           ? body
           : Row(
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -214,3 +214,10 @@ Saved-account joins use `AccordAuth.ensureConnectionForBaseUrl` and
 `joinOnConnection` before requesting credentials. Endpoint identity preserves
 transport/port/path boundaries. `pendingServerJoinProvider` retains the invite
 through login; `pendingDeepLinkProvider` opens the hydrated space on its account.
+
+YouTube embeds use validated provider URLs and the official iframe API through
+the direct `web` dependency. The conditional native implementation offers
+external playback. Keep poster/player requests behind explicit consent and
+release player resources on visibility/lifecycle changes. `showEmbeds` is a
+local preference; the message suppression bit is separate. Server-side author
+suppression and asynchronous unfurl policy remain tracked by #352.

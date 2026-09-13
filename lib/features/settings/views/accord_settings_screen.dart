@@ -418,6 +418,12 @@ class _AppearanceSection extends StatelessWidget {
           ),
         ),
         SwitchListTile(
+          title: const Text('Show embeds and link previews'),
+          subtitle: const Text('Hide previews only for you; message text stays visible'),
+          value: settings.showEmbeds,
+          onChanged: controller.setShowEmbeds,
+        ),
+        SwitchListTile(
           title: const Text('Compact mode'),
           subtitle: const Text('Denser message layout (smaller spacing)'),
           value: settings.compactMode,
