@@ -49,22 +49,10 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final ctl = ref.read(settingsControllerProvider.notifier);
-    final folderColor = folder.color != null
-        ? Color(folder.color!)
-        : colors.darkGray;
-
-    final folderIcon = Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: folderColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      alignment: Alignment.center,
-      child: Icon(
-        folder.collapsed ? Icons.folder : Icons.folder_open,
-        color: colors.dirtyWhite,
-      ),
+    final folderIcon = SpaceFolderIcon(
+      folder: folder,
+      spaces: {for (final member in spaces) member.key: member.space},
+      cdnUrls: {for (final entry in widget.connOf.entries) entry.key: entry.value.cdnUrl},
     );
 
     return Column(
@@ -250,6 +238,73 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// A folder header's visual, shared by the rail and its drag feedback.
+/// Resolve membership in persisted order before taking four, so missing cache
+/// entries never consume a preview slot and cross-server IDs stay qualified.
+class SpaceFolderIcon extends StatelessWidget {
+  const SpaceFolderIcon({
+    super.key,
+    required this.folder,
+    required this.spaces,
+    this.cdnUrls = const {},
+  });
+
+  final SpaceFolder folder;
+  final Map<String, AccordSpace> spaces;
+  final Map<String, String?> cdnUrls;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    final folderColor = folder.color == null ? colors.darkGray : Color(folder.color!);
+    final members = folder.spaceIds.where(spaces.containsKey).take(4).toList();
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: folderColor.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      alignment: Alignment.center,
+      child: !folder.collapsed || members.isEmpty
+          ? Icon(folder.collapsed ? Icons.folder : Icons.folder_open,
+              color: colors.dirtyWhite)
+          : Padding(
+              padding: const EdgeInsets.all(5),
+              child: Column(
+                children: [
+                  for (var row = 0; row < 2; row++) ...[
+                    if (row > 0) const SizedBox(height: 2),
+                    Row(
+                      textDirection: TextDirection.ltr,
+                      children: [
+                        for (var column = 0; column < 2; column++) ...[
+                          if (column > 0) const SizedBox(width: 2),
+                          if (row * 2 + column < members.length)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(5),
+                              child: ColoredBox(
+                                color: colors.darkGray,
+                                child: _SpaceIconImage(
+                                  space: spaces[members[row * 2 + column]]!,
+                                  cdnUrl: cdnUrls[members[row * 2 + column]],
+                                  size: 18,
+                                ),
+                              ),
+                            )
+                          else
+                            const SizedBox.square(dimension: 18),
+                        ],
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
     );
   }
 }

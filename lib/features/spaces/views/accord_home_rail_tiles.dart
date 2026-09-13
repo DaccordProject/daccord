@@ -173,19 +173,9 @@ class _SpaceIcon extends ConsumerWidget {
   /// server's read state (snowflakes collide across servers).
   final String serverKey;
 
-  String get _initials {
-    final name = space.name.trim();
-    if (name.isEmpty) return '?';
-    final parts = name.split(RegExp(r'\s+'));
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return (parts.first.substring(0, 1) + parts[1].substring(0, 1))
-        .toUpperCase();
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
-    final iconUrl = accordSpaceIconUrl(space, cdnUrl);
     // Roll up this server's per-channel read state into a single rail-level
     // indicator. Keyed by [serverKey] so each server's badge reflects its own
     // unread; driven by the READY-hydrated + live read state (no channel fetch
@@ -233,12 +223,6 @@ class _SpaceIcon extends ConsumerWidget {
                 ?.isUnreachable ??
             false);
     final radius = BorderRadius.circular(selected ? 16 : 24);
-    final fallback = Text(
-      _initials,
-      style: Theme.of(
-        context,
-      ).textTheme.titleSmall!.copyWith(color: Colors.white),
-    );
     // No Tooltip here: in the rail, [RailDraggable] owns the name tooltip (its
     // long-press trigger must not compete with the drag / menu gesture), and
     // the other host — the hidden-servers sheet — prints the name beside it.
@@ -260,17 +244,7 @@ class _SpaceIcon extends ConsumerWidget {
                   borderRadius: radius,
                 ),
                 alignment: Alignment.center,
-                child: iconUrl == null
-                    ? fallback
-                    : CachedNetworkImage(
-                        imageUrl: iconUrl,
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                        filterQuality: FilterQuality.medium,
-                        placeholder: (_, _) => fallback,
-                        errorWidget: (_, _, _) => fallback,
-                      ),
+                child: _SpaceIconImage(space: space, cdnUrl: cdnUrl),
               ),
             ),
             if (mentions > 0)
@@ -297,6 +271,53 @@ class _SpaceIcon extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Image and initials shared by ordinary rail tiles and folder miniatures.
+/// Interaction, clipping, selection, and unread badges belong to the host tile.
+class _SpaceIconImage extends StatelessWidget {
+  const _SpaceIconImage({required this.space, required this.cdnUrl, this.size = 48});
+
+  final AccordSpace space;
+  final String? cdnUrl;
+  final double size;
+
+  String get _initials {
+    final name = space.name.trim();
+    if (name.isEmpty) return '?';
+    final parts = name.split(RegExp(r'\s+'));
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts.first.substring(0, 1) + parts[1].substring(0, 1))
+        .toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final iconUrl = accordSpaceIconUrl(space, cdnUrl);
+    final fallback = Center(
+      child: Text(
+        _initials,
+        style: Theme.of(context).textTheme.titleSmall!.copyWith(
+          color: Colors.white,
+          fontSize: size < 48 ? size / 2 : null,
+        ),
+      ),
+    );
+    return SizedBox.square(
+      dimension: size,
+      child: iconUrl == null
+          ? fallback
+          : CachedNetworkImage(
+              imageUrl: iconUrl,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.medium,
+              placeholder: (_, _) => fallback,
+              errorWidget: (_, _, _) => fallback,
+            ),
     );
   }
 }

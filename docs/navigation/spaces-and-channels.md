@@ -27,6 +27,12 @@ You can organize your spaces into collapsible folders:
 2. Select **Add to Folder** and choose an existing folder, or create a new one.
 3. Folders appear as collapsible groups in the space bar. Click to expand or collapse.
 
+A collapsed folder shows its first four available space icons in a 2×2 grid,
+in the order you arranged them. Spaces without an image show their initials;
+unused slots stay empty. Empty folders keep a folder icon. When expanded, the
+folder icon sits above its full list of spaces. Your chosen folder color and
+the preview remain visible while dragging the folder.
+
 ## Channels
 
 When you select a space, its channels appear in the **channel panel** to the right of the space bar. Channels come in several types:

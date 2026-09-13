@@ -18,8 +18,8 @@ class SpaceFolder {
   /// Optional ARGB color override for the folder tile; null = default.
   final int? color;
 
-  /// Whether the folder is collapsed (shows a stacked preview instead of its
-  /// expanded space icons).
+  /// Whether the folder is collapsed (shows the first four resolved space
+  /// icons in a 2×2 preview instead of its expanded space icons).
   final bool collapsed;
 
   /// Ordered space ids contained in this folder.
