@@ -175,8 +175,6 @@ void main() {
   testWidgets(
     'folder preview survives both drag feedback and the faded source',
     (tester) async {
-      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
-      addTearDown(() => debugDefaultTargetPlatformOverride = null);
       final icon = SpaceFolderIcon(
         folder: const SpaceFolder(
           id: 'folder',
@@ -211,5 +209,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(SpaceFolderIcon), findsOneWidget);
     },
+    variant: TargetPlatformVariant.only(TargetPlatform.linux),
   );
 }
