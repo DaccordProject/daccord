@@ -36,22 +36,50 @@ String messageClockString(DateTime local) {
 /// |----------|-------------------------|
 /// | Today    | `18:43`                 |
 /// | Yesterday| `Yesterday at 18:43`    |
-/// | 2–6 days | `Monday at 18:43`       |
+/// | This week| `Monday at 18:43`       |
+/// | Last week| `Last Monday at 18:43`  |
 /// | Older    | `12/06/2026 18:43`      |
 ///
-/// The 6-day ceiling keeps weekday names unambiguous (a 7-day-old message
-/// would repeat today's weekday). [now] is injected for testability; callers
-/// omit it and the current wall-clock time is used.
+/// Weekday-only labels are limited to the current Monday–Sunday calendar week.
+/// Prefixing weekdays from the previous calendar week with `Last` prevents a
+/// recent message across a week boundary from looking like it belongs to this
+/// week. [now] is injected for testability; callers omit it and the current
+/// wall-clock time is used.
 String messageTimeString(DateTime local, {DateTime? now}) {
   final clock = messageClockString(local);
   final ref = now ?? DateTime.now();
   final today = DateTime(ref.year, ref.month, ref.day);
   final thatDay = DateTime(local.year, local.month, local.day);
-  final daysAgo = today.difference(thatDay).inDays;
+  // Compare calendar dates in UTC so a 23- or 25-hour daylight-saving day is
+  // still exactly one day apart for display purposes.
+  final daysAgo = DateTime.utc(
+    today.year,
+    today.month,
+    today.day,
+  ).difference(DateTime.utc(thatDay.year, thatDay.month, thatDay.day)).inDays;
 
   if (daysAgo <= 0) return clock;
   if (daysAgo == 1) return 'Yesterday at $clock';
-  if (daysAgo <= 6) return '${_weekdays[local.weekday - 1]} at $clock';
+
+  // DateTime's overflowing day constructor performs calendar arithmetic;
+  // subtracting a Duration here would have the same DST problem as above.
+  final startOfThisWeek = DateTime(
+    today.year,
+    today.month,
+    today.day - (today.weekday - 1),
+  );
+  if (!thatDay.isBefore(startOfThisWeek)) {
+    return '${_weekdays[local.weekday - 1]} at $clock';
+  }
+
+  final startOfLastWeek = DateTime(
+    startOfThisWeek.year,
+    startOfThisWeek.month,
+    startOfThisWeek.day - 7,
+  );
+  if (!thatDay.isBefore(startOfLastWeek)) {
+    return 'Last ${_weekdays[local.weekday - 1]} at $clock';
+  }
 
   final dd = local.day.toString().padLeft(2, '0');
   final mo = local.month.toString().padLeft(2, '0');

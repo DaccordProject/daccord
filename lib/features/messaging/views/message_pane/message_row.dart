@@ -132,8 +132,8 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
 
   // The header time is date-aware so a message from days ago isn't mistaken for
   // a recent one: today shows just the time, yesterday is prefixed, earlier this
-  // week shows the weekday, and older messages get the calendar date. intl isn't
-  // a dependency, so this is formatted by hand.
+  // week shows the weekday, last week is explicitly prefixed, and older messages
+  // get the calendar date. intl isn't a dependency, so this is formatted by hand.
   String get _time => messageTimeFromIso(_message.timestamp);
 
   // Full timestamp shown in the tooltip, e.g. "Monday, 5 June 2026 at 14:30".
