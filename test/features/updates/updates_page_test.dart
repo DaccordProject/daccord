@@ -119,9 +119,16 @@ void main() {
     });
   });
 
-  group('UpdatesScreen on an app store build', () {
-    setUp(() => debugAppStoreBuild = true);
-    tearDown(() => debugAppStoreBuild = null);
+  for (final packageManaged in [false, true]) {
+  group('UpdatesScreen with external updates (package manager: $packageManaged)', () {
+    setUp(() {
+      debugAppStoreBuild = !packageManaged;
+      debugPackageManagerBuild = packageManaged;
+    });
+    tearDown(() {
+      debugAppStoreBuild = null;
+      debugPackageManagerBuild = null;
+    });
 
     testWidgets('offers no check, no download and no GitHub release link', (
       tester,
@@ -140,7 +147,9 @@ void main() {
       expect(find.text('Skip this version'), findsNothing);
       expect(find.textContaining('Update available'), findsNothing);
       expect(
-        find.text('Updates are delivered through the app store.'),
+        find.text(packageManaged
+          ? 'Updates are delivered through your package manager.'
+          : 'Updates are delivered through the app store.'),
         findsOneWidget,
       );
       // The running build's own version and notes stay available.
@@ -148,4 +157,5 @@ void main() {
       expect(find.text("What's new in this version"), findsOneWidget);
     });
   });
+  }
 }

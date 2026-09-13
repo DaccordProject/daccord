@@ -97,7 +97,7 @@ class AccordSettingsScreen extends ConsumerWidget {
               const Divider(height: 24),
               // Store builds update through the store and never expose the
               // GitHub self-updater; Developer Mode is desktop-only (#292).
-              if (!isAppStoreBuild) ...[
+              if (isSelfUpdateEnabled) ...[
                 const _UpdatesSection(),
                 const Divider(height: 24),
               ],
@@ -320,7 +320,7 @@ class _CategoryPane extends ConsumerWidget {
       SettingsCategory.system => <Widget>[
         // Store builds update through the store and never expose the GitHub
         // self-updater (#292).
-        if (!isAppStoreBuild) const _UpdatesSection(),
+        if (isSelfUpdateEnabled) const _UpdatesSection(),
         const _BackupSection(),
       ],
       SettingsCategory.advanced => <Widget>[

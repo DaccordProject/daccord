@@ -68,14 +68,15 @@ class UpdatesScreen extends ConsumerWidget {
                 : const Icon(Icons.chevron_right),
             onTap: () => openCurrentReleaseNotes(context, ref),
           ),
-          // App-store builds update through the store and must never query
-          // GitHub for releases, so the whole check/download half of this page
-          // is replaced by a one-line statement of where updates come from.
-          if (isAppStoreBuild)
+          // Explain which external distributor owns updates when the shared
+          // gate disables GitHub checks and downloads.
+          if (!isSelfUpdateEnabled)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: Text(
-                'Updates are delivered through the app store.',
+                isPackageManagerBuild
+                    ? 'Updates are delivered through your package manager.'
+                    : 'Updates are delivered through the app store.',
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall!.copyWith(color: colors.gray),

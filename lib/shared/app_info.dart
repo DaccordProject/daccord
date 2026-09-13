@@ -5,6 +5,7 @@ library;
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:universal_platform/universal_platform.dart';
+import 'package:bonfire/shared/package_manager_install.dart';
 
 /// The current app version. Populated once at startup by [initAppInfo] from the
 /// version Flutter bakes into the build from `pubspec.yaml` `version:` (the
@@ -56,6 +57,23 @@ bool? debugAppStoreBuild;
 /// compiler still folds the whole expression to `true`), so the updater code is
 /// still statically dead there.
 bool get isAppStoreBuild => kAppStoreBuild || (debugAppStoreBuild ?? false);
+
+/// Distributors can disable self-updates without disabling desktop MCP or
+/// other features that remain available outside app-store builds.
+const bool kPackageManagerBuild = bool.fromEnvironment('PACKAGE_MANAGER');
+
+@visibleForTesting
+bool? debugPackageManagerBuild;
+
+final bool _packageManagerInstall = detectPackageManagerInstall();
+
+bool get isPackageManagerBuild =>
+    kPackageManagerBuild ||
+    (debugPackageManagerBuild ?? _packageManagerInstall);
+
+/// Shared gate for automatic checks, manual checks, downloads and applying a
+/// staged update. Package managers own the installed files even when writable.
+bool get isSelfUpdateEnabled => !isAppStoreBuild && !isPackageManagerBuild;
 
 /// Overrides [isDeveloperModeAvailable] in tests, which can neither set a
 /// `--dart-define` nor pretend to run on another platform. Null in production.

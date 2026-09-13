@@ -95,6 +95,7 @@ void main() {
     UpdateInstaller.debugInstallRootWritable = null;
     UpdateInstaller.debugHasPrivilegedInstaller = null;
     debugAppStoreBuild = null;
+    debugPackageManagerBuild = null;
     await Hive.deleteBoxFromDisk('accord-settings');
     await Hive.close();
     if (_tempDir.existsSync()) _tempDir.deleteSync(recursive: true);
@@ -207,12 +208,16 @@ void main() {
     });
   });
 
-  group('app store builds', () {
+  for (final packageManaged in [false, true]) {
+  group(packageManaged ? 'package manager builds' : 'app store builds', () {
     // Apple rejected 0.2.16 partly because the store binary shipped a live
     // GitHub self-updater: a reviewer saw "Update available: v0.2.17" and a
     // link to download the app from GitHub (#292). A store build must not even
     // ask GitHub what the latest release is.
-    setUp(() => debugAppStoreBuild = true);
+    setUp(() {
+      debugAppStoreBuild = !packageManaged;
+      debugPackageManagerBuild = packageManaged;
+    });
 
     test('check() never reaches GitHub and leaves the state untouched',
         () async {
@@ -267,6 +272,7 @@ void main() {
       // self-updater, so flipping the override back must restore it.
       if (_hostInstallableExt == null) return; // web/iOS: never in-place anyway
       debugAppStoreBuild = null;
+    debugPackageManagerBuild = null;
       final c = makeContainer();
       setLatest(c, _fullReleaseAssets);
 
@@ -274,6 +280,8 @@ void main() {
       expect(controllerOf(c).platformAssetUrl(), isNotNull);
     });
   });
+
+  }
 
   group('dismissCurrent', () {
     test('is a no-op when state.latest is null', () {

@@ -59,3 +59,27 @@ Root: HKCU; Subkey: "Software\Classes\daccord\shell\open\command"; ValueType: st
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+
+[UninstallDelete]
+Type: files; Name: "{app}\daccord.package-manager"
+
+[Code]
+var
+  PackageManager: String;
+
+function InitializeSetup(): Boolean;
+begin
+  PackageManager := Lowercase(ExpandConstant('{param:PACKAGE_MANAGER|}'));
+  Result := (PackageManager = '') or (PackageManager = 'winget') or
+    (PackageManager = 'chocolatey');
+  if not Result then
+    MsgBox('Unsupported PACKAGE_MANAGER value.', mbError, MB_OK);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if (CurStep = ssPostInstall) and (PackageManager <> '') then
+    if not SaveStringToFile(ExpandConstant('{app}\daccord.package-manager'),
+      PackageManager, False) then
+      RaiseException('Could not record the package manager. Installation is incomplete.');
+end;

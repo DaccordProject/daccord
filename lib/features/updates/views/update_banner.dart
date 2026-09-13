@@ -15,14 +15,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// back to the legacy "tap to view" banner that opens the Updates page. The ✕
 /// dismisses the current version until a newer one ships.
 ///
-/// Never shown on app-store builds — those update through the store, so there
-/// is no GitHub check to surface (see [isAppStoreBuild]).
+/// Hidden when a store or package manager owns updates (see
+/// [isSelfUpdateEnabled]).
 class UpdateBanner extends ConsumerWidget {
   const UpdateBanner({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (isAppStoreBuild) return const SizedBox.shrink();
+    if (!isSelfUpdateEnabled) return const SizedBox.shrink();
     final update = ref.watch(updateControllerProvider);
     final notifier = ref.read(updateControllerProvider.notifier);
     final skipped = ref.watch(
