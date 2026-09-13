@@ -14,8 +14,8 @@ class _FakeUpdateController extends UpdateController {
     this._state, {
     bool canInstallInPlace = false,
     bool requiresPrivilegedInstall = false,
-  })  : _canInstallInPlace = canInstallInPlace,
-        _requiresPrivilegedInstall = requiresPrivilegedInstall;
+  }) : _canInstallInPlace = canInstallInPlace,
+       _requiresPrivilegedInstall = requiresPrivilegedInstall;
   final UpdateState _state;
   final bool _canInstallInPlace;
   final bool _requiresPrivilegedInstall;
@@ -45,48 +45,50 @@ Widget _host({
   required UpdateState update,
   bool canInstallInPlace = false,
   bool requiresPrivilegedInstall = false,
-}) =>
-    ProviderScope(
-      overrides: [
-        updateControllerProvider.overrideWith(
-          () => _FakeUpdateController(
-            update,
-            canInstallInPlace: canInstallInPlace,
-            requiresPrivilegedInstall: requiresPrivilegedInstall,
-          ),
-        ),
-        settingsControllerProvider.overrideWith(() => _FakeSettingsController()),
-      ],
-      child: MaterialApp(
-        theme: buildAppTheme(AppThemePreset.dark),
-        home: const UpdatesScreen(),
+}) => ProviderScope(
+  overrides: [
+    updateControllerProvider.overrideWith(
+      () => _FakeUpdateController(
+        update,
+        canInstallInPlace: canInstallInPlace,
+        requiresPrivilegedInstall: requiresPrivilegedInstall,
       ),
-    );
+    ),
+    settingsControllerProvider.overrideWith(() => _FakeSettingsController()),
+  ],
+  child: MaterialApp(
+    theme: buildAppTheme(AppThemePreset.dark),
+    home: const UpdatesScreen(),
+  ),
+);
 
 void main() {
   group('UpdatesScreen install button label', () {
     testWidgets(
-        'reads "Install (admin)" when ready and requiresPrivilegedInstall '
-        '(Linux system-package reinstall via pkexec)', (tester) async {
-      await tester.pumpWidget(
-        _host(
-          update: const UpdateState(
-            latest: _newerRelease,
-            phase: UpdatePhase.ready,
-            stagedArchivePath: '/tmp/daccord.deb',
+      'reads "Install (admin)" when ready and requiresPrivilegedInstall '
+      '(Linux system-package reinstall via pkexec)',
+      (tester) async {
+        await tester.pumpWidget(
+          _host(
+            update: const UpdateState(
+              latest: _newerRelease,
+              phase: UpdatePhase.ready,
+              stagedArchivePath: '/tmp/daccord.deb',
+            ),
+            canInstallInPlace: true,
+            requiresPrivilegedInstall: true,
           ),
-          canInstallInPlace: true,
-          requiresPrivilegedInstall: true,
-        ),
-      );
-      await tester.pump();
+        );
+        await tester.pump();
 
-      expect(find.text('Install (admin)'), findsOneWidget);
-      expect(find.text('Restart & install'), findsNothing);
-    });
+        expect(find.text('Install (admin)'), findsOneWidget);
+        expect(find.text('Restart & install'), findsNothing);
+      },
+    );
 
-    testWidgets('reads "Restart & install" when ready and no admin is needed',
-        (tester) async {
+    testWidgets('reads "Restart & install" when ready and no admin is needed', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           update: const UpdateState(
@@ -104,58 +106,64 @@ void main() {
     });
 
     testWidgets(
-        'reads "Download & install (admin)" when idle and requiresPrivilegedInstall',
-        (tester) async {
-      await tester.pumpWidget(
-        _host(
-          update: const UpdateState(latest: _newerRelease),
-          canInstallInPlace: true,
-          requiresPrivilegedInstall: true,
-        ),
-      );
-      await tester.pump();
+      'reads "Download & install (admin)" when idle and requiresPrivilegedInstall',
+      (tester) async {
+        await tester.pumpWidget(
+          _host(
+            update: const UpdateState(latest: _newerRelease),
+            canInstallInPlace: true,
+            requiresPrivilegedInstall: true,
+          ),
+        );
+        await tester.pump();
 
-      expect(find.text('Download & install (admin)'), findsOneWidget);
-    });
+        expect(find.text('Download & install (admin)'), findsOneWidget);
+      },
+    );
   });
 
   for (final packageManaged in [false, true]) {
-  group('UpdatesScreen with external updates (package manager: $packageManaged)', () {
-    setUp(() {
-      debugAppStoreBuild = !packageManaged;
-      debugPackageManagerBuild = packageManaged;
-    });
-    tearDown(() {
-      debugAppStoreBuild = null;
-      debugPackageManagerBuild = null;
-    });
+    group(
+      'UpdatesScreen with external updates (package manager: $packageManaged)',
+      () {
+        setUp(() {
+          debugAppStoreBuild = !packageManaged;
+          debugPackageManagerBuild = packageManaged;
+        });
+        tearDown(() {
+          debugAppStoreBuild = null;
+          debugPackageManagerBuild = null;
+        });
 
-    testWidgets('offers no check, no download and no GitHub release link', (
-      tester,
-    ) async {
-      // The Settings entry point is hidden on store builds, but even if the
-      // page were reached it must not advertise a GitHub release (#292).
-      await tester.pumpWidget(
-        _host(update: const UpdateState(latest: _newerRelease)),
-      );
-      await tester.pump();
+        testWidgets('offers no check, no download and no GitHub release link', (
+          tester,
+        ) async {
+          // The Settings entry point is hidden on store builds, but even if the
+          // page were reached it must not advertise a GitHub release (#292).
+          await tester.pumpWidget(
+            _host(update: const UpdateState(latest: _newerRelease)),
+          );
+          await tester.pump();
 
-      expect(find.text('Check for updates'), findsNothing);
-      expect(find.text('Check for updates on startup'), findsNothing);
-      expect(find.text('View release'), findsNothing);
-      expect(find.text('Download'), findsNothing);
-      expect(find.text('Skip this version'), findsNothing);
-      expect(find.textContaining('Update available'), findsNothing);
-      expect(
-        find.text(packageManaged
-          ? 'Updates are delivered through your package manager.'
-          : 'Updates are delivered through the app store.'),
-        findsOneWidget,
-      );
-      // The running build's own version and notes stay available.
-      expect(find.text('Current version'), findsOneWidget);
-      expect(find.text("What's new in this version"), findsOneWidget);
-    });
-  });
+          expect(find.text('Check for updates'), findsNothing);
+          expect(find.text('Check for updates on startup'), findsNothing);
+          expect(find.text('View release'), findsNothing);
+          expect(find.text('Download'), findsNothing);
+          expect(find.text('Skip this version'), findsNothing);
+          expect(find.textContaining('Update available'), findsNothing);
+          expect(
+            find.text(
+              packageManaged
+                  ? 'Updates are delivered through your package manager.'
+                  : 'Updates are delivered through the app store.',
+            ),
+            findsOneWidget,
+          );
+          // The running build's own version and notes stay available.
+          expect(find.text('Current version'), findsOneWidget);
+          expect(find.text("What's new in this version"), findsOneWidget);
+        });
+      },
+    );
   }
 }

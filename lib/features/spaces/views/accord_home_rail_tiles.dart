@@ -278,7 +278,11 @@ class _SpaceIcon extends ConsumerWidget {
 /// Image and initials shared by ordinary rail tiles and folder miniatures.
 /// Interaction, clipping, selection, and unread badges belong to the host tile.
 class _SpaceIconImage extends StatelessWidget {
-  const _SpaceIconImage({required this.space, required this.cdnUrl, this.size = 48});
+  const _SpaceIconImage({
+    required this.space,
+    required this.cdnUrl,
+    this.size = 48,
+  });
 
   final AccordSpace space;
   final String? cdnUrl;

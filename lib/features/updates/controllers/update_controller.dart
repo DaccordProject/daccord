@@ -83,7 +83,8 @@ class UpdateState {
       phase == UpdatePhase.installing;
 
   /// Whether a verified build is staged and one click away from being applied.
-  bool get updateReady => phase == UpdatePhase.ready && stagedArchivePath != null;
+  bool get updateReady =>
+      phase == UpdatePhase.ready && stagedArchivePath != null;
 
   /// Whether [latest] is a newer build than the running one. Pre-releases are
   /// ignored unless this build is itself a pre-release (matching the reference
@@ -119,11 +120,15 @@ class UpdateState {
     dismissedVersion: dismissedVersion ?? this.dismissedVersion,
     phase: phase ?? this.phase,
     progress: progress ?? this.progress,
-    installError: clearInstallError ? null : (installError ?? this.installError),
-    stagedArchivePath:
-        clearStagedArchive ? null : (stagedArchivePath ?? this.stagedArchivePath),
-    preparedVersion:
-        clearPreparedVersion ? null : (preparedVersion ?? this.preparedVersion),
+    installError: clearInstallError
+        ? null
+        : (installError ?? this.installError),
+    stagedArchivePath: clearStagedArchive
+        ? null
+        : (stagedArchivePath ?? this.stagedArchivePath),
+    preparedVersion: clearPreparedVersion
+        ? null
+        : (preparedVersion ?? this.preparedVersion),
   );
 }
 
@@ -391,7 +396,10 @@ class UpdateController extends _$UpdateController {
         preparedVersion: version,
       );
     } on UpdateInstallException catch (e) {
-      state = state.copyWith(phase: UpdatePhase.failed, installError: e.message);
+      state = state.copyWith(
+        phase: UpdatePhase.failed,
+        installError: e.message,
+      );
     } catch (e) {
       debugPrint('Background update download failed: $e');
       state = state.copyWith(

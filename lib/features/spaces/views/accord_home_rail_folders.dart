@@ -52,7 +52,10 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
     final folderIcon = SpaceFolderIcon(
       folder: folder,
       spaces: {for (final member in spaces) member.key: member.space},
-      cdnUrls: {for (final entry in widget.connOf.entries) entry.key: entry.value.cdnUrl},
+      cdnUrls: {
+        for (final entry in widget.connOf.entries)
+          entry.key: entry.value.cdnUrl,
+      },
     );
 
     return Column(
@@ -260,7 +263,9 @@ class SpaceFolderIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    final folderColor = folder.color == null ? colors.darkGray : Color(folder.color!);
+    final folderColor = folder.color == null
+        ? colors.darkGray
+        : Color(folder.color!);
     final members = folder.spaceIds.where(spaces.containsKey).take(4).toList();
     return Container(
       width: 48,
@@ -271,8 +276,10 @@ class SpaceFolderIcon extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: !folder.collapsed || members.isEmpty
-          ? Icon(folder.collapsed ? Icons.folder : Icons.folder_open,
-              color: colors.dirtyWhite)
+          ? Icon(
+              folder.collapsed ? Icons.folder : Icons.folder_open,
+              color: colors.dirtyWhite,
+            )
           : Padding(
               padding: const EdgeInsets.all(5),
               child: Column(

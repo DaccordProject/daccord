@@ -209,78 +209,80 @@ void main() {
   });
 
   for (final packageManaged in [false, true]) {
-  group(packageManaged ? 'package manager builds' : 'app store builds', () {
-    // Apple rejected 0.2.16 partly because the store binary shipped a live
-    // GitHub self-updater: a reviewer saw "Update available: v0.2.17" and a
-    // link to download the app from GitHub (#292). A store build must not even
-    // ask GitHub what the latest release is.
-    setUp(() {
-      debugAppStoreBuild = !packageManaged;
-      debugPackageManagerBuild = packageManaged;
-    });
+    group(packageManaged ? 'package manager builds' : 'app store builds', () {
+      // Apple rejected 0.2.16 partly because the store binary shipped a live
+      // GitHub self-updater: a reviewer saw "Update available: v0.2.17" and a
+      // link to download the app from GitHub (#292). A store build must not even
+      // ask GitHub what the latest release is.
+      setUp(() {
+        debugAppStoreBuild = !packageManaged;
+        debugPackageManagerBuild = packageManaged;
+      });
 
-    test('check() never reaches GitHub and leaves the state untouched',
+      test(
+        'check() never reaches GitHub and leaves the state untouched',
         () async {
-      final c = makeContainer();
-      final before = stateOf(c);
-      final after = await controllerOf(c).check(manual: true);
+          final c = makeContainer();
+          final before = stateOf(c);
+          final after = await controllerOf(c).check(manual: true);
 
-      // A real request would have flipped checkedOnce (on success *or* error).
-      expect(after.checkedOnce, isFalse);
-      expect(after.checking, isFalse);
-      expect(after.latest, isNull);
-      expect(after.error, isNull);
-      expect(identical(after, before), isTrue);
+          // A real request would have flipped checkedOnce (on success *or* error).
+          expect(after.checkedOnce, isFalse);
+          expect(after.checking, isFalse);
+          expect(after.latest, isNull);
+          expect(after.error, isNull);
+          expect(identical(after, before), isTrue);
+        },
+      );
+
+      test('maybeCheckOnStartup() is a no-op', () async {
+        final c = makeContainer();
+        await controllerOf(c).maybeCheckOnStartup();
+
+        expect(stateOf(c).checkedOnce, isFalse);
+        expect(stateOf(c).latest, isNull);
+      });
+
+      test('never offers an in-place install or a download link', () {
+        final c = makeContainer();
+        setLatest(c, _fullReleaseAssets);
+
+        expect(controllerOf(c).canInstallInPlace, isFalse);
+        expect(controllerOf(c).platformAssetUrl(), isNull);
+      });
+
+      test('applyUpdate() is a no-op even with a staged build', () async {
+        final c = makeContainer();
+        setLatest(c, _fullReleaseAssets);
+        await controllerOf(c).applyUpdate();
+
+        expect(stateOf(c).phase, UpdatePhase.idle);
+        expect(stateOf(c).installError, isNull);
+      });
+
+      test('prepareUpdate() never downloads', () async {
+        final c = makeContainer();
+        setLatest(c, _fullReleaseAssets);
+        await controllerOf(c).prepareUpdate();
+
+        expect(stateOf(c).phase, UpdatePhase.idle);
+        expect(stateOf(c).stagedArchivePath, isNull);
+      });
+
+      test('the same paths stay live on sideload builds', () async {
+        // Guard against over-gating: the `github` flavor deliberately keeps the
+        // self-updater, so flipping the override back must restore it.
+        if (_hostInstallableExt == null)
+          return; // web/iOS: never in-place anyway
+        debugAppStoreBuild = null;
+        debugPackageManagerBuild = null;
+        final c = makeContainer();
+        setLatest(c, _fullReleaseAssets);
+
+        expect(controllerOf(c).canInstallInPlace, isTrue);
+        expect(controllerOf(c).platformAssetUrl(), isNotNull);
+      });
     });
-
-    test('maybeCheckOnStartup() is a no-op', () async {
-      final c = makeContainer();
-      await controllerOf(c).maybeCheckOnStartup();
-
-      expect(stateOf(c).checkedOnce, isFalse);
-      expect(stateOf(c).latest, isNull);
-    });
-
-    test('never offers an in-place install or a download link', () {
-      final c = makeContainer();
-      setLatest(c, _fullReleaseAssets);
-
-      expect(controllerOf(c).canInstallInPlace, isFalse);
-      expect(controllerOf(c).platformAssetUrl(), isNull);
-    });
-
-    test('applyUpdate() is a no-op even with a staged build', () async {
-      final c = makeContainer();
-      setLatest(c, _fullReleaseAssets);
-      await controllerOf(c).applyUpdate();
-
-      expect(stateOf(c).phase, UpdatePhase.idle);
-      expect(stateOf(c).installError, isNull);
-    });
-
-    test('prepareUpdate() never downloads', () async {
-      final c = makeContainer();
-      setLatest(c, _fullReleaseAssets);
-      await controllerOf(c).prepareUpdate();
-
-      expect(stateOf(c).phase, UpdatePhase.idle);
-      expect(stateOf(c).stagedArchivePath, isNull);
-    });
-
-    test('the same paths stay live on sideload builds', () async {
-      // Guard against over-gating: the `github` flavor deliberately keeps the
-      // self-updater, so flipping the override back must restore it.
-      if (_hostInstallableExt == null) return; // web/iOS: never in-place anyway
-      debugAppStoreBuild = null;
-    debugPackageManagerBuild = null;
-      final c = makeContainer();
-      setLatest(c, _fullReleaseAssets);
-
-      expect(controllerOf(c).canInstallInPlace, isTrue);
-      expect(controllerOf(c).platformAssetUrl(), isNotNull);
-    });
-  });
-
   }
 
   group('dismissCurrent', () {
@@ -310,10 +312,7 @@ void main() {
     test('is a no-op when state.latest is null', () {
       final c = makeContainer();
       controllerOf(c).skipCurrent();
-      expect(
-        c.read(settingsControllerProvider).skippedUpdateVersion,
-        isEmpty,
-      );
+      expect(c.read(settingsControllerProvider).skippedUpdateVersion, isEmpty);
     });
 
     test('persists skippedUpdateVersion in settings when latest exists', () {
@@ -328,10 +327,7 @@ void main() {
         ),
       );
       controllerOf(c).skipCurrent();
-      expect(
-        c.read(settingsControllerProvider).skippedUpdateVersion,
-        '3.1.0',
-      );
+      expect(c.read(settingsControllerProvider).skippedUpdateVersion, '3.1.0');
     });
   });
 
@@ -467,11 +463,14 @@ void main() {
       preparedVersion: '2.0.0',
     );
 
-    test('preserves stagedArchivePath and preparedVersion when not cleared', () {
-      final copy = staged.copyWith(phase: UpdatePhase.idle);
-      expect(copy.stagedArchivePath, '/tmp/build.tar.gz');
-      expect(copy.preparedVersion, '2.0.0');
-    });
+    test(
+      'preserves stagedArchivePath and preparedVersion when not cleared',
+      () {
+        final copy = staged.copyWith(phase: UpdatePhase.idle);
+        expect(copy.stagedArchivePath, '/tmp/build.tar.gz');
+        expect(copy.preparedVersion, '2.0.0');
+      },
+    );
 
     test('clearStagedArchive nulls out the path', () {
       final copy = staged.copyWith(clearStagedArchive: true);
@@ -562,7 +561,8 @@ void main() {
           expect(
             asset.name.toLowerCase().contains('windows'),
             isTrue,
-            reason: 'picked web bundle "${asset.name}" instead of Windows installer',
+            reason:
+                'picked web bundle "${asset.name}" instead of Windows installer',
           );
         }
       }
