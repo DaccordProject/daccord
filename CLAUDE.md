@@ -204,3 +204,8 @@ The web composer leaves paste shortcuts to the browser editor; native clients
 retain image and large-text clipboard handling. `voiceRelayOnly` is an opt-in
 persisted setting passed to LiveKit on initial connection and every reconnect;
 it requires TURN support and never falls back to direct candidates on failure.
+
+MCP's optional `space_management` group provides create/update space and
+create/update/delete/reorder channel tools. Its schemas and validated handlers
+live in `mcp_tools/space_management.dart`; mutations fetch fresh permissions and
+return entity data while refreshing caches. See `docs/developer/mcp-space-management.md`.

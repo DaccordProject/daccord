@@ -1,4 +1,9 @@
+import 'dart:convert';
+
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/member/utils/permissions.dart';
+import 'package:bonfire/features/spaces/utils/space_media_cache.dart';
+import 'package:bonfire/features/spaces/utils/space_display.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
@@ -17,6 +22,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 part 'mcp_tools/serializers.dart';
+part 'mcp_tools/space_management.dart';
 part 'mcp_tools/tool_catalog.dart';
 
 /// A tool handler: takes the MCP call arguments and returns the result map

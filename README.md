@@ -375,3 +375,7 @@ Space image edits preview the selected crop immediately and refresh saved icons
 and banners in the current session. Channel administration is available from the
 **Space actions** menu beside the channel panel's search button. **Voice & Video**
 settings includes optional relay-only connections; see [network privacy](docs/privacy-network.md).
+
+The opt-in [MCP space management tools](docs/developer/mcp-space-management.md)
+create spaces and manage their settings, categories and channels through the
+active account's permissions.

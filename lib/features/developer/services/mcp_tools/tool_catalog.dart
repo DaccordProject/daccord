@@ -2,6 +2,7 @@ part of '../mcp_tools.dart';
 
 extension _McpToolCatalog on McpTools {
   void _registerAll() {
+    _registerSpaceManagement();
     // ── read ──────────────────────────────────────────────────────────────
     _register(
       'get_current_state',

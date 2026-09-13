@@ -63,6 +63,14 @@ extension _McpToolSerializers on McpTools {
     'owner_id': s.ownerId,
     'member_count': s.memberCount ?? 0,
     'public': s.public,
+    'allow_guest_access': s.allowGuestAccess,
+    'icon': s.icon,
+    'banner': s.banner,
+    'verification_level': s.verificationLevel,
+    'default_notifications': s.defaultNotifications,
+    'nsfw_level': s.nsfwLevel,
+    'explicit_content_filter': s.explicitContentFilter,
+    'system_channel_id': s.systemChannelId,
     'role_count': s.roles.length,
     'rules_channel_id': s.rulesChannelId ?? '',
   };
@@ -70,11 +78,13 @@ extension _McpToolSerializers on McpTools {
   Map<String, dynamic> _channelBrief(AccordChannel c) => {
     'id': c.id,
     'name': c.name ?? '',
+    'space_id': c.spaceId,
     'type': c.type,
     'parent_id': c.parentId ?? '',
     'topic': c.topic ?? '',
     'position': c.position ?? 0,
     'nsfw': c.nsfw,
+    'rate_limit': c.rateLimitSeconds,
   };
 
   Map<String, dynamic> _memberBrief(AccordMember m) => {
