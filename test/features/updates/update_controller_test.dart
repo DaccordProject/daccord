@@ -272,8 +272,9 @@ void main() {
       test('the same paths stay live on sideload builds', () async {
         // Guard against over-gating: the `github` flavor deliberately keeps the
         // self-updater, so flipping the override back must restore it.
-        if (_hostInstallableExt == null)
+        if (_hostInstallableExt == null) {
           return; // web/iOS: never in-place anyway
+        }
         debugAppStoreBuild = null;
         debugPackageManagerBuild = null;
         final c = makeContainer();
