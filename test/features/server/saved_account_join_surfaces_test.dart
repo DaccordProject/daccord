@@ -355,14 +355,18 @@ void main() {
       final directory = Directory.systemTemp.createTempSync(
         'pending-invite-login',
       );
-      Hive.init(directory.path);
-      await Hive.openBox('accord-session');
-      await Hive.openBox('auth');
-      await recordAppTermsAcceptance();
-      addTearDown(() async {
-        await Hive.close();
-        directory.deleteSync(recursive: true);
+      await tester.runAsync(() async {
+        Hive.init(directory.path);
+        await Hive.openBox('accord-session');
+        await Hive.openBox('auth');
+        await recordAppTermsAcceptance();
       });
+      addTearDown(
+        () => tester.runAsync(() async {
+          await Hive.close();
+          directory.deleteSync(recursive: true);
+        }),
+      );
       final auth = _Auth(session, client, saved: false);
       final container = containerFor(auth);
       final pending = ServerUri.parseDeepLink(
@@ -377,7 +381,11 @@ void main() {
       await tester.enterText(_field('Username or email'), 'saved-user');
       await tester.enterText(_field('Password'), 'password');
       await tester.ensureVisible(find.text('Log In'));
-      await tester.tap(find.text('Log In'));
+      // Login persists the last server; start that file I/O outside FakeAsync.
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Log In'));
+        await Hive.box('accord-session').flush();
+      });
       await tester.pump();
       await tester.pump();
       expect(requests.first.url.path, '/api/v1/invites/abc123/accept');

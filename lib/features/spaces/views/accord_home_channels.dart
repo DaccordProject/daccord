@@ -197,7 +197,7 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
                     onSelected: (action) => action.onPressed(),
                     itemBuilder: (context) =>
                         <_HeaderAction>[
-                              if (canInvite && id != null)
+                              if (canInvite)
                                 _HeaderAction(
                                   tooltip: 'Invite people',
                                   icon: Icons.person_add,
@@ -205,7 +205,7 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
                                   onPressed: () =>
                                       showAccordInvites(context, spaceId: id),
                                 ),
-                              if (canManageChannels && id != null)
+                              if (canManageChannels)
                                 _HeaderAction(
                                   tooltip: 'Create channel',
                                   icon: Icons.add,
@@ -215,9 +215,7 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
                                     spaceId: id,
                                   ),
                                 ),
-                              if (canManageChannels &&
-                                  id != null &&
-                                  channels != null)
+                              if (canManageChannels && channels != null)
                                 _HeaderAction(
                                   tooltip: 'Reorder channels',
                                   icon: Icons.reorder,
@@ -228,7 +226,7 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
                                     channels: channels,
                                   ),
                                 ),
-                              if (canManage && id != null)
+                              if (canManage)
                                 _HeaderAction(
                                   tooltip: 'Space settings',
                                   icon: Icons.settings,

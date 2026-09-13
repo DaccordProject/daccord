@@ -63,7 +63,7 @@ class _YouTubePreviewState extends State<YouTubePreview>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!TickerMode.of(context)) _playing = false;
+    if (!TickerMode.valuesOf(context).enabled) _playing = false;
   }
 
   void _stop() {

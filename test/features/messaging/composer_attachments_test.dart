@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
@@ -11,6 +10,7 @@ import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/theme/app_theme.dart';
+import 'package:bonfire/shared/models/server_entity_key.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -37,6 +37,18 @@ const _selfId = 'u1';
 class _FakeSettingsController extends SettingsController {
   @override
   AccordSettings build() => const AccordSettings();
+
+  @override
+  void setDraft(String serverKey, String channelId, String text) {
+    final key = ServerEntityKey(serverKey, channelId).encoded;
+    final drafts = {...state.drafts};
+    if (text.isEmpty) {
+      drafts.remove(key);
+    } else {
+      drafts[key] = text;
+    }
+    state = state.copyWith(drafts: drafts);
+  }
 }
 
 /// A [FilePicker] whose `pickFiles` does whatever the test says.
