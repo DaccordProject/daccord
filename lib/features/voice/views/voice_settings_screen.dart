@@ -72,6 +72,14 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
+          SwitchListTile(
+            title: const Text('Relay-only voice'),
+            subtitle: const Text('Route voice, video and screen sharing through '
+                'a TURN relay. Requires server support and may increase latency. '
+                'Applies on your next connection; leave and rejoin to apply now.'),
+            value: settings.voiceRelayOnly,
+            onChanged: controller.setVoiceRelayOnly,
+          ),
           SectionHeader('Input device'),
           _DeviceDropdown(
             devices: _audioInputs,

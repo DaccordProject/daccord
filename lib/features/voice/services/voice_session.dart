@@ -166,6 +166,7 @@ class VoiceSession {
     String token, {
     bool selfMute = false,
     bool selfDeaf = false,
+    bool relayOnly = false,
     String? audioInputDeviceId,
     String? audioOutputDeviceId,
     int outputVolume = 100,
@@ -221,7 +222,7 @@ class VoiceSession {
     }
 
     try {
-      await room.connect(url, token);
+      await room.connect(url, token, connectOptions: voiceConnectOptions(relayOnly));
       // The new connection is live — genuine drops from here are unintentional.
       _intentionalDisconnect = false;
       if (micTrack != null) {
@@ -237,7 +238,11 @@ class VoiceSession {
       _startLevelPolling();
       _setState(VoiceSessionState.connected);
     } catch (e) {
-      _lastError = '$e';
+      _lastError = relayOnly
+          ? 'Relay-only voice could not connect. The server needs a reachable '
+              'TURN relay. Check the server configuration or turn off relay-only '
+              'voice in Voice & Video settings. ($e)'
+          : '$e';
       debugPrint('LiveKit connect failed: $e');
       _setState(VoiceSessionState.failed);
       await _releaseTrack(micTrack);
@@ -754,3 +759,12 @@ class VoiceSession {
   /// Releases the room and listeners for good.
   Future<void> dispose() => _teardownRoom();
 }
+
+/// Keep the policy explicit on every initial connection and reconnect.
+ConnectOptions voiceConnectOptions(bool relayOnly) => ConnectOptions(
+  rtcConfiguration: RTCConfiguration(
+    iceTransportPolicy: relayOnly
+        ? RTCIceTransportPolicy.relay
+        : RTCIceTransportPolicy.all,
+  ),
+);

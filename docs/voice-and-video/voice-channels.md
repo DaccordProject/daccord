@@ -49,3 +49,11 @@ Click the **Camera** button to share your camera feed. Other participants see yo
 Access voice and video settings from the voice bar settings button or from **App Settings > Voice & Video**. Here you can configure your input/output devices and other audio preferences.
 
 The **Output device** picker is shown on desktop and Android, where the platform can honour an explicit choice. iOS routes call audio itself — use Control Centre, the AirPlay picker, or plug in a headset — so the app does not offer a picker that iOS would ignore.
+
+### Relay-only connections
+
+Enable **Relay-only voice** in **Voice & Video** settings to require a TURN relay
+for voice, video and screen sharing. Leave and rejoin to apply it to a current
+call. The option is off by default, can add latency, and requires the server's
+LiveKit deployment to provide reachable TURN. Failed relay connections report an
+error and do not fall back to direct media. See [network privacy](../privacy-network.md).

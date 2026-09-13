@@ -193,3 +193,14 @@ an administrator. `docs/automod.md` documents the client contract. Private
 evidence must use the authenticated SDK endpoint and must be cleared on account
 changes. Moderator mutations opt out of automatic 429 retry. Tests live in
 `test/features/automod/` and `packages/accordkit/test/automod_management_test.dart`.
+
+## Space media, composer and voice behavior
+
+Space settings retain pending image bytes and export bounded PNG crops; banner
+previews preserve 16:9 framing. `SpaceMediaCache` evicts only replaced assets and
+revisions their provider URLs so mounted rail/settings images refresh. Channel
+header management actions use the permission-filtered Space actions menu.
+The web composer leaves paste shortcuts to the browser editor; native clients
+retain image and large-text clipboard handling. `voiceRelayOnly` is an opt-in
+persisted setting passed to LiveKit on initial connection and every reconnect;
+it requires TURN support and never falls back to direct candidates on failure.

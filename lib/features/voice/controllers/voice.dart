@@ -293,6 +293,7 @@ class VoiceController extends _$VoiceController {
       token,
       selfMute: state.selfMute,
       selfDeaf: state.selfDeaf,
+      relayOnly: ref.read(settingsControllerProvider).voiceRelayOnly,
       audioInputDeviceId: settings.audioInputDeviceId,
       audioOutputDeviceId: settings.audioOutputDeviceId,
       outputVolume: settings.outputVolume,
@@ -438,6 +439,7 @@ class VoiceController extends _$VoiceController {
       token,
       selfMute: state.selfMute,
       selfDeaf: state.selfDeaf,
+      relayOnly: ref.read(settingsControllerProvider).voiceRelayOnly,
     );
     _applyMicOutcome();
   }
@@ -564,6 +566,7 @@ class VoiceController extends _$VoiceController {
       token,
       selfMute: state.selfMute,
       selfDeaf: state.selfDeaf,
+      relayOnly: ref.read(settingsControllerProvider).voiceRelayOnly,
       audioInputDeviceId: settings.audioInputDeviceId,
       audioOutputDeviceId: settings.audioOutputDeviceId,
       outputVolume: settings.outputVolume,

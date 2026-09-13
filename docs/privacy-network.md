@@ -24,6 +24,16 @@ daccord has no first-party analytics, telemetry, advertising, or automatic crash
 
 Server operators control the Accord and LiveKit endpoints they configure and may have their own logging and privacy policies. Operators of public directories, GitHub, web hosts, CDNs, and external sites can likewise observe requests that reach them.
 
+## Relay-only voice
+
+Voice & Video settings offers **Relay-only voice**, off by default. When enabled,
+voice, video and screen sharing use only TURN relay candidates, including on
+reconnect. Leave and rejoin an existing call to apply a changed preference.
+The server's LiveKit deployment must provide a reachable TURN relay; without one,
+the connection fails with an explanation and never falls back to direct media.
+Relaying can increase latency. The Accord, LiveKit and TURN operators still see
+connection metadata, including your IP address.
+
 ## Fonts and local files
 
 The app uses platform-provided fonts. It does not fetch Google Fonts or another font service at runtime. Message content cannot silently load `file:`, `data:`, `blob:`, `content:`, asset, UNC, or custom-scheme image URLs.

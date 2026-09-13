@@ -36,6 +36,10 @@ When you select a space, its channels appear in the **channel panel** to the rig
 - **Announcement channels** -- for important broadcasts
 - **Forum channels** -- for threaded discussions organized by topic
 
+The channel panel keeps Search beside the space name. Open **Space actions**
+(the three-dot menu) for invites, channel creation/reordering and space settings.
+Only actions allowed by your permissions appear.
+
 ## Categories
 
 Channels are grouped under **categories** -- collapsible section headers. Click a category name to expand or collapse it and show or hide its channels.

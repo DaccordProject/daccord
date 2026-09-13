@@ -89,6 +89,10 @@ class _ComposerState extends ConsumerState<_Composer> {
   }
 
   KeyEventResult _onComposerKey(FocusNode node, KeyEvent event) {
+    // Browsers deliver clipboard contents through the focused HTML editor's
+    // paste/input event. Consuming Ctrl/Cmd+V cancels that event, and the async
+    // Clipboard API may be unavailable or require a separate permission.
+    if (kIsWeb) return KeyEventResult.ignored;
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final mods = HardwareKeyboard.instance;
     final isPaste =

@@ -23,6 +23,7 @@ class _FakeSession extends VoiceSession {
   String? unmuteError;
   int connects = 0;
   bool? connectedMuted;
+  bool? connectedRelayOnly;
   final micToggles = <bool>[];
 
   @override
@@ -38,9 +39,11 @@ class _FakeSession extends VoiceSession {
     String? audioOutputDeviceId,
     int outputVolume = 100,
     int inputVolume = 100,
+    bool relayOnly = false,
   }) async {
     connects++;
     connectedMuted = selfMute;
+    connectedRelayOnly = relayOnly;
   }
 
   @override
@@ -74,8 +77,10 @@ class _ActiveConnections extends ConnectionsController {
 }
 
 class _FixedSettingsController extends SettingsController {
+  _FixedSettingsController({this.relayOnly = false});
+  final bool relayOnly;
   @override
-  AccordSettings build() => const AccordSettings();
+  AccordSettings build() => AccordSettings(voiceRelayOnly: relayOnly);
 }
 
 /// A [VoiceController] already sitting muted in a channel, for the unmute
@@ -123,6 +128,7 @@ AccordClient _client() {
 
 ({ProviderContainer container, _FakeSession session}) _harness({
   VoiceController Function()? voice,
+  bool relayOnly = false,
 }) {
   final client = _client();
   addTearDown(client.dispose);
@@ -130,7 +136,7 @@ AccordClient _client() {
     overrides: [
       accordAuthProvider.overrideWith(() => _FakeAccordAuth(client)),
       connectionsControllerProvider.overrideWith(_ActiveConnections.new),
-      settingsControllerProvider.overrideWith(_FixedSettingsController.new),
+      settingsControllerProvider.overrideWith(() => _FixedSettingsController(relayOnly: relayOnly)),
       if (voice != null) voiceControllerProvider.overrideWith(voice),
     ],
   );
@@ -147,6 +153,20 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   tearDown(() => soundManager.setVoiceSessionActive(false));
+
+  test('relay-only preference reaches initial join and gateway reconnect', () async {
+    final h = _harness(relayOnly: true);
+    final controller = h.container.read(voiceControllerProvider.notifier);
+    await controller.join('c1', 's1');
+    expect(h.session.connectedRelayOnly, isTrue);
+    controller.handleServerUpdate(AccordVoiceServerUpdate.fromJson({
+      'channel_id': 'c1', 'livekit_url': 'wss://livekit.example',
+      'token': 'refreshed',
+    }));
+    await pump();
+    expect(h.session.connects, 2);
+    expect(h.session.connectedRelayOnly, isTrue);
+  });
 
   group('initial mic publish (#325)', () {
     test('a denied microphone joins muted with the reason surfaced', () async {

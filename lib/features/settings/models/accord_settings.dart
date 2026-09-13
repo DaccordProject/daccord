@@ -62,6 +62,7 @@ class AccordSettings {
     'message',
     'moderate',
     'manage',
+    'space_management',
     'voice',
   ];
 
@@ -89,6 +90,7 @@ class AccordSettings {
     this.inputSensitivity = 50,
     this.voiceAfkTimeoutMinutes = defaultAfkTimeoutMinutes,
     this.voiceAfkAutoMove = true,
+    this.voiceRelayOnly = false,
     this.recentEmoji = const [],
     this.masterServerUrl = defaultMasterServerUrl,
     this.channelNotifications = const <String, String>{},
@@ -210,6 +212,9 @@ class AccordSettings {
   /// client-side by re-joining that channel — the Accord server has no
   /// move-participant route and never enforces `afk_channel_id` itself.
   final bool voiceAfkAutoMove;
+
+  /// Require TURN relay candidates for all voice/video media connections.
+  final bool voiceRelayOnly;
 
   /// Most-recently-used emoji tokens (unicode chars or `name:id` custom refs),
   /// most-recent first.
@@ -338,6 +343,7 @@ class AccordSettings {
     int? inputSensitivity,
     int? voiceAfkTimeoutMinutes,
     bool? voiceAfkAutoMove,
+    bool? voiceRelayOnly,
     List<String>? recentEmoji,
     String? masterServerUrl,
     Map<String, String>? channelNotifications,
@@ -389,6 +395,7 @@ class AccordSettings {
       voiceAfkTimeoutMinutes:
           voiceAfkTimeoutMinutes ?? this.voiceAfkTimeoutMinutes,
       voiceAfkAutoMove: voiceAfkAutoMove ?? this.voiceAfkAutoMove,
+      voiceRelayOnly: voiceRelayOnly ?? this.voiceRelayOnly,
       recentEmoji: recentEmoji ?? this.recentEmoji,
       masterServerUrl: masterServerUrl ?? this.masterServerUrl,
       channelNotifications: channelNotifications ?? this.channelNotifications,
@@ -576,6 +583,7 @@ class AccordSettings {
     'inputSensitivity': inputSensitivity,
     'voiceAfkTimeoutMinutes': voiceAfkTimeoutMinutes,
     'voiceAfkAutoMove': voiceAfkAutoMove,
+    'voiceRelayOnly': voiceRelayOnly,
     'recentEmoji': recentEmoji,
     'masterServerUrl': masterServerUrl,
     'channelNotifications': channelNotifications,
@@ -644,6 +652,7 @@ class AccordSettings {
           (json['voiceAfkTimeoutMinutes'] as num?)?.toInt() ??
           defaultAfkTimeoutMinutes,
       voiceAfkAutoMove: json['voiceAfkAutoMove'] as bool? ?? true,
+      voiceRelayOnly: json['voiceRelayOnly'] as bool? ?? false,
       recentEmoji: [
         for (final e in (json['recentEmoji'] as List? ?? const []))
           e.toString(),

@@ -85,6 +85,8 @@ Grab the latest build from the **[Releases page](https://github.com/DaccordProje
 | Android | `daccord-android.apk` |
 | Web | `daccord-web.zip` |
 
+The Google Play build receives updates through Play; the GitHub sideload APK includes the in-app updater.
+
 Every release ships a `SHA256SUMS.txt` so you can verify what you downloaded. Step-by-step instructions per platform live in [Installing daccord](docs/getting-started/installation.md).
 
 iOS and store channels are built and submitted by the release workflow. Availability depends on the store and region; store installations receive updates through their respective stores.
@@ -368,3 +370,8 @@ for permissions, video sampling, private evidence, and cooldown behavior.
 Read positions synchronize across connected devices, with retries for failed
 acknowledgements and replay suppression for notifications. See the
 [read-state audit](docs/notification-read-state-audit.md) for behavior and limits.
+
+Space image edits preview the selected crop immediately and refresh saved icons
+and banners in the current session. Channel administration is available from the
+**Space actions** menu beside the channel panel's search button. **Voice & Video**
+settings includes optional relay-only connections; see [network privacy](docs/privacy-network.md).

@@ -166,6 +166,9 @@ class SettingsController extends _$SettingsController {
   void setVideoInputDevice(String deviceId) =>
       _update(state.copyWith(videoInputDeviceId: deviceId));
 
+  void setVoiceRelayOnly(bool enabled) =>
+      _update(state.copyWith(voiceRelayOnly: enabled));
+
   void setInputVolume(int volume) =>
       _update(state.copyWith(inputVolume: volume.clamp(0, 200)));
 

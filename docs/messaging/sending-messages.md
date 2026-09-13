@@ -60,3 +60,7 @@ If you lose your connection, you can still type and send messages. They are queu
 ## Typing Indicator
 
 When you're typing, other users in the channel see a typing indicator below the message list showing your name.
+
+On Web, keyboard and browser-menu text paste use the browser's normal editor
+input. Native clients also support clipboard images and the large-text attachment
+prompt.

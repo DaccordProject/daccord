@@ -13,6 +13,8 @@ import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -202,6 +204,24 @@ Finder _visibleText(String needle) => find.byWidgetPredicate(
     );
 
 void main() {
+  testWidgets('web leaves paste to the browser editor', (tester) async {
+    await _pump(tester);
+    final field = tester.widget<TextField>(find.byType(TextField).last);
+    await tester.tap(find.byType(TextField).last);
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    final result = field.focusNode!.onKeyEvent!(field.focusNode!,
+      const KeyDownEvent(physicalKey: PhysicalKeyboardKey.keyV,
+        logicalKey: LogicalKeyboardKey.keyV, timeStamp: Duration.zero));
+    expect(result, KeyEventResult.ignored);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    // Browser paste/context-menu input arrives on the text input channel.
+    tester.testTextInput.updateEditingValue(const TextEditingValue(
+      text: 'pasted text', selection: TextSelection.collapsed(offset: 11)));
+    await tester.pump();
+    expect(field.controller!.text, 'pasted text');
+  }, skip: !kIsWeb);
+
   late FilePicker? original;
 
   setUp(() {
