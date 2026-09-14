@@ -75,7 +75,7 @@ final class ThreadRepliesControllerProvider
 }
 
 String _$threadRepliesControllerHash() =>
-    r'c1a8f40150bef50b8a6cf964ca84a5aaa88736b3';
+    r'0e51776ea1a763932c3e0b758aaf71195133d38a';
 
 /// A thread's replies (excluding the root message), keyed by
 /// (channelId, rootId), ordered oldest→newest as the server returns them.
