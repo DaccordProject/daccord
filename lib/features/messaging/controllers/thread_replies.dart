@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/messaging/controllers/history_request.dart';
 import 'package:bonfire/features/messaging/utils/send_cooldown.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/list_ext.dart';
@@ -32,6 +33,8 @@ class ThreadRepliesController extends _$ThreadRepliesController {
     String channelId,
     String rootId,
   ) {
+    _history.reset();
+    ref.onDispose(_history.reset);
     final ThreadKey key = (
       serverKey: serverKey,
       channelId: channelId,
@@ -47,17 +50,36 @@ class ThreadRepliesController extends _$ThreadRepliesController {
     return null;
   }
 
+  final _history = HistoryRequests();
+
+  bool _owns(HistoryRequest request, AccordClient client) =>
+      ref.mounted &&
+      _history.owns(request) &&
+      ref.isCurrentAccordClient(serverKey, client);
+
   Future<void> _load(AccordClient client) async {
-    final result = await client.messages.listThread(channelId, rootId);
     if (!ref.mounted || !ref.isCurrentAccordClient(serverKey, client)) return;
-    final replies = result.listOrLog<AccordMessage>('thread $rootId');
-    if (replies == null) {
-      // Settle on empty rather than spin forever (matches the previous view
-      // behavior); a re-identify [reload] retries.
-      state = const [];
-      return;
+    final request = _history.begin();
+    try {
+      final result = await client.messages.listThread(channelId, rootId);
+      if (!_owns(request, client)) return;
+      final replies = result.listOrLog<AccordMessage>(
+        'replies for $channelId thread $rootId',
+      );
+      if (replies == null) {
+        // Settle an initial failure without discarding live rows or the cache
+        // the user is reading during a failed reconnect refresh.
+        state ??= const [];
+        return;
+      }
+      state = _history.reconcile(
+        replies.where((m) => m.id != rootId),
+        state ?? const [],
+        prependLive: false,
+      );
+    } finally {
+      if (_owns(request, client)) _history.finish(request);
     }
-    state = replies.where((m) => m.id != rootId).toList();
   }
 
   /// Re-fetches the reply list, replacing the cache in place (no flash back to
@@ -107,13 +129,16 @@ class ThreadRepliesController extends _$ThreadRepliesController {
   void addReply(AccordMessage message) {
     if (message.id == rootId) return;
     final current = state ?? const <AccordMessage>[];
-    if (current.any((m) => m.id == message.id)) return;
+    final existing = current.where((m) => m.id == message.id).firstOrNull;
+    _history.update(existing ?? message);
+    if (existing != null) return;
     state = [...current, message];
   }
 
   /// Replaces an existing reply (edit result / gateway echo); unknown ids are
   /// ignored.
   void updateReply(AccordMessage message) {
+    _history.update(message);
     final next = state?.replaceById(message, (m) => m.id);
     if (next != null) state = next;
   }
@@ -122,6 +147,7 @@ class ThreadRepliesController extends _$ThreadRepliesController {
   /// (the gateway delete payload carries no `thread_id`, so deletes fan out to
   /// every open thread on the channel).
   void removeReply(String messageId) {
+    _history.remove(messageId);
     final current = state;
     if (current == null || !current.any((m) => m.id == messageId)) return;
     state = current.removeById(messageId, (m) => m.id);

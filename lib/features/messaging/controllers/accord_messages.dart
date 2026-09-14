@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/messaging/controllers/pending_uploads.dart';
+import 'package:bonfire/features/messaging/controllers/history_request.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/shared/controllers/load_failed.dart';
@@ -50,6 +51,10 @@ LoadFailedProvider messagesLoadFailedProvider(
 class AccordMessagesController extends _$AccordMessagesController {
   @override
   List<AccordMessage>? build(String serverKey, String channelId) {
+    _history.reset();
+    isLoadingOlder = false;
+    hasMoreOlder = true;
+    ref.onDispose(_history.reset);
     final key = (serverKey: serverKey, channelId: channelId);
     activeMessageChannels.add(key);
     ref.onDispose(() => activeMessageChannels.remove(key));
@@ -75,25 +80,36 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// older history to fetch. UI hides its "load older" affordance when set.
   bool hasMoreOlder = true;
 
+  final _history = HistoryRequests();
+
+  bool _owns(HistoryRequest request, AccordClient client) =>
+      ref.mounted &&
+      _history.owns(request) &&
+      ref.isCurrentAccordClient(serverKey, client);
+
   Future<void> _load(AccordClient client, String channelId) async {
-    final result = await client.messages.list(
-      channelId,
-      query: {'limit': _pageSize},
-    );
-    // Every write to the load-failed flag below happens after this `await`:
-    // `build` calls `_load` synchronously, and Riverpod forbids a provider
-    // mutating another during initialization.
-    if (!ref.mounted) return;
-    if (!ref.isCurrentAccordClient(serverKey, client)) return;
-    final list = result.listOrLog<AccordMessage>('messages for $channelId');
-    if (list == null) {
-      _setLoadFailed(true);
-      return;
+    if (!ref.mounted || !ref.isCurrentAccordClient(serverKey, client)) return;
+    final request = _history.begin();
+    isLoadingOlder = false;
+    try {
+      final result = await client.messages.list(
+        channelId,
+        query: {'limit': _pageSize},
+      );
+      // build starts this synchronously: writes to other providers must follow
+      // the await, and only the current request may publish any result.
+      if (!_owns(request, client)) return;
+      final list = result.listOrLog<AccordMessage>('messages for $channelId');
+      if (list == null) {
+        _setLoadFailed(true);
+        return;
+      }
+      hasMoreOlder = list.length >= _pageSize;
+      state = _history.reconcile(list.reversed, state ?? const []);
+      _setLoadFailed(false);
+    } finally {
+      if (_owns(request, client)) _history.finish(request);
     }
-    // The REST list returns newest-first; store oldest-first for display.
-    state = list.reversed.toList();
-    if (list.length < _pageSize) hasMoreOlder = false;
-    _setLoadFailed(false);
   }
 
   void _setLoadFailed(bool value) => ref
@@ -104,13 +120,7 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// loading state). Used after a gateway re-identify: a fresh session gets no
   /// event replay, so anything that happened while disconnected is missing
   /// from the cache until refetched.
-  Future<void> reload(AccordClient client) {
-    // Reset the pagination guard so that if loadOlder was in flight its
-    // eventual state-write is superseded by the reload result.
-    isLoadingOlder = false;
-    hasMoreOlder = true;
-    return _load(client, channelId);
-  }
+  Future<void> reload(AccordClient client) => _load(client, channelId);
 
   /// Loads the previous page of messages (older than the currently-oldest one
   /// in cache) and prepends them to [state]. Idempotent under concurrent calls
@@ -118,9 +128,11 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// messages loaded (0 means "no more"). Mirrors the reference client's
   /// scroll-up pagination via the `before` cursor.
   Future<int> loadOlder(AccordClient client) async {
-    if (isLoadingOlder || !hasMoreOlder) return 0;
+    if (!ref.mounted || !ref.isCurrentAccordClient(serverKey, client)) return 0;
+    if (_history.isLoading || !hasMoreOlder) return 0;
     final current = state;
     if (current == null || current.isEmpty) return 0;
+    final request = _history.begin();
     isLoadingOlder = true;
     // Bump state so widgets watching the list rebuild and can show a spinner.
     state = [...current];
@@ -130,7 +142,7 @@ class AccordMessagesController extends _$AccordMessagesController {
         channelId,
         query: {'limit': _pageSize, 'before': oldestId},
       );
-      if (!ref.mounted) return 0;
+      if (!_owns(request, client)) return 0;
       final page = result.listOrLog<AccordMessage>(
         'older messages for $channelId',
       );
@@ -138,17 +150,19 @@ class AccordMessagesController extends _$AccordMessagesController {
       if (page.length < _pageSize) hasMoreOlder = false;
       if (page.isEmpty) return 0;
       // REST returns newest-first within the page; prepend oldest-first.
-      final older = page.reversed.toList();
+      final older = _history.reconcile(page.reversed, const []);
       final newest = state ?? current;
       // Dedupe in case an overlapping message snuck in (e.g. live insert).
       final knownIds = newest.map((m) => m.id).toSet();
-      final fresh = older.where((m) => !knownIds.contains(m.id)).toList();
+      final fresh = older.where((m) => knownIds.add(m.id)).toList();
       state = [...fresh, ...newest];
       return fresh.length;
     } finally {
-      isLoadingOlder = false;
-      // Bump state again so the spinner-watching widget rebuilds.
-      if (ref.mounted) {
+      // Cleanup belongs to the request too: an obsolete page must not clear
+      // a newer page's spinner or notify its listeners.
+      if (_owns(request, client)) {
+        _history.finish(request);
+        isLoadingOlder = false;
         final s = state;
         if (s != null) state = [...s];
       }
@@ -231,6 +245,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     final message = current.firstWhereOrNull((m) => m.id == messageId);
     if (message == null || message.pinned == pinned) return;
     message.pinned = pinned;
+    _history.update(message);
     state = [...current];
   }
 
@@ -281,6 +296,9 @@ class AccordMessagesController extends _$AccordMessagesController {
     if (!result.ok) {
       debugPrint('Failed to bulk-delete in $channelId: ${result.error}');
       return false;
+    }
+    for (final id in messageIds) {
+      _history.remove(id);
     }
     final current = state;
     if (current != null) {
@@ -344,16 +362,20 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// echo of a message we just sent).
   void addMessage(AccordMessage message) {
     final current = state ?? const <AccordMessage>[];
-    if (current.any((m) => m.id == message.id)) return;
+    final existing = current.firstWhereOrNull((m) => m.id == message.id);
+    _history.update(existing ?? message);
+    if (existing != null) return;
     state = [...current, message];
   }
 
   void updateMessage(AccordMessage message) {
+    _history.update(message);
     final next = state?.replaceById(message, (m) => m.id);
     if (next != null) state = next;
   }
 
   void removeMessage(String messageId) {
+    _history.remove(messageId);
     final current = state;
     if (current == null) return;
     state = current.removeById(messageId, (m) => m.id);
@@ -514,6 +536,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     }
 
     message.reactions = reactions;
+    _history.update(message);
     state = [...current];
   }
 
@@ -527,6 +550,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     message!.reactions = message.reactions!
         .where((r) => _emojiName(r) != _emojiKey(emojiName, null))
         .toList();
+    _history.update(message);
     state = [...current];
   }
 
@@ -537,6 +561,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     final message = current.firstWhereOrNull((m) => m.id == messageId);
     if (message == null) return;
     message.reactions = <AccordReaction>[];
+    _history.update(message);
     state = [...current];
   }
 
