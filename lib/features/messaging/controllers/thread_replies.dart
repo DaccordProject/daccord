@@ -63,7 +63,9 @@ class ThreadRepliesController extends _$ThreadRepliesController {
     try {
       final result = await client.messages.listThread(channelId, rootId);
       if (!_owns(request, client)) return;
-      final replies = result.listOrLog<AccordMessage>('replies for $channelId');
+      final replies = result.listOrLog<AccordMessage>(
+        'replies for $channelId thread $rootId',
+      );
       if (replies == null) {
         // Settle an initial failure without discarding live rows or the cache
         // the user is reading during a failed reconnect refresh.
