@@ -7,29 +7,14 @@ section: messaging
 
 # Reactions and Emoji
 
-You can react to any message with emoji to express yourself without sending a full reply.
-
 ## Adding a Reaction
 
-1. Hover over a message and click the **React** button in the floating action bar.
-2. The emoji picker opens showing 160 emoji organized into 8 categories.
-3. Use the search field to find a specific emoji.
-4. Click an emoji to add it as a reaction.
+Hover a message and click **Add reaction**, or choose **Add reaction** from its right-click (long-press) menu. Pick an emoji from the picker, which has a search field, a Recent tab, and the space's custom emoji.
 
-You can also right-click a message and select **React** from the context menu.
+## Reactions on Messages
 
-## Removing a Reaction
+Reactions appear as pills under the message with a count; yours are highlighted. Click a pill to add or remove your reaction. Right-click (long-press) a pill to see who reacted.
 
-Click your own reaction on a message to remove it.
+## Emoji in Messages
 
-## Reaction Display
-
-Reactions appear as small pills below the message content, showing the emoji and a count of how many people reacted with it. Your own reactions are highlighted.
-
-## Using Emoji in Messages
-
-To insert an emoji into your message text, open the emoji picker from the composer area.
-
-## Skin Tone
-
-You can set your preferred emoji skin tone in **App Settings > Appearance**.
+Click the **Emoji** button in the composer to insert an emoji at the cursor, or type a custom emoji as `:name:`.

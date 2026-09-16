@@ -7,7 +7,7 @@ section: troubleshooting
 
 # Network Behavior and Privacy
 
-daccord has no first-party analytics, telemetry, advertising, or automatic crash-reporting SDK. That does not mean the client is offline except for chat. Normal features can make the network requests below.
+daccord has no first-party analytics, telemetry, advertising, or automatic crash-reporting SDK, but normal features make the network requests below.
 
 ## Destinations
 
@@ -22,7 +22,7 @@ daccord has no first-party analytics, telemetry, advertising, or automatic crash
 | External media hosts named in messages | Only after an explicit load/open action; compact third-party decorative media fails closed | The requested URL plus ordinary connection metadata, including your IP address |
 | Links you open | Only after your action and confirmation where applicable | Whatever the external browser sends to that destination |
 
-Server operators control the Accord and LiveKit endpoints they configure and may have their own logging and privacy policies. Operators of public directories, GitHub, web hosts, CDNs, and external sites can likewise observe requests that reach them.
+Operators of each destination (servers, LiveKit, directories, GitHub, web hosts, CDNs, external sites) can observe requests that reach them and may have their own logging and privacy policies.
 
 ## Relay-only voice
 
@@ -40,19 +40,18 @@ The app uses platform-provided fonts. It does not fetch Google Fonts or another 
 
 ## Stored sign-in credentials
 
-On Android, iOS, macOS, Windows, and Linux, reusable session tokens are stored through the operating system's credential service. The ordinary Hive profile database contains only random opaque references and non-secret account metadata. Older plaintext session records are migrated by committing the token to the credential service before the Hive copy is removed. Linux builds require a Secret Service provider such as GNOME Keyring or KWallet; if no credential vault is available, Daccord does not fall back to plaintext storage.
+On Android, iOS, macOS, Windows, and Linux, reusable session tokens are stored through the operating system's credential service. The profile database holds only random opaque references and non-secret account metadata. Linux builds require a Secret Service provider such as GNOME Keyring or KWallet; if no credential vault is available, Daccord does not fall back to plaintext storage.
 
-Web browsers do not expose an OS credential vault to Flutter applications. On Web, the secure-storage plugin uses a non-exportable WebCrypto key to protect values kept in origin-scoped local storage. This reduces offline portability but does not protect a token from script executing in the same origin or from a compromised browser profile. Web deployments must use HTTPS and strong security headers, and users should treat the browser profile as part of the trust boundary.
+Browsers have no OS credential vault, so on Web tokens are kept in origin-scoped local storage protected by a non-exportable WebCrypto key. This does not protect a token from script running in the same origin or from a compromised browser profile: web deployments must use HTTPS and strong security headers, and the browser profile is part of the trust boundary.
 
 ## What self-hosting controls
 
-Self-hosting keeps community accounts, messages, uploads, and the configured voice service under infrastructure you choose. daccord does not proxy those services. You can also replace the default public directory URL in settings. Ancillary update checks and explicitly initiated external requests remain separate from your server traffic as described above.
+Self-hosting keeps accounts, messages, uploads, and voice on infrastructure you choose; daccord does not proxy them. You can replace the default directory URL in settings. Update checks and requests you initiate to external sites still happen as described above.
 
 ## YouTube previews
 
 YouTube posters follow external-media consent. On Web, choosing **Play · load
-from YouTube** authorizes the official `www.youtube.com/iframe_api` script and
-`www.youtube-nocookie.com` embedded player; the provider may make additional
-media requests. History rendering alone does not load the script or player.
-The **Open in YouTube** action uses the external browser. You can hide all embed
-previews in appearance settings without changing the underlying messages.
+from YouTube** loads the official `www.youtube.com/iframe_api` script and the
+`www.youtube-nocookie.com` player, which may make further media requests.
+Viewing history alone loads neither. **Open in YouTube** uses your external
+browser. Embeds can be hidden in appearance settings.

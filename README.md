@@ -39,33 +39,35 @@ This client is the front door: one native app for every screen you own.
 
 **Messaging**
 
-- 💬 **Real-time messaging** — send, edit, delete, and reply over the Accord gateway, with typing indicators and live presence.
+- 💬 **Real-time messaging** — send, edit, delete, and reply over the Accord gateway, with typing indicators and live presence. Read positions sync across devices ([details](docs/notification-read-state-audit.md)).
 - 🧵 **Threads, forums & pins** — branch a conversation into a thread, run forum-style channels, and pin what matters.
 - 😀 **Reactions & emoji** — full unicode support plus custom server emoji, all behind a slick built-in picker.
 - 📎 **Files & media** — drag and drop attachments, with inline images, video, and audio playback and a full-screen lightbox.
 - 🔍 **Search** — space-scoped message search that jumps you straight to the hit.
+- ▶️ **Link previews** — YouTube previews with consent-gated playback on Web and an external link on native; embeds can be hidden locally. See [link previews](docs/messaging/sending-messages.md#link-previews).
 - ✉️ **Direct messages & DM calls** — private conversations, one-to-one and group, with voice and video.
 
 **Voice & video**
 
-- 🎙️ **Voice, video & screen sharing** — crystal-clear calls powered by **LiveKit/WebRTC**, with camera and screen share built right in.
+- 🎙️ **Voice, video & screen sharing** — crystal-clear calls powered by **LiveKit/WebRTC**, with camera and screen share built right in. Optional relay-only connections; see [network privacy](docs/privacy-network.md).
 
 **Servers & communities**
 
 - 🌐 **Multi-server** — connect to many Daccord servers at once and switch between them seamlessly. Your work crew and your gaming crew, side by side.
 - 📁 **Space folders** — collapsed folders show a 2×2 preview of their first four available space icons.
-- 🧭 **Discovery** — browse public spaces from the server directory and join them, even before you've signed in anywhere.
-- 🛡️ **Server admin tools** — manage channels, roles, permissions, bans, invites, and custom emoji without ever leaving the app.
+- 🧭 **Discovery** — browse public spaces from the server directory and join them, even before you've signed in anywhere. Discovery and invite joins reuse saved accounts ([details](docs/getting-started/adding-a-server.md#joining-with-a-saved-account)).
+- 🛡️ **Server admin tools** — manage channels, roles, permissions, bans, invites, custom emoji, and cropped space icons/banners without leaving the app; channel administration lives in the **Space actions** menu.
+- 🤖 **AutoMod** — server and space rules, held-upload review, and repeat-file blocking. See [the AutoMod guide](docs/automod.md).
 - 🔗 **Destination-aware app links** — `daccord://` links open the right server, space, channel, thread, or message once the owning account is ready.
 
 **The app itself**
 
-- 🎨 **Themes** — Dark, Light, Nord, Monokai, and Solarized built in, plus fully custom colors you can copy, paste, and share in chat.
+- 🎨 **Themes** — Dark, Midnight, Light, Nord, Monokai, and Solarized presets.
 - 👥 **Multiple profiles** — keep separate local profiles on one device and switch between them without signing out.
 - 🔐 **Secure sign-in** — session tokens live in the OS credential vault, with optional TOTP two-factor authentication; each device profile keeps its own credential, even for the same account.
 - ⬆️ **In-app updates** — direct-download desktop and sideloaded Android builds check for, download, and install new releases themselves. Package-managed builds leave updates to their manager.
 - 📱 **Responsive everywhere** — one UI that flows from phone to desktop, sharp at every size.
-- 🛠️ **Local MCP tools** — opt-in desktop automation with bearer authentication and configurable tool groups. See [local MCP troubleshooting](docs/troubleshooting/common-issues.md#local-mcp-tools-not-connecting).
+- 🛠️ **Local MCP tools** — opt-in desktop automation with bearer authentication and configurable tool groups, including opt-in [space management](docs/developer/mcp-space-management.md). See [local MCP troubleshooting](docs/troubleshooting/common-issues.md#local-mcp-tools-not-connecting).
 
 ---
 
@@ -224,17 +226,8 @@ flutter run --flavor github            # Android device/emulator (a flavor is re
 flutter run -d chrome                  # browser; non-Android platforms have no flavor
 ```
 
-`build_runner watch -d` regenerates Riverpod `*.g.dart` files. Keep it running
-while developing, or run the same one-shot generation check as CI after editing
-any `@riverpod`-annotated file:
-
-```bash
-scripts/codegen.sh --check
-```
-
-`scripts/codegen.sh --check` is the same check CI runs: it performs a
-deterministic one-shot build and lists any tracked or untracked `*.g.dart`
-outputs that still need to be committed.
+After editing any `@riverpod`-annotated file, run `scripts/codegen.sh --check`
+(the same check CI runs); it lists `*.g.dart` outputs that still need committing.
 
 ### Lint & test
 
@@ -365,29 +358,3 @@ Every contribution — however small — goes straight into maintaining and impr
 ## 📄 License
 
 Licensed under the **[GNU General Public License v3.0](LICENSE)** (GPLv3), inherited from Bonfire. AccordKit-Dart is MIT-licensed; GPLv3 may incorporate MIT-licensed code, so depending on `accordkit` is fine.
-
-### Automatic moderation
-
-Configure server and space rules, review held uploads, and block repeated file
-uploads through the AutoMod controls. See [the client AutoMod guide](docs/automod.md)
-for permissions, video sampling, private evidence, and cooldown behavior.
-
-Read positions synchronize across connected devices, with retries for failed
-acknowledgements and replay suppression for notifications. See the
-[read-state audit](docs/notification-read-state-audit.md) for behavior and limits.
-
-Space image edits preview the selected crop immediately and refresh saved icons
-and banners in the current session. Channel administration is available from the
-**Space actions** menu beside the channel panel's search button. **Voice & Video**
-settings includes optional relay-only connections; see [network privacy](docs/privacy-network.md).
-
-The opt-in [MCP space management tools](docs/developer/mcp-space-management.md)
-create spaces and manage their settings, categories and channels through the
-active account's permissions.
-
-Discovery and invite joins reuse saved accounts, including during startup;
-see [adding a server](docs/getting-started/adding-a-server.md#joining-with-a-saved-account).
-
-YouTube previews offer consent-gated playback on Web and an external link on
-native clients. Appearance settings can hide embeds locally; see
-[link previews](docs/messaging/sending-messages.md#link-previews).

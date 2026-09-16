@@ -6,11 +6,9 @@ order: 0
 
 # daccord Documentation
 
-Welcome to the daccord documentation. daccord is a chat client for communities -- connect to servers, join spaces, and communicate through text, voice, and video.
+daccord is a chat client for communities: connect to servers, join spaces, and talk through text, voice, and video.
 
 ## Getting Started
-
-New to daccord? Start here.
 
 - [Installing daccord](getting-started/installation.md) -- Download and install on your platform
 - [Adding a Server](getting-started/adding-a-server.md) -- Connect to your first server

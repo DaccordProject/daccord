@@ -7,23 +7,11 @@ section: troubleshooting
 
 # Keyboard Shortcuts
 
-## Messaging
-
 | Shortcut | Action |
 |----------|--------|
 | Enter | Send message |
-| Shift+Enter | New line in message |
-| Ctrl+V / Cmd+V | Paste image or text from clipboard |
+| Ctrl+V / Cmd+V | Paste an image or text from the clipboard |
 
-## Editing a Message
+To edit a message, open the message's context menu and choose **Edit**; save with the **Save** button, or use the visible **Cancel** button to discard the edit. Enter inserts a new line while editing.
 
-| Shortcut | Action |
-|----------|--------|
-| Enter | Save edited message |
-
-Use the visible **Cancel** button to discard an edit. To start editing, open
-the message's context menu and choose **Edit**.
-
-## Mobile / Touch
-
-On Android and other touch devices, long-press a message to open the context menu (reply, edit, delete, react).
+On touch devices, long-press a message to open its context menu.

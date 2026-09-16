@@ -9,77 +9,53 @@ section: messaging
 
 ## Sending
 
-Type your message in the composer at the bottom of the message area and press **Enter** to send. Press **Shift+Enter** to insert a new line without sending.
+Type in the composer at the bottom of the message area and press **Enter** (or the send button) to send.
 
-daccord supports basic Markdown formatting in messages:
+Messages support Markdown, including:
 
-- `**bold**` for **bold**
-- `*italic*` for *italic*
-- `` `code` `` for `inline code`
-- ``` ```code block``` ``` for code blocks
+- `**bold**`, `*italic*`, `__underline__`, `~~strikethrough~~`
+- `` `inline code` `` and fenced code blocks
+- `||spoiler||`
+- Headings, lists, quotes, and links
+
+Mention people with `@name` and link channels with `#channel`.
+
+## Message Actions
+
+Hover a message to show its action bar, or right-click it (long-press on touch) for the full menu. **Reply** and **Add reaction** are on the action bar; **Edit**, **Delete**, and other actions are in the **⋯** menu.
 
 ## Replying
 
-To reply to a specific message:
-
-1. Hover over the message and click the **Reply** button in the floating action bar, or right-click and select **Reply**.
-2. A reply bar appears above the composer showing "Replying to [name]".
-3. Type your reply and send as usual.
-4. Click the **x** on the reply bar to cancel.
+Choose **Reply**. A "Replying to [name]" bar appears above the composer; click its **x** to cancel.
 
 ## Editing
 
-You can edit your own messages:
-
-1. Hover over your message and click the **Edit** button, or right-click and select **Edit**.
-2. The message text becomes editable inline.
-3. Press **Enter** to save your changes.
-4. Press **Escape** to cancel and discard changes.
-
-You can also press the **Up arrow** key in an empty composer to quickly edit your last sent message.
-
-Edited messages display an "(edited)" indicator.
+Choose **Edit** on your own message. The message becomes editable in place; click **Save** to keep your changes or **Cancel** to discard them. Edited messages show "(edited)".
 
 ## Deleting
 
-To delete your own message:
-
-1. Hover over the message and click the **Delete** button, or right-click and select **Delete**.
-2. Confirm the deletion.
-
-Admins may also be able to delete other users' messages depending on their permissions.
+Choose **Delete** and confirm. Members with the right permissions can also delete other people's messages.
 
 ## Drafts
 
-If you switch to a different channel before sending, your unfinished message is automatically saved as a draft. When you return to that channel, the draft is restored so you can continue where you left off.
+An unsent message is saved when you switch channels and restored when you come back.
 
-## Sending While Disconnected
+## If Sending Fails
 
-If you lose your connection, you can still type and send messages. They are queued locally and sent automatically once the connection is restored. A "Message queued" notice appears below the composer to let you know.
+If a message can't be sent (for example, you lost your connection), its text and attachments are put back in the composer and the error is shown above it. Nothing is resent automatically.
 
-## Typing Indicator
-
-When you're typing, other users in the channel see a typing indicator below the message list showing your name.
-
-On Web, keyboard and browser-menu text paste use the browser's normal editor
-input. Native clients also support clipboard images and the large-text attachment
-prompt.
+On Web, pasting uses the browser's normal text input. Native clients also support pasting images and the large-text attachment prompt.
 
 ## Link previews
 
-**Show embeds and link previews** in appearance settings controls previews only
-for your account; hiding them leaves the message text and attachments visible.
-YouTube previews retain the title, 16:9 poster and **Open in YouTube** link. Web
-can load the official player after you select **Play · load from YouTube**;
-native clients and narrow message columns use the external link. Playback stops
-when its message leaves view, the channel changes or the app loses focus. A
-player error returns to the poster with the external link.
+**Show embeds and link previews** in appearance settings hides previews for your
+account only; message text and attachments stay visible.
 
-External posters require the existing media consent. Starting the player also
-contacts YouTube's official player/API hosts; no player is loaded merely by
-opening message history. Player behavior follows the
-[YouTube IFrame API](https://developers.google.com/youtube/iframe_api_reference).
+YouTube previews show the title, a 16:9 poster, and an **Open in YouTube** link.
+On Web, **Play · load from YouTube** loads the official player; native clients
+and narrow columns use the external link. Playback stops when the message
+scrolls away, you switch channels, or the app loses focus. Posters require
+external-media consent, and nothing is loaded from YouTube until you press Play.
 
-Author/moderator suppression, angle-bracket link exclusion and asynchronous
-unfurl permission/federation behavior still require server support (#352).
-The client respects a suppression flag when supplied by the server.
+Author/moderator embed suppression needs server support (#352); the client
+honors the suppression flag when the server sends it.

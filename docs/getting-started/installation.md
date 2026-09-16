@@ -7,13 +7,9 @@ section: getting-started
 
 # Installing daccord
 
-daccord is available for Linux, Windows, macOS, Android, iOS, and the web.
-
 ## Download
 
-Get the free iOS app from the [App Store](https://apps.apple.com/app/id6779929284), or Android from [Google Play](https://play.google.com/store/apps/details?id=com.daccord_projects.daccord). Desktop builds and the Android APK are available from the [GitHub Releases page](https://github.com/DaccordProject/daccord/releases).
-
-Choose the right file for your platform:
+Get iOS from the [App Store](https://apps.apple.com/app/id6779929284) and Android from [Google Play](https://play.google.com/store/apps/details?id=com.daccord_projects.daccord). Desktop builds and the Android APK are on the [GitHub Releases page](https://github.com/DaccordProject/daccord/releases):
 
 | Platform | File |
 |----------|------|
@@ -27,56 +23,34 @@ Choose the right file for your platform:
 
 ## Linux
 
-**Package (recommended):** download `daccord-linux-x86_64.deb` and install it with `sudo dpkg -i daccord-linux-x86_64.deb` (or open it in your software centre). This is the build that keeps working with the in-app updater.
+**Package (recommended):** `sudo dpkg -i daccord-linux-x86_64.deb`, or open it in your software centre. This build works with the in-app updater and registers `daccord://` links.
 
-**Portable:**
-
-1. Extract `daccord-linux-x86_64.tgz`.
-2. Run the `daccord` executable.
-3. On some distributions you may need to mark it as executable first: right-click the file, open Properties, and enable "Allow executing file as program".
-
-The `.deb` registers `daccord://` links with the desktop. The portable archive
-does not alter desktop associations; links can still be pasted into the app.
-
-> **Already on v0.2.6 or earlier?** Those builds could not replace a system
-> (`.deb`) install and failed silently, so the app never updated itself. Install
-> the `.deb` above by hand once; from v0.2.7 onward the in-app updater handles it
-> for you.
+**Portable:** extract `daccord-linux-x86_64.tgz` and run `daccord` (you may need to mark it executable first). It doesn't register `daccord://` links.
 
 ## Windows
 
-**Installer:** Download and run `daccord-windows-x86_64-setup.exe`. It installs daccord to Program Files, adds a Start Menu shortcut, and registers the `daccord://` URL scheme so invite links open automatically. A per-user install (no admin rights required) is also supported.
+**Installer:** run `daccord-windows-x86_64-setup.exe`. It adds a Start Menu shortcut and registers `daccord://` links; per-user install without admin rights is supported.
 
-**Portable:** Download and extract `daccord-windows-x86_64.zip`, then double-click `daccord.exe` to launch without installing.
-
-The portable archive does not register the `daccord://` scheme with Windows.
+**Portable:** extract `daccord-windows-x86_64.zip` and run `daccord.exe`. It doesn't register `daccord://` links.
 
 ## macOS
 
-1. Open the downloaded `.dmg` file.
-2. Drag daccord to your Applications folder.
-3. Launch from Applications. On first launch, you may need to right-click and choose "Open" to bypass Gatekeeper.
+Open the `.dmg` and drag daccord to Applications. If Gatekeeper blocks the first launch, right-click the app and choose **Open**.
 
 ## iOS
 
-1. Open [Daccord on the App Store](https://apps.apple.com/app/id6779929284).
-2. Tap **Get** to install the free app. Requires iOS 15.6 or later.
-3. Launch Daccord and connect to your server.
+Install from the [App Store](https://apps.apple.com/app/id6779929284). Requires iOS 15.6 or later.
 
 ## Android
 
-Install Daccord from [Google Play](https://play.google.com/store/apps/details?id=com.daccord_projects.daccord), or install the APK manually:
-
-1. Download the `.apk` file to your device.
-2. Open it and follow the installation prompts. You may need to allow installation from unknown sources in your device settings.
-3. Launch daccord from your app drawer.
+Install from [Google Play](https://play.google.com/store/apps/details?id=com.daccord_projects.daccord), or open the downloaded `.apk` (you may need to allow installs from unknown sources).
 
 ## Web (JavaScript)
 
-The Web (JavaScript) build runs entirely in your browser with no installation required. Extract `daccord-web.zip` and open it from a web server, or visit a hosted instance if your server operator provides one. Voice and video are supported via the web audio stack. Note that some features (such as automatic updates and file system access) are not available in the web build.
+Serve the extracted `daccord-web.zip` from a web server, or use a hosted instance if your server operator provides one. Voice and video work, but screen sharing, audio output selection, and the self-updater are not available on the web.
 
 ## Updates
 
-App Store and Google Play installations receive updates through their respective stores.
+App Store and Google Play installs update through the store.
 
-Desktop and sideloaded Android builds check for updates automatically on startup. When a new version is available, a banner appears at the top of the window. Click it to download and install the update. You can also check manually from the user menu.
+Other desktop and Android builds check GitHub for updates on startup (turn this off in **Settings → Updates**, where you can also check manually). A banner at the top of the window shows when an update is available or ready to install. The web build shows a **Reload** banner when a new deployment is available.

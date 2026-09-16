@@ -7,19 +7,17 @@ section: self-hosting
 
 # Deploying a Server
 
-daccord connects to servers running [accordserver](https://github.com/DaccordProject/accordserver). You can host your own server to keep full control of your community's data.
-
-This guide covers running an always-on server with Docker (or from source) on a Linux machine or VPS — the right choice for a public or 24/7 community. If you just want to host for friends from your own computer, the [Accord desktop app](desktop-app.md) is far simpler. See the [Self-Hosting Overview](overview.md) to compare the two.
+This guide runs an always-on [accordserver](https://github.com/DaccordProject/accordserver) on a Linux machine or VPS. To host from your own computer instead, use the [Accord desktop app](desktop-app.md); see the [Self-Hosting Overview](overview.md) to compare.
 
 ## Requirements
 
 - A Linux machine or VPS (1 GB RAM minimum)
-- [Docker](https://docs.docker.com/get-docker/) and Docker Compose (recommended), or Rust 1.88+ to build from source
-- A domain name with DNS pointed at your server (for HTTPS)
+- [Docker](https://docs.docker.com/get-docker/) with Docker Compose, or Rust 1.88+ to build from source
+- Domain names pointed at the server for chat and for LiveKit (e.g. `chat.example.com` and `livekit.example.com`)
 
 ## Quick Start with Docker Compose
 
-This is the simplest way to get a server running. It includes accordserver, a LiveKit voice server, and a Caddy reverse proxy for automatic HTTPS.
+The compose file runs accordserver, a LiveKit voice server, and a Caddy reverse proxy with automatic HTTPS.
 
 1. Clone the repository:
 
@@ -28,45 +26,31 @@ This is the simplest way to get a server running. It includes accordserver, a Li
    cd accordserver
    ```
 
-2. Create a `.env` file with your configuration:
+2. Edit `docker-compose.yml`. Settings are written directly in the file:
+   - Replace `chat.example.com` and `livekit.example.com` (the `caddy` labels, `LIVEKIT_EXTERNAL_URL`, and `MASTER_SERVER_PUBLIC_URL`).
+   - Replace the LiveKit `devkey`/`secret` pair in both the `livekit` command and the server's `LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`.
+   - Remove `MASTER_SERVER_PUBLIC_URL` if you don't want to be listed in the public server directory.
+
+3. Create the shared network (the compose file expects it to exist), then start the stack:
 
    ```bash
-   # Required -- replace with your actual domains
-   LIVEKIT_EXTERNAL_URL=wss://livekit.example.com
-   LIVEKIT_INTERNAL_URL=http://livekit:7880
-   LIVEKIT_API_KEY=your-api-key
-   LIVEKIT_API_SECRET=your-api-secret
-   ```
-
-3. Start the stack:
-
-   ```bash
+   docker network create app-network
    docker compose up -d
    ```
 
-The server listens on port **39099** by default. Caddy handles HTTPS termination automatically if your DNS is configured.
+accordserver listens on port **39099** inside the stack; Caddy serves it over HTTPS on your domain once DNS resolves.
 
-## Using PostgreSQL (Recommended for Production)
+## Using PostgreSQL
 
-For production deployments, use the PostgreSQL compose file instead of the default SQLite backend:
+For production, use `docker-compose.postgres.yml` instead of the SQLite default. Change `POSTGRES_PASSWORD` and the matching password in `DATABASE_URL` first; URL-encode special characters in `DATABASE_URL` (`!` → `%21`, `@` → `%40`, `#` → `%23`).
 
 ```bash
 docker compose -f docker-compose.postgres.yml up -d
 ```
 
-This adds a PostgreSQL 17 database with persistent storage. Set the database connection in your `.env`:
-
-```bash
-DATABASE_URL=postgres://accord:your-password@postgres/accord
-```
-
-The server automatically creates the database and runs migrations on first startup.
-
-**Note:** Special characters in the PostgreSQL password must be URL-encoded (e.g., `!` becomes `%21`, `@` becomes `%40`).
+The server creates the database schema and runs migrations on startup.
 
 ## Configuration Reference
-
-All configuration is done through environment variables.
 
 ### Core
 
@@ -74,41 +58,39 @@ All configuration is done through environment variables.
 |----------|---------|-------------|
 | `PORT` | `39099` | HTTP listen port |
 | `DATABASE_URL` | `sqlite:data/accord.db?mode=rwc` | Database connection string |
-| `ACCORD_STORAGE_PATH` | `./data/cdn` | Path for uploaded files and plugin bundles |
+| `ACCORD_STORAGE_PATH` | `./data/cdn` | Uploaded files and plugin bundles |
 | `RUST_LOG` | `accordserver=debug,tower_http=debug` | Log level filter |
 
 ### Voice and Video (LiveKit)
 
+All four are required; without them voice channels don't work.
+
 | Variable | Description |
 |----------|-------------|
-| `LIVEKIT_INTERNAL_URL` | Internal LiveKit URL (e.g., `http://livekit:7880`) |
-| `LIVEKIT_EXTERNAL_URL` | Public LiveKit URL that clients connect to (e.g., `wss://livekit.example.com`) |
+| `LIVEKIT_INTERNAL_URL` | LiveKit URL the server uses (e.g. `http://livekit:7880`) |
+| `LIVEKIT_EXTERNAL_URL` | Public LiveKit URL clients use (e.g. `wss://livekit.example.com`) |
 | `LIVEKIT_API_KEY` | LiveKit API key |
 | `LIVEKIT_API_SECRET` | LiveKit API secret |
-
-Voice and video features require all four LiveKit variables to be set. Without them, voice channels will not work.
 
 ### Security
 
 | Variable | Description |
 |----------|-------------|
-| `TOTP_ENCRYPTION_KEY` | Encryption key for two-factor authentication secrets |
+| `TOTP_ENCRYPTION_KEY` | Encrypts two-factor secrets; without it they are stored in plaintext |
 | `MCP_API_KEY` | API key for the MCP management endpoint |
 
-### Master Server (Optional)
+### Server Directory (Optional)
 
-Register your server with the daccord master server so users can discover it in the public server list.
+Setting `MASTER_SERVER_PUBLIC_URL` registers the server in the public server list.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MASTER_SERVER_PUBLIC_URL` | *(none)* | Your server's public URL (required to enable) |
-| `MASTER_SERVER_URL` | `https://master.daccord.gg` | Master server endpoint |
-| `MASTER_SERVER_NAME` | `Accord Server` | Display name in the server list |
+| `MASTER_SERVER_PUBLIC_URL` | *(none)* | Your server's public URL (enables registration) |
+| `MASTER_SERVER_URL` | `https://master.daccord.gg` | Directory endpoint |
+| `MASTER_SERVER_NAME` | `Accord Server` | Name shown in the list |
 | `MASTER_HEARTBEAT_INTERVAL` | `60` | Heartbeat interval in seconds |
 
 ## Building from Source
-
-If you prefer not to use Docker:
 
 ```bash
 git clone https://github.com/DaccordProject/accordserver.git
@@ -117,31 +99,26 @@ cargo build --release
 ./target/release/accordserver
 ```
 
-The server creates its SQLite database and data directory automatically on first run.
+It creates its SQLite database and data directory on first run. You'll need to run LiveKit and an HTTPS reverse proxy yourself.
 
 ## Ports
 
-Make sure the following ports are accessible:
-
 | Port | Service |
 |------|---------|
-| 39099 | accordserver (HTTP + WebSocket) |
-| 7880 | LiveKit (HTTP) |
-| 7881 | LiveKit (TCP) |
-| 7882/UDP | LiveKit (UDP, media) |
-| 443, 80 | Caddy reverse proxy (HTTPS) |
+| 443, 80 | Caddy (HTTPS for chat and LiveKit signalling) |
+| 7881/TCP | LiveKit (TCP media) |
+| 7882/UDP | LiveKit (UDP media) |
+| 39099 | accordserver, only if exposed directly without Caddy |
 
 ## Connecting from daccord
 
-Once your server is running, open daccord and click the **+** button in the sidebar to add a new server. Enter your server's address and create an account. Use `chat.example.com` for a server behind an HTTPS reverse proxy, or `http://your-ip:39099` when connecting directly over the local network — the `http://` prefix is required there, since a bare address defaults to `https://` and a plain-HTTP server will fail with a "Broken pipe" error.
+Add the server with its domain (e.g. `chat.example.com`). When connecting directly over a local network, include the scheme (`http://your-ip:39099`); see [Adding a Server](../getting-started/adding-a-server.md).
 
 ## Updating
-
-Pull the latest image and restart:
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-Migrations run automatically on startup, so the database schema is always kept up to date.
+Migrations run automatically on startup.

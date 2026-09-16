@@ -7,46 +7,32 @@ section: customization
 
 # User Settings
 
-Open the settings panel by clicking the **gear icon** in the user bar at the bottom of the sidebar, or from the user bar menu.
+Open **Settings** with the gear button in the space bar. Its sections are grouped as follows.
 
-## Settings Pages
+## Account
 
-### My Account
+- **Edit profile** -- display name, bio, and avatar
+- **Password & Security** -- change your password, set up two-factor authentication (with backup codes), or delete your account
+- **Per-server profile** -- a different profile on each server (shown when you're connected to more than one)
+- **Switch account** and **Device profiles** -- see [Profiles](profiles.md)
+- **Connections** -- linked third-party accounts
+- **Privacy & Data** -- data export, leaving and deleting data, retention
 
-View and manage your account details, including your username and display name.
+## App
 
-### Profile
+- **Appearance** -- see [Themes and Appearance](themes.md)
+- **Notifications** -- turn notifications on or off, suppress `@everyone`/`@here`, and (on some Android builds) stay connected in the background
+- **Sounds** -- turn message and mention sounds on or off and set the volume
+- **Voice & Video** -- devices and audio options; see [Voice and Video](../voice-and-video/voice-channels.md)
 
-Edit your display name and other profile information visible to others.
+## System
 
-### Voice & Video
+- **Updates** -- current version, update checks (not in App Store or Google Play builds)
+- **Backup** -- export or import your settings as a JSON file
 
-Configure your microphone, speaker, and camera devices. Adjust input sensitivity and other audio preferences.
+## Advanced
 
-### Sound
+- **Developer** -- Developer Mode and the local MCP server (desktop, non-store builds)
+- **About** -- Terms of Use and Privacy Policy
 
-Control notification and UI sound effects. Toggle sounds for messages, mentions, voice join/leave, and other events.
-
-### Notifications
-
-Configure how and when you receive notifications for messages and mentions. You can also set an **idle timeout** here — after a period of inactivity (1, 5, 10, or 30 minutes), your status switches to idle automatically. Set it to Disabled to keep your status unchanged.
-
-### Appearance
-
-Change themes, UI scale, animations, and emoji preferences. See [Themes and Appearance](themes.md) for details.
-
-### Change Password
-
-Update your account password.
-
-### Two-Factor Authentication
-
-Enable or disable two-factor authentication for added account security. When enabled, you'll need a code from your authenticator app when signing in. Backup codes are provided for recovery.
-
-### Connections
-
-Link external accounts or services to your profile. Connected accounts may be visible to other users on your profile.
-
-### Delete Account
-
-Permanently delete your account from the server.
+**Log out** is at the bottom of the settings sidebar.

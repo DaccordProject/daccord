@@ -7,61 +7,44 @@ section: getting-started
 
 # Adding a Server
 
-To use daccord, you need to connect to at least one server. A server is a community hosted by someone running accordserver.
+A server is a community host running accordserver. You need at least one.
 
 ## How to Add a Server
 
-1. Click the **+** button at the bottom of the space bar (the icon strip on the left side of the window).
-2. The Add Server dialog opens.
-3. Enter the server URL you were given. This is usually something like `chat.example.com`.
-4. Click **Connect**.
+1. Click the **+** button at the end of the space list in the space bar (the icon strip on the left).
+2. In **Add a Server**, stay on **Enter URL** (or use **Browse** to pick a public server).
+3. Enter the server URL, e.g. `chat.example.com`, and click **Connect**.
+4. [Sign in or register](creating-an-account.md) when prompted.
 
 ## Server URL Format
 
-The simplest URL is just a hostname like `chat.example.com`. You can also include:
+A bare hostname like `chat.example.com` uses HTTPS. You can also add:
 
-- A port number: `chat.example.com:8443`
-- A specific space: `chat.example.com#my-space` (defaults to "general" if omitted)
-- A protocol: `https://chat.example.com` (HTTPS is used by default when no scheme is given)
+- A port: `chat.example.com:8443`
+- A scheme: `https://chat.example.com`
+- A space to open: `chat.example.com#my-space`
+- A token, to sign in directly: `chat.example.com?token=yourtoken`
+- An invite code, redeemed after connecting: `chat.example.com?invite=yourcode`
 
-> **Connecting to a local or self-hosted server?** Add the `http://` prefix, e.g. `http://localhost:39099` or `http://192.168.1.50:39099`. Self-hosted servers serve plain HTTP on the local network, and without the prefix the client assumes `https://` and the connection fails with a "Broken pipe" error.
-- A pre-filled token: `chat.example.com?token=yourtoken` (logs you in automatically)
-- An invite code: `chat.example.com?invite=yourcode` (joins the space using the invite)
+> **Local or self-hosted server?** Include `http://`, e.g. `http://localhost:39099` or `http://192.168.1.50:39099`. Without it the client tries HTTPS against a plain-HTTP server and fails with a "Broken pipe" error.
 
-If you received a link starting with `daccord://`, opening it in an installed
-client preserves its destination: connect links select their space/channel
-after sign-in, and navigation links select the connected server, space, and
-channel before opening a linked thread or message.
+## daccord:// Links
 
-Automatic `daccord://` registration is included in the Android, iOS, and macOS
-apps, the Windows installer, and the Linux `.deb` package. Portable Windows and
-Linux archives do not register handlers with the operating system; paste the
-link into **Add a Server** instead. Browsers do not handle this custom scheme
-inside the web build, so use a normal server URL there.
+Opening a `daccord://` link in an installed client connects to the server and, after sign-in, selects the linked space, channel, thread, or message.
 
-## What Happens Next
-
-- If the URL includes a `?token=` parameter, you'll be connected and signed in immediately.
-- If it includes a `?invite=` parameter, the invite is accepted during connection.
-- If neither is present, an authentication dialog appears where you can [sign in or create an account](creating-an-account.md).
-- Once connected, the server's space icon appears in the space bar and you can start browsing channels.
-
-## Multiple Servers
-
-You can connect to as many servers as you like. Each one appears as a separate icon in the space bar. Click an icon to switch between servers.
+The Android, iOS, and macOS apps, the Windows installer, and the Linux `.deb` register these links. The portable Windows and Linux archives don't, and browsers can't open them in the web build; paste the link into **Add a Server** instead (or use a normal server URL on the web).
 
 ## Removing a Server
 
-Right-click a space icon in the space bar and select **Remove Server** to disconnect from that server.
+Right-click a server's icon in the space bar and choose **Remove server**.
 
 ## Joining with a saved account
 
-Discovery, pasted server/invite URLs and `daccord://connect` or
-`daccord://invite` links first look for a saved account on the target server,
-including accounts whose background connection has not started yet. Daccord
-reconnects that account, joins the space and opens it. The active account is
-preferred when more than one account matches. Credentials are requested only
-when no saved account matches; invite details survive the login flow.
+Discovery, pasted server/invite URLs, and `daccord://connect` or `daccord://invite`
+links first look for a saved account on the target server (even one not yet
+connected), reconnect it, join the space, and open it. The active account wins if
+several match. You're only asked to sign in when no saved account matches, and
+invite details survive the login.
 
-Host spelling, default ports and trailing slashes are normalized. HTTP and HTTPS,
-nondefault ports and case-sensitive server paths remain separate endpoints.
+Host case, default ports, and trailing slashes are normalized; HTTP vs HTTPS,
+non-default ports, and server paths are treated as different servers.

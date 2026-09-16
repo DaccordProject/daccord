@@ -7,11 +7,11 @@ section: administration
 
 # Managing Your Space
 
-If you have admin permissions, you can manage your space's channels, roles, and settings.
+These tools need the matching permissions in your space.
 
-## Accessing Space Settings
+## Space Settings
 
-Right-click a space icon in the space bar and select **Space Settings** (or the equivalent admin option) to open the management panel.
+Right-click the space icon and choose **Space settings**, or click the gear at the top of the channel list. Besides the space's own settings, it holds AutoMod and the management tools: **Roles**, **Audit log**, **Banned members**, **Reports**, **Custom emoji**, and **Soundboard**.
 
 ## Icon and Banner
 
@@ -24,50 +24,20 @@ space bar during the same session, even when the server reuses the image URL.
 
 ## Channels
 
-### Creating a Channel
-
-1. In space settings, go to the Channels section.
-2. Click **Create Channel**.
-3. Choose a channel type (text, voice, announcement, or forum).
-4. Enter a name and optionally assign it to a category.
-5. Click **Create**.
-
-### Editing a Channel
-
-Click on a channel in the settings list to edit its name, topic, or other properties.
-
-### Deleting a Channel
-
-Select a channel and click **Delete**. This permanently removes the channel and all its messages.
-
-### Categories
-
-Channels can be organized into categories. Create, rename, or delete categories from the Channels section.
-
-## Roles
-
-Roles control what members can do in your space.
-
-### Creating a Role
-
-1. Go to the Roles section in space settings.
-2. Click **Create Role**.
-3. Set a name and color.
-4. Toggle individual permissions on or off.
-5. Save the role.
-
-### Assigning Roles
-
-Right-click a member in the member list and select a role to assign or remove.
+- **Create:** click **Create channel** (+) at the top of the channel list, or right-click a category and choose **Create channel here**. Types are Text, Voice, Forum, Announcement, and Category.
+- **Edit or delete:** right-click a channel and choose **Edit channel** or **Delete channel**. Deleting removes the channel and all its messages permanently.
+- **Categories:** create one as a channel of type Category; right-click it to **Edit category** or **Delete category**.
 
 ### Channel Permissions
 
-You can set per-channel permission overrides for specific roles:
+In **Edit channel**, click **Permissions** to override permissions for a role or an individual member. Set each permission to allow (check), inherit (dash), or deny (X).
 
-1. Open the channel's settings.
-2. Go to Permissions.
-3. Add a role and set permissions to **Allow**, **Inherit**, or **Deny** for each permission.
+## Roles
+
+In **Space settings → Roles**, click **Create role** to add a role named "new role", then edit its name, colour, permissions, and whether it is displayed separately or mentionable.
+
+To assign roles, click a member in the member list to open their profile popout and toggle role chips.
 
 ## Invites
 
-See [Invites](invites.md) for details on inviting people to your server.
+See [Invites](invites.md).

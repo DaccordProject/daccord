@@ -7,76 +7,56 @@ section: self-hosting
 
 # Running Accord on Your Desktop
 
-The **Accord desktop app** is the simplest way to host your own server. It is a small application that runs quietly in your system tray (or menu bar) and takes care of everything the server needs: it bundles `accordserver` and a LiveKit voice server, generates its own configuration the first time it runs, and updates itself in the background.
-
-There is no command line, no Docker, and nothing to configure. Install it, launch it, and your server is running.
-
-## Is the desktop app right for me?
-
-Use the desktop app when you want to run a server for yourself, friends, or a small community on a computer you already own. It is perfect for trying daccord out or for a home or LAN community. If you need a server that is online around the clock and reachable from anywhere, see [Deploying a Server](deploying-a-server.md) instead — and read the [Self-Hosting Overview](overview.md) for a side-by-side comparison.
+The **Accord desktop app** runs in your system tray (or menu bar) and bundles `accordserver` and a LiveKit voice server. It generates its own configuration on first run and updates itself. For an always-on, internet-facing server, see [Deploying a Server](deploying-a-server.md) and the [Self-Hosting Overview](overview.md).
 
 ## Install
 
-Download the installer for your platform from the [accordserver releases page](https://github.com/DaccordProject/accordserver/releases/latest).
+Download the installer from the [accordserver releases page](https://github.com/DaccordProject/accordserver/releases/latest):
 
 | Platform | File |
 |----------|------|
-| macOS | `.dmg` |
-| Windows | `.msi` or `-setup.exe` (NSIS) |
+| macOS | `.dmg` (drag Accord to Applications) |
+| Windows | `.msi`, or `-setup.exe` (per-user, no admin rights needed) |
 | Linux (Debian/Ubuntu) | `.deb` |
-| Linux (other) | `.AppImage` |
+| Linux (other) | `.AppImage` (mark executable, then run) |
 
-Then install it the same way you would any other app:
+> **First-launch security warnings:** builds are not yet code-signed. On macOS, right-click the app and choose **Open**; on Windows SmartScreen, click **More info → Run anyway**. This only happens once.
 
-- **macOS** — open the `.dmg` and drag Accord to Applications.
-- **Windows** — run the installer. The NSIS (`-setup.exe`) build installs per-user and needs no administrator rights.
-- **Linux** — install the `.deb` with your package manager, or mark the `.AppImage` as executable and run it.
+## First Launch
 
-> **First-launch security warnings:** current builds are not yet code-signed, so macOS Gatekeeper and Windows SmartScreen will warn you the first time. On macOS, right-click the app and choose **Open**. On Windows, click **More info → Run anyway**. This only happens once.
+There is no main window; an icon appears in the system tray or menu bar. On first launch Accord generates a random LiveKit key, a two-factor encryption key, and default ports.
 
-## First launch
-
-Accord has no main window — when it starts, an icon appears in your system tray (Windows/Linux) or menu bar (macOS). On the very first launch it generates everything it needs in a data folder, including a random LiveKit voice key, a two-factor encryption key, and its default ports.
-
-Click the tray icon to open the menu:
-
-| Menu item | What it does |
+| Tray menu item | What it does |
 |-----------|--------------|
-| **Open in browser** | Opens `http://localhost:39099` — your running server |
-| **Open data folder** | Opens the folder holding your config, database, and logs |
+| **Open in browser** | Opens `http://localhost:39099` |
+| **Open data folder** | Opens the folder with config, database, and logs |
 | **View logs** | Opens `accord.log` |
-| **Check for updates** | Shows update status; click to check now, or to restart and apply a staged update |
-| **Start on login** | Toggles whether Accord launches automatically when you sign in |
-| **Quit Accord** | Gracefully stops the server and voice server |
+| **Check for updates** | Checks now, or restarts to apply a downloaded update |
+| **Start on login** | Launch Accord when you sign in |
+| **Quit Accord** | Stops the server and voice server |
 
-## Connecting the daccord client
+## Connecting the daccord Client
 
-With Accord running, open the daccord client, click the **+** button in the sidebar, and add a server.
+In daccord, click **+** and add:
 
-- **On the same computer:** use `http://localhost:39099`.
-- **From another device on your network:** use your computer's local IP address and port, for example `http://192.168.1.50:39099`.
+- `http://localhost:39099` on the same computer, or
+- `http://<your-local-ip>:39099` (e.g. `http://192.168.1.50:39099`) from another device on your network.
 
-> **Include the `http://` prefix.** A self-hosted Accord server speaks plain HTTP on your local network, but the client assumes `https://` when you leave the scheme off. Without the prefix the connection fails with a "Broken pipe" error, because the client tries a TLS handshake against a plain-HTTP port. Public servers reached over a domain name normally use `https://` and can be entered without the prefix.
+> **Include `http://`.** Without it the client tries HTTPS against the plain-HTTP server and fails with a "Broken pipe" error.
 
-Create an account on your new server and you're in. See [Creating an Account](../getting-started/creating-an-account.md) and [Adding a Server](../getting-started/adding-a-server.md) for the client-side steps.
+Then [create an account](../getting-started/creating-an-account.md).
 
-## Inviting people from outside your network
+## Inviting People from Outside Your Network
 
-By default the server is reachable on your local network only. To let friends connect over the internet, forward these ports on your router to the computer running Accord:
+The server is reachable on your local network by default. For internet access, forward these ports on your router to the computer running Accord, then share your public IP and port `39099` (a dynamic-DNS hostname helps if your IP changes):
 
 | Port | Protocol | Purpose |
 |------|----------|---------|
 | 39099 | TCP | Chat (HTTP + WebSocket) |
-| 7880, 7881 | TCP | LiveKit voice signaling |
+| 7880, 7881 | TCP | LiveKit voice signalling |
 | 50000–60000 | UDP | LiveKit voice/video media |
 
-Then share your public IP address (and port `39099`) with the people you want to invite. If your home IP address changes over time, a dynamic-DNS hostname makes this easier.
-
-> If port-forwarding isn't an option, or you want a server that's always reachable, a full [server deployment](deploying-a-server.md) on a VPS is the better fit.
-
-## Where your data lives
-
-On first launch, Accord creates a data folder for your server:
+## Where Your Data Lives
 
 | Platform | Data folder |
 |----------|-------------|
@@ -84,35 +64,24 @@ On first launch, Accord creates a data folder for your server:
 | Linux | `$XDG_DATA_HOME/accord/` (usually `~/.local/share/accord/`) |
 | Windows | `%APPDATA%\Accord\Accord\` |
 
-Inside you'll find:
+It contains `config.toml` (ports and keys), `livekit.yaml`, `accord.db` (accounts, spaces, messages), `cdn/` (uploads, emoji, avatars), and `logs/` (`accord.log`, `livekit.log`, `desktop.log`).
 
-- `config.toml` — generated ports and voice/security keys.
-- `livekit.yaml` — configuration for the bundled voice server.
-- `accord.db` — the SQLite database with your accounts, spaces, and messages.
-- `cdn/` — uploaded emoji, avatars, and file attachments.
-- `logs/` — `accord.log`, `livekit.log`, and the app's own `desktop.log`.
+**Back up** by copying the folder while Accord is quit. **Reset** by deleting it. Keep it across reinstalls to preserve your community.
 
-**Backing up:** copy this folder while Accord is quit to back up your entire server. **Resetting:** delete the folder to start completely fresh. Keep it across reinstalls to preserve your community.
+## Automatic Updates
 
-## Automatic updates
+Accord checks for updates shortly after launch and every six hours, downloads them in the background, and applies them the next time the app restarts; the running server keeps serving until then. The tray menu shows progress, and choosing **Check for updates** with an update ready restarts Accord to apply it.
 
-Accord keeps itself current. It checks for a new release shortly after launch and every few hours while it runs. When a newer signed version is available, it downloads in the background without interrupting your server. The update is applied the next time you restart the app — your running server keeps serving the old version until then.
+> **Linux:** in-place updates work for the `.AppImage`. Update a `.deb` install through your package manager or by reinstalling.
 
-The tray menu reflects the progress (`Checking…`, `Downloading…`, `Update ready — restart to apply`), and a banner appears on the server's landing page while an update is downloading or ready. When an update is staged, choosing **Check for updates** restarts Accord to apply it.
+## Moving to a Full Deployment
 
-> **Linux note:** in-place automatic updates work for the `.AppImage` build. If you installed the `.deb`, update it through your package manager or by reinstalling. macOS and Windows builds update in place.
-
-## When to move to a full deployment
-
-The desktop app is ideal for getting started and for smaller communities, but it only serves while your computer is awake and online. When you outgrow it — you want guaranteed uptime, a real domain with HTTPS, PostgreSQL, or a listing in the public server browser — move to a [server deployment](deploying-a-server.md). Both run the same accordserver, so members reconnect to the new address and carry on.
+The desktop app only serves while your computer is awake and online. For guaranteed uptime, a domain with HTTPS, PostgreSQL, or a public directory listing, move to a [server deployment](deploying-a-server.md). Both run the same accordserver.
 
 ## Package-manager distribution
 
-WinGet, Scoop, Chocolatey, Homebrew and Flathub recipes are being prepared. They
-are not yet live catalogue listings. See [packaging status](../packaging.md) for
-the release, platform validation and submission requirements.
-
-When installed through a supported package-manager recipe, Daccord leaves updates
-to that manager. Direct GitHub downloads keep the in-app updater. Packagers can
-build with `--dart-define=PACKAGE_MANAGER=true`; this does not change access to
-desktop Developer Mode or local MCP tools.
+WinGet, Scoop, Chocolatey, Homebrew, and Flathub recipes are in preparation and
+not yet listed; see [packaging status](../packaging.md). Package-manager installs
+leave updates to the manager, while direct GitHub downloads keep the in-app
+updater. Packagers build with `--dart-define=PACKAGE_MANAGER=true`, which doesn't
+affect Developer Mode or local MCP tools.

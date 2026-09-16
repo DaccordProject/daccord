@@ -7,33 +7,23 @@ section: customization
 
 # Profiles
 
-Profiles let you maintain separate configurations -- each with its own servers, settings, and preferences. This is useful if you use daccord for different purposes (e.g., work and personal).
+Device profiles keep separate sets of servers, settings, and preferences on one device (for example, work and personal).
 
-## Switching Profiles
+## Managing Profiles
 
-1. Open **App Settings**.
-2. Go to **Profiles**.
-3. Select a profile from the list to switch to it.
+Open **Settings → Account → Device profiles**.
 
-Profile selection is currently available only through this in-app screen; there
-is no command-line profile selector.
+- **Create:** click **New profile**, enter a name, and optionally set a PIN.
+- **Switch, rename, set or remove a PIN, delete:** use the menu next to a profile. Switching restarts the app with that profile.
 
-## Creating a Profile
+Profile selection is available only through this in-app screen; there is no command-line profile selector.
 
-1. In the Profiles settings page, click **Create Profile**.
-2. Enter a name for the new profile.
-3. Optionally set a PIN as a casual in-app screen lock.
+Deleting a profile removes only that profile's data, including its saved server connections. The default profile cannot be deleted.
 
-Each profile has its own server connections, theme, and preferences. Switching profiles reloads the app with that profile's configuration.
-
-Profile storage is isolated on every supported platform. Native apps store each non-default profile under its own data directory. The Web app stores each non-default profile in profile-specific Hive/IndexedDB box names, because browsers do not expose per-profile filesystem directories. The default profile keeps the original storage names on all platforms so data from installations created before profiles were added remains available.
+Each profile's storage is isolated on every platform (separate data directories on native apps, profile-specific browser storage on the web). The default profile keeps the original storage, so data from before profiles existed remains available.
 
 ## Optional PIN Lock
 
-You can add a PIN to make Daccord show an unlock screen before opening a profile. This is only a casual UI lock for situations such as handing an already-unlocked device to someone briefly.
+A PIN makes daccord show an unlock screen before opening the profile. It is only a casual screen lock, for example when briefly handing someone an unlocked device.
 
-The PIN does **not** encrypt messages, sessions, settings, or other profile data. It does not protect that data from another operating-system user, a process that can read the app data directory, malware, or backups. Use your device's account security and full-disk encryption when you need data-at-rest protection.
-
-## Deleting a Profile
-
-Select a non-default profile and click **Delete** to remove it. This deletes only that profile's configuration, including saved server connections; other profiles and shared app data are left intact. The default profile cannot be deleted.
+The PIN does **not** encrypt messages, sessions, settings, or other profile data, and doesn't protect them from other OS users, processes that can read the app data directory, malware, or backups. Use your device's account security and full-disk encryption for that.

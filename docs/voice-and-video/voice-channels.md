@@ -7,53 +7,36 @@ section: voice-and-video
 
 # Voice and Video
 
-Voice channels let you talk to other people in real time using your microphone, camera, or screen share.
-
 ## Joining a Voice Channel
 
-1. In the channel list, click a **voice channel** (marked with a speaker icon).
-2. daccord connects you to the voice room.
-3. A **voice bar** appears at the bottom of the channel panel showing the channel name, a green status dot, and control buttons.
+Click a **voice channel** (speaker icon) in the channel list. A **voice bar** appears at the bottom of the channel list with the channel name and a green status dot once connected.
 
-Other participants in the channel are shown with their avatar, display name, and status indicators (muted, deafened, camera on, sharing screen).
+In the participant list, a green ring marks whoever is speaking, and badges show who is muted (M), deafened (D), on camera (V), or sharing their screen (S).
 
 ## Voice Controls
 
-The voice bar provides these controls:
-
-- **Mute** -- Toggle your microphone on/off
-- **Deafen** -- Mute all incoming audio (also mutes your mic)
-- **Camera** -- Toggle your camera on/off
-- **Screen Share** -- Share your screen or a specific window
-- **Soundboard** -- Play audio clips into the channel
-- **Settings** -- Open voice settings
-- **Disconnect** -- Leave the voice channel
-
-## Speaking Indicator
-
-When someone is speaking, a green ring appears around their avatar in the participant list.
+- **Mute** -- turn your microphone on or off
+- **Deafen** -- stop hearing incoming audio (your microphone is not muted)
+- **Camera** -- turn your camera on or off
+- **Screen share** -- share a screen or window (not available on the web)
+- **Soundboard** -- play clips into the channel, if your role allows it
+- **Voice settings** -- open voice and video settings
+- **Disconnect** -- leave the channel
 
 ## Screen Sharing
 
-1. Click the **Screen Share** button in the voice bar.
-2. Choose which screen or window to share from the picker.
-3. Your screen share appears as a video tile for other participants.
-4. Click the button again to stop sharing.
-
-## Video
-
-Click the **Camera** button to share your camera feed. Other participants see your video as a tile in the voice channel view.
+On desktop, clicking **Screen share** opens a picker for a screen or window; on mobile, your device's own capture prompt appears. Click the button again to stop.
 
 ## Voice Settings
 
-Access voice and video settings from the voice bar settings button or from **App Settings > Voice & Video**. Here you can configure your input/output devices and other audio preferences.
+Open from the voice bar gear or **Settings → Voice & Video → Voice & video settings** to choose devices and audio options, including the idle (AFK) timeout.
 
-The **Output device** picker is shown on desktop and Android, where the platform can honour an explicit choice. iOS routes call audio itself — use Control Centre, the AirPlay picker, or plug in a headset — so the app does not offer a picker that iOS would ignore.
+The **Output device** picker appears on desktop and Android only. iOS routes call audio itself (use Control Centre, AirPlay, or a headset), and browsers don't allow the choice.
 
 ### Relay-only connections
 
-Enable **Relay-only voice** in **Voice & Video** settings to require a TURN relay
-for voice, video and screen sharing. Leave and rejoin to apply it to a current
-call. The option is off by default, can add latency, and requires the server's
-LiveKit deployment to provide reachable TURN. Failed relay connections report an
-error and do not fall back to direct media. See [network privacy](../privacy-network.md).
+**Relay-only voice** in **Voice & Video** settings (off by default) forces voice,
+video, and screen sharing through a TURN relay. Rejoin a call to apply it. It can
+add latency and needs the server's LiveKit deployment to provide TURN; if the
+relay is unreachable the call fails with an error rather than connecting directly.
+See [network privacy](../privacy-network.md).

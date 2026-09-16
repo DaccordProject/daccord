@@ -1,84 +1,31 @@
 # UI end-to-end tests
 
-Layer 2 of #217: the **real app shell**, on a **real device**, against a **real
-`accordserver`**.
-
-`integration/` (layer 1) proves the caches update. These prove the *screen*
-does — the class of bug where the data is right and the UI never shows it: a
-list that doesn't rebuild, a route that doesn't resolve, a channel that renders
-empty.
+Layer 2 of #217: the real app shell on a real device against a real `accordserver`. `integration/` proves caches update; these prove the screen does (lists not rebuilding, routes not resolving, empty channels).
 
 ```bash
-flutter test integration_test/messaging_ui_test.dart -d linux   # one file
-xvfb-run -a flutter test integration_test/smoke_test.dart -d linux  # headless
+flutter test integration_test/messaging_ui_test.dart -d linux
+xvfb-run -a flutter test integration_test/smoke_test.dart -d linux   # headless
 
-# whole suite: one invocation per file (see below)
 for f in integration_test/*_test.dart; do flutter test "$f" -d linux; done
 ```
 
-**Run one file per invocation.** `flutter test integration_test/` over the
-whole directory launches the app once per file in a single invocation, and the
-second launch fails with *"Error waiting for a debug connection: The log reader
-stopped unexpectedly, or never started"* — the previous app process is still
-holding it. Each file passes on its own; CI loops.
+**One file per invocation.** Running the directory fails on the second app launch with *"Error waiting for a debug connection: The log reader stopped unexpectedly, or never started"*. CI loops. Plain `flutter test` does not pick these up.
 
-`flutter test` on its own does **not** pick these up — it only walks `test/`.
-
-The standalone video regression test needs Linux desktop build dependencies
-and `ffmpeg` (with the `libx264` encoder) on `PATH`, but no Accord server:
-
-```bash
-flutter test integration_test/video_playback_test.dart -d linux
-```
-
-It generates a temporary H.264 clip and exercises inline playback, seeking,
-disposal, and reopening through the native renderer. Run on an NVIDIA desktop
-to cover the driver path that previously crashed during hardware decoding;
-headless runs still check playback but do not reproduce that driver setup.
+`video_playback_test.dart` needs no Accord server, but needs Linux desktop build deps and `ffmpeg` with `libx264` on `PATH`. It generates an H.264 clip and exercises inline playback, seeking, disposal, and reopening. The NVIDIA hardware-decode crash path only reproduces on an NVIDIA desktop, not headless.
 
 ## How it works
 
-The server fixture and account harness are shared with layer 1
-(`../integration/support/`, documented in `integration/README.md`): same
-resolution order for finding a server, same skip-with-a-reason behaviour when
-there isn't one, same registration budget.
+Server fixture and account harness are shared with `integration/support/` (see `integration/README.md`: server resolution, skip behaviour, registration budget).
 
-What's different here is the tree. `harness.scopeFor(account, child: ...)`
-wraps a widget in a `ProviderScope` that reports the account as signed in, so
-tests pump the app's own `MainWindow` — real router, real theme, real screens —
-and navigate with `routerController.go(...)`.
+`harness.scopeFor(account, child: ...)` wraps a `ProviderScope` that reports the account as signed in, so tests pump the real `MainWindow` and navigate with `routerController.go(...)`. Hive points at a throwaway directory, never your profile.
 
-Because these run as a real app, `path_provider` and friends work. The harness
-still points Hive at a throwaway directory rather than calling the app's
-`setupHive()`, so a test run can't touch your actual profile data.
+## Things that will bite you
 
-## Three things that will bite you
-
-- **Pump order.** Attach the event handler to the tree's container *before* the
-  gateway connects. The shell hydrates its space and channel lists from the
-  READY payload, so a handler attached afterwards misses it and the shell
-  renders empty. `pumpApp` cycles the connection for exactly this reason.
-- **`pumpAndSettle` doesn't wait for the network.** It returns as soon as
-  animations stop, which is long before the server answers. Use `pumpUntilFound`.
-- **Message bodies aren't `Text`.** They go through the markdown renderer, so
-  assert with `find.text('...', findRichText: true)`.
-
-## Seeded settings
-
-`harness.setupHive()` answers the things a first launch would otherwise put on
-screen or on the network: the onboarding tour, the release-notes dialog, the
-error-reporting consent prompt, notifications, and `autoUpdateCheck`.
-
-That last one matters more than it looks. With the updater live, the app reaches
-the real release endpoint mid-test and starts staging a download; the failure
-lands as an unhandled async error *after* the test body finishes, and the runner
-attributes it to whichever test is running. It presented as "the first test in
-the process fails, later ones pass" and cost a long detour — if you see that
-shape again, suspect background work escaping the test body before you suspect
-the widget under test.
+- **Pump order.** Attach the event handler to the tree's container *before* the gateway connects; the shell hydrates from READY, so a late handler renders empty. `pumpApp` cycles the connection for this reason.
+- **`pumpAndSettle` doesn't wait for the network.** Use `pumpUntilFound`.
+- **Message bodies aren't `Text`.** Use `find.text('...', findRichText: true)`.
+- **Background work escaping the test body.** `harness.setupHive()` seeds settings to suppress the onboarding tour, release-notes dialog, error-reporting consent, notifications, and `autoUpdateCheck`. With the updater live, a download failure lands as an unhandled async error after the test finishes and is blamed on whichever test is running ("first test fails, later ones pass"). Suspect escaped background work before the widget under test.
 
 ## CI
 
-Runs as its own non-blocking job (see `ci.yml`) on Linux under `xvfb`, against
-the `ghcr.io` server image. Separate from the unit gate so a server-side or
-display problem can't wedge merges.
+Advisory `ui-e2e` job in `ci.yml`: Linux under `xvfb` against the `ghcr.io` server image.
