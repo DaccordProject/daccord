@@ -84,7 +84,8 @@ class _ComposerState extends ConsumerState<_Composer> {
         .read(settingsControllerProvider)
         .draftFor(_serverKey, widget.channelId);
     // Intercept Ctrl/Cmd+V to support pasting images and large text (the
-    // EditableText's own paste only handles inline text).
+    // EditableText's own paste only handles inline text), and Shift+Enter to
+    // insert a newline instead of sending.
     _focusNode.onKeyEvent = _onComposerKey;
   }
 
@@ -93,8 +94,15 @@ class _ComposerState extends ConsumerState<_Composer> {
     // paste/input event. Consuming Ctrl/Cmd+V cancels that event, and the async
     // Clipboard API may be unavailable or require a separate permission.
     if (kIsWeb) return KeyEventResult.ignored;
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
     final mods = HardwareKeyboard.instance;
+    if (_isShiftEnter(event, mods)) {
+      _insertNewline();
+      return KeyEventResult.handled;
+    }
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final isPaste =
         (mods.isControlPressed || mods.isMetaPressed) &&
         event.logicalKey == LogicalKeyboardKey.keyV;
@@ -102,6 +110,40 @@ class _ComposerState extends ConsumerState<_Composer> {
     // Consume and handle the paste ourselves (image / large-text aware).
     _handlePaste();
     return KeyEventResult.handled;
+  }
+
+  /// Whether [event] is Shift+Enter (either Enter key, no other modifiers)
+  /// outside an IME composition.
+  ///
+  /// The field's `textInputAction` is `send` so mobile keyboards show a Send
+  /// key. The desktop embedders (Linux `fl_text_input_handler.cc`, Windows
+  /// `text_input_plugin.cc`, macOS `FlutterTextInputPlugin.mm`) only insert a
+  /// newline for Enter when the action is `newline`, and they ignore Shift, so
+  /// without this Shift+Enter would send the message (#376). Handling the key
+  /// here stops it from ever reaching the embedder's text input plugin.
+  bool _isShiftEnter(KeyEvent event, HardwareKeyboard mods) {
+    final key = event.logicalKey;
+    if (key != LogicalKeyboardKey.enter &&
+        key != LogicalKeyboardKey.numpadEnter) {
+      return false;
+    }
+    if (!mods.isShiftPressed ||
+        mods.isControlPressed ||
+        mods.isMetaPressed ||
+        mods.isAltPressed) {
+      return false;
+    }
+    // Leave Enter to the IME while it is composing (it commits the candidate).
+    final composing = _controller.value.composing;
+    return !composing.isValid || composing.isCollapsed;
+  }
+
+  /// Inserts a line break at the caret, replacing any selection, and runs the
+  /// usual change handling (mention popup, typing indicator) that a
+  /// programmatic edit would otherwise skip.
+  void _insertNewline() {
+    _insertAtCursor('\n');
+    _onChanged(_controller.text);
   }
 
   /// Handles a clipboard paste: an image becomes a pending attachment; very
