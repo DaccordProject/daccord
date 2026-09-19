@@ -23,7 +23,6 @@ The simplest URL is just a hostname like `chat.example.com`. You can also includ
 - A port number: `chat.example.com:8443`
 - A specific space: `chat.example.com#my-space` (defaults to "general" if omitted)
 - A protocol: `https://chat.example.com` (HTTPS is used by default when no scheme is given)
-
 - A pre-filled token: `chat.example.com?token=yourtoken` (logs you in automatically)
 - An invite code: `chat.example.com?invite=yourcode` (joins the space using the invite)
 
