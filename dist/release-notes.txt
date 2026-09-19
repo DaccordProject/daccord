@@ -1,11 +1,6 @@
-# Release version: 0.2.21
-
-• Space folders now preview the servers inside them on the rail.
-• Daccord links now open straight in the app on iOS.
-• YouTube links show previews and play inline, only after you allow them.
-• Joining a space or invite reuses an account you are already signed in to.
-• Restored pasting into the composer on the web, tidied the space actions menu,
-  and added an optional relay-only mode for voice on restrictive networks.
-• Space icons and banners keep their crop, replaced images refresh right away,
-  and member counts and last-week timestamps read correctly.
-• Installs from a package manager no longer offer in-app updates.
+# Optional App Store "What's New" override. Keep this file comment-only between
+# releases so dist/app-store-release-notes.sh derives notes from commits.
+#
+# To override one release, add `# Release version: x.y.z` and the user-facing
+# text below it. The script rejects missing or stale version markers before any
+# store upload.
