@@ -100,11 +100,11 @@ class _ComposerState extends ConsumerState<_Composer> {
     final mods = HardwareKeyboard.instance;
     final shiftEnter = _isShiftEnterChord(event, mods);
     if (_inputMethodOwnsEnter) {
-      // Every key press reaches this handler before GTK's input method, so
-      // this records whether the latest one was Shift+Enter. Any other key
-      // clears it, so a Shift+Enter the IM consumed can't turn a later
-      // plain Enter into a newline.
-      _shiftEnterPending = shiftEnter;
+      // Every Enter press reaches this handler before GTK's input method.
+      // Only Enter presses update the record: other keys typed before the
+      // embedder's action comes back must not change it (see
+      // [_lastEnterWasShiftEnter]).
+      if (_isEnterKey(event)) _lastEnterWasShiftEnter = shiftEnter;
       if (shiftEnter) return KeyEventResult.ignored;
     } else if (shiftEnter && !_isComposing) {
       _insertNewline();
@@ -131,11 +131,7 @@ class _ComposerState extends ConsumerState<_Composer> {
   /// embedder's text input plugin. Linux works differently: see
   /// [_inputMethodOwnsEnter].
   bool _isShiftEnterChord(KeyEvent event, HardwareKeyboard mods) {
-    final key = event.logicalKey;
-    if (key != LogicalKeyboardKey.enter &&
-        key != LogicalKeyboardKey.numpadEnter) {
-      return false;
-    }
+    if (!_isEnterKey(event)) return false;
     if (!mods.isShiftPressed ||
         mods.isControlPressed ||
         mods.isMetaPressed ||
@@ -144,6 +140,10 @@ class _ComposerState extends ConsumerState<_Composer> {
     }
     return true;
   }
+
+  static bool _isEnterKey(KeyEvent event) =>
+      event.logicalKey == LogicalKeyboardKey.enter ||
+      event.logicalKey == LogicalKeyboardKey.numpadEnter;
 
   /// Whether the IME has reported a composition. Enter is left to the IME
   /// then, because it commits the candidate.
@@ -160,22 +160,39 @@ class _ComposerState extends ConsumerState<_Composer> {
   /// (`fl_text_input_handler_filter_keypress`). If the IM consumes it, it
   /// commits the composition and nothing else happens. If not, the embedder
   /// performs the `send` action, and [_onSubmitted] turns it into a newline
-  /// because [_shiftEnterPending] is set.
+  /// when [_lastEnterWasShiftEnter] is set.
   bool get _inputMethodOwnsEnter =>
       defaultTargetPlatform == TargetPlatform.linux;
 
-  /// Linux only: whether the latest key press was Shift+Enter. It is recorded
-  /// at key-down because Shift may already be released by the time the
-  /// embedder's action arrives.
-  bool _shiftEnterPending = false;
+  /// Linux only: whether the most recent Enter press was Shift+Enter.
+  ///
+  /// The Linux embedder performs the `send` action only for an Enter key
+  /// that GTK's input method didn't consume (`fl_text_input_handler.cc`,
+  /// `GDK_KEY_Return`/`KP_Enter`/`ISO_Enter`). So every action belongs to an
+  /// Enter press the composer has already seen, and it is attributed to the
+  /// most recent one:
+  /// - It is set at key-down, so releasing Shift before the action arrives
+  ///   doesn't matter.
+  /// - Non-Enter keys never touch it. Keys typed before the action comes
+  ///   back (`xdotool key --delay 0 shift+Return a`) can't turn the newline
+  ///   into a send.
+  /// - An Enter the IM consumed leaves no action behind, and the next Enter
+  ///   press overwrites its record. So a consumed Shift+Enter can't turn a
+  ///   later plain Enter into a newline, and the reverse can't happen either.
+  /// - It is not reset on submit. Two quick Shift+Enters whose actions
+  ///   arrive back to back must both become newlines.
+  ///
+  /// Limitation: two Enters with *different* Shift state, both unconsumed
+  /// and pressed within one embedder round trip, use the later one's state
+  /// for both actions.
+  bool _lastEnterWasShiftEnter = false;
 
   void _onSubmitted() {
     // EditableText unfocuses on a `send` action just before onSubmitted runs;
     // the field is enabled, so asking for focus straight back lands in the
     // same frame.
     _focusNode.requestFocus();
-    if (_shiftEnterPending) {
-      _shiftEnterPending = false;
+    if (_inputMethodOwnsEnter && _lastEnterWasShiftEnter) {
       _insertNewline();
       return;
     }

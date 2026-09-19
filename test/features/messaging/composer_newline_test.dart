@@ -353,4 +353,104 @@ void main() {
     skip: kIsWeb,
     variant: _linux,
   );
+
+  testWidgets(
+    'Linux: a key buffered before the send action does not turn the newline '
+    'into a send',
+    (tester) async {
+      // Review of #384 (r4054068830): `xdotool key --delay 0 shift+Return a`.
+      // The framework sees `a` before GTK's action for the Enter comes back.
+      final (harness, field) = await _pumpWithText(
+        tester,
+        const TextEditingValue(
+          text: 'hi',
+          selection: TextSelection.collapsed(offset: 2),
+        ),
+      );
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyA);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyA);
+      // Only now does the embedder's action for the Shift+Enter arrive...
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await _tick(tester);
+      expect(harness.sends, isEmpty);
+      expect(field.controller!.text, 'hi\n');
+
+      // ...followed by the `a` the embedder inserted after it.
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'hi\na',
+          selection: TextSelection.collapsed(offset: 4),
+        ),
+      );
+      await _tick(tester);
+      expect(field.controller!.text, 'hi\na');
+      expect(harness.sends, isEmpty);
+    },
+    skip: kIsWeb,
+    variant: _linux,
+  );
+
+  testWidgets(
+    'Linux: a plain Enter the IM consumed does not make a later Shift+Enter '
+    'send',
+    (tester) async {
+      final (harness, field) = await _pumpWithText(
+        tester,
+        const TextEditingValue(selection: TextSelection.collapsed(offset: 0)),
+      );
+
+      // Plain Enter commits a composition; the IM consumes it (no action).
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.enter), isFalse);
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'あ',
+          selection: TextSelection.collapsed(offset: 1),
+        ),
+      );
+      await _tick(tester);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await _tick(tester);
+
+      expect(field.controller!.text, 'あ\n');
+      expect(harness.sends, isEmpty);
+    },
+    skip: kIsWeb,
+    variant: _linux,
+  );
+
+  testWidgets(
+    'Linux: two Shift+Enters whose actions arrive back to back give two '
+    'newlines',
+    (tester) async {
+      final (harness, field) = await _pumpWithText(
+        tester,
+        const TextEditingValue(
+          text: 'hi',
+          selection: TextSelection.collapsed(offset: 2),
+        ),
+      );
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await _tick(tester);
+
+      expect(field.controller!.text, 'hi\n\n');
+      expect(harness.sends, isEmpty);
+    },
+    skip: kIsWeb,
+    variant: _linux,
+  );
 }
