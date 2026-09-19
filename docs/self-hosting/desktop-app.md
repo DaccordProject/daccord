@@ -53,24 +53,42 @@ Click the tray icon to open the menu:
 
 With Accord running, open the daccord client, click the **+** button in the sidebar, and add a server.
 
-- **On the same computer:** use `http://localhost:39099`.
-- **From another device on your network:** use your computer's local IP address and port, for example `http://192.168.1.50:39099`.
+- **On the same computer:** use `http://localhost:39099` (or `http://127.0.0.1:39099`).
+- **From another device, on your network or over the internet:** use an `https://` address. See "Reaching the server from other devices" below.
 
-> **Include the `http://` prefix.** A self-hosted Accord server speaks plain HTTP on your local network, but the client assumes `https://` when you leave the scheme off. Without the prefix the connection fails with a "Broken pipe" error, because the client tries a TLS handshake against a plain-HTTP port. Public servers reached over a domain name normally use `https://` and can be entered without the prefix.
+> **Plain HTTP works only on the same computer.** Accord serves plain HTTP on port `39099`. The daccord client accepts `http://` only for loopback addresses (`localhost`, `127.0.0.1`, `::1`), so your password and session token never travel over a network unencrypted. Include the `http://` prefix for a local server. Without it, the client assumes `https://`, and the connection fails with a "Broken pipe" error. A LAN or public address over `http://`, such as `http://192.168.1.50:39099`, is rejected with "Accord server URL must use HTTPS. HTTP is allowed only for loopback development."
+
+## Reaching the server from other devices
+
+To connect from a phone, a second computer, or a friend's machine, put an HTTPS reverse proxy in front of Accord and give it a certificate that those devices trust. Common options:
+
+- **A domain name with automatic HTTPS (recommended).** Point a domain, or a dynamic-DNS hostname if your home IP changes, at your network. Forward TCP ports `80` and `443` to the computer running Accord. Then run [Caddy](https://caddyserver.com/) with a minimal `Caddyfile`:
+
+  ```
+  chat.example.com {
+      reverse_proxy localhost:39099
+  }
+  ```
+
+  Caddy obtains and renews a Let's Encrypt certificate automatically. Members then add `chat.example.com`.
+- **A private mesh network.** Tools such as Tailscale can publish the server over HTTPS with a trusted certificate (for example `tailscale serve --bg 39099`). Only devices on your tailnet can reach it.
+- **LAN only, with your own certificate authority.** Caddy's `tls internal` directive (or a tool such as `mkcert`) can issue a certificate for a local hostname. You must install and trust that root certificate on every device that connects, or the TLS handshake fails.
+
+WebSocket traffic (`/ws`) goes through the same proxy. Caddy forwards it with no extra configuration.
 
 Create an account on your new server and you're in. See [Creating an Account](../getting-started/creating-an-account.md) and [Adding a Server](../getting-started/adding-a-server.md) for the client-side steps.
 
 ## Inviting people from outside your network
 
-By default the server is reachable on your local network only. To let friends connect over the internet, forward these ports on your router to the computer running Accord:
+To let friends connect over the internet, follow the domain-name option in "Reaching the server from other devices" above. Forward these ports on your router to the computer running Accord:
 
 | Port | Protocol | Purpose |
 |------|----------|---------|
-| 39099 | TCP | Chat (HTTP + WebSocket) |
+| 80, 443 | TCP | HTTPS reverse proxy (chat HTTP + WebSocket to Accord on `39099`) |
 | 7880, 7881 | TCP | LiveKit voice signaling |
 | 50000–60000 | UDP | LiveKit voice/video media |
 
-Then share your public IP address (and port `39099`) with the people you want to invite. If your home IP address changes over time, a dynamic-DNS hostname makes this easier.
+Don't forward port `39099` directly. The client won't connect to a public IP over plain `http://`. Share your `https://` domain name with the people you invite instead.
 
 > If port-forwarding isn't an option, or you want a server that's always reachable, a full [server deployment](deploying-a-server.md) on a VPS is the better fit.
 

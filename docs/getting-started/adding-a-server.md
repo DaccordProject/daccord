@@ -24,9 +24,10 @@ The simplest URL is just a hostname like `chat.example.com`. You can also includ
 - A specific space: `chat.example.com#my-space` (defaults to "general" if omitted)
 - A protocol: `https://chat.example.com` (HTTPS is used by default when no scheme is given)
 
-> **Connecting to a local or self-hosted server?** Add the `http://` prefix, e.g. `http://localhost:39099` or `http://192.168.1.50:39099`. Self-hosted servers serve plain HTTP on the local network, and without the prefix the client assumes `https://` and the connection fails with a "Broken pipe" error.
 - A pre-filled token: `chat.example.com?token=yourtoken` (logs you in automatically)
 - An invite code: `chat.example.com?invite=yourcode` (joins the space using the invite)
+
+> **Connecting to a self-hosted server?** Plain `http://` is accepted only for a server on the same computer (loopback): `http://localhost:39099` or `http://127.0.0.1:39099`. Include the `http://` prefix there. Without it, the client assumes `https://`, and the connection fails with a "Broken pipe" error. Any other address, including a LAN IP such as `192.168.1.50`, must use HTTPS. Entering `http://192.168.1.50:39099` is rejected with "Accord server URL must use HTTPS. HTTP is allowed only for loopback development." To reach a server from another device, put an HTTPS reverse proxy in front of it. See "Reaching the server from other devices" in [Running Accord on Your Desktop](../self-hosting/desktop-app.md).
 
 If you received a link starting with `daccord://`, opening it in an installed
 client preserves its destination: connect links select their space/channel
