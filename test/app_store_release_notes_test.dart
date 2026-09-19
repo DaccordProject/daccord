@@ -78,4 +78,29 @@ void main() {
       expect(result.stderr, contains("no '# Release version: x.y.z' marker"));
     },
   );
+
+  test('the committed override stays comment-only between releases', () {
+    // Regression guard for #377: every release from 0.2.14 to 0.2.21
+    // overwrote dist/release-notes.txt with hand-written copy and never
+    // reset it, so the next version bump failed store validation with a
+    // stale "# Release version:" marker. This check runs on every PR (unlike
+    // the script itself, which only runs during a tagged release) so a
+    // forgotten reset fails fast instead of at release time.
+    final contents = File('dist/release-notes.txt').readAsStringSync();
+    final withoutComments = contents
+        .split('\n')
+        .where((line) => !line.trim().startsWith('#'))
+        .join('\n')
+        .trim();
+
+    expect(
+      withoutComments,
+      isEmpty,
+      reason:
+          'dist/release-notes.txt has content after its comment lines, so it '
+          'is still overriding release notes for a specific version. Reset '
+          'it to the comment-only template once that release ships (see '
+          'docs/app-store-deploy.md).',
+    );
+  });
 }
