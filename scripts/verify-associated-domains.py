@@ -3,14 +3,20 @@
 import plistlib
 import sys
 
+REQUIRED_DOMAIN = "applinks:www.daccord.gg"
+WILDCARD = "*"
+
 
 def permits_applinks(profile):
     entitlements = profile.get("Entitlements", {})
     if not isinstance(entitlements, dict):
         return False
-    domains = entitlements.get("com.apple.developer.associated-domains", [])
+    domains = entitlements.get("com.apple.developer.associated-domains")
+    # Apple writes a wildcard grant as the bare string "*" rather than a list.
+    if isinstance(domains, str):
+        domains = [domains]
     return isinstance(domains, list) and any(
-        domain in ("*", "applinks:www.daccord.gg") for domain in domains
+        domain in (WILDCARD, REQUIRED_DOMAIN) for domain in domains
     )
 
 
