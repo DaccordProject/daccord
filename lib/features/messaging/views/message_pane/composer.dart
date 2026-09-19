@@ -98,15 +98,17 @@ class _ComposerState extends ConsumerState<_Composer> {
       return KeyEventResult.ignored;
     }
     final mods = HardwareKeyboard.instance;
-    final shiftEnter = _isShiftEnterChord(event, mods);
-    if (_inputMethodOwnsEnter) {
-      // Every Enter press reaches this handler before GTK's input method.
-      // Only Enter presses update the record: other keys typed before the
-      // embedder's action comes back must not change it (see
-      // [_lastEnterWasShiftEnter]).
-      if (_isEnterKey(event)) _lastEnterWasShiftEnter = shiftEnter;
-      if (shiftEnter) return KeyEventResult.ignored;
-    } else if (shiftEnter && !_isComposing) {
+    if (_nativeNewlines) {
+      if (_isPlainEnter(event, mods) && !_isComposing) {
+        // Held Enter repeats are swallowed: they must neither resend nor
+        // fall through to the embedder as newlines.
+        if (event is KeyDownEvent) _send();
+        return KeyEventResult.handled;
+      }
+      // Shift+Enter (and Enter with any other modifier, or during a
+      // composition) goes to GTK's input method and then the embedder, which
+      // inserts the newline itself. See [_nativeNewlines].
+    } else if (_isShiftEnterChord(event, mods) && !_isComposing) {
       _insertNewline();
       return KeyEventResult.handled;
     }
@@ -129,17 +131,21 @@ class _ComposerState extends ConsumerState<_Composer> {
   /// a plain TextField sends on Shift+Enter (#376). On Windows and macOS the
   /// composer handles the chord itself, which stops it from ever reaching the
   /// embedder's text input plugin. Linux works differently: see
-  /// [_inputMethodOwnsEnter].
-  bool _isShiftEnterChord(KeyEvent event, HardwareKeyboard mods) {
-    if (!_isEnterKey(event)) return false;
-    if (!mods.isShiftPressed ||
-        mods.isControlPressed ||
-        mods.isMetaPressed ||
-        mods.isAltPressed) {
-      return false;
-    }
-    return true;
-  }
+  /// [_nativeNewlines].
+  bool _isShiftEnterChord(KeyEvent event, HardwareKeyboard mods) =>
+      _isEnterKey(event) &&
+      mods.isShiftPressed &&
+      !mods.isControlPressed &&
+      !mods.isMetaPressed &&
+      !mods.isAltPressed;
+
+  /// Whether [event] is Enter (either Enter key) with no modifiers held.
+  bool _isPlainEnter(KeyEvent event, HardwareKeyboard mods) =>
+      _isEnterKey(event) &&
+      !mods.isShiftPressed &&
+      !mods.isControlPressed &&
+      !mods.isMetaPressed &&
+      !mods.isAltPressed;
 
   static bool _isEnterKey(KeyEvent event) =>
       event.logicalKey == LogicalKeyboardKey.enter ||
@@ -152,50 +158,39 @@ class _ComposerState extends ConsumerState<_Composer> {
     return composing.isValid && !composing.isCollapsed;
   }
 
-  /// On Linux the composer never claims Shift+Enter. GTK's input method can be
-  /// composing without reporting a composing range to Dart (for example
-  /// Ctrl+Shift+U hex entry, or an async IBus key that is still pending), so
-  /// [_isComposing] can't be trusted there. The key goes to the embedder
-  /// instead, which gives GTK's input method the first look
-  /// (`fl_text_input_handler_filter_keypress`). If the IM consumes it, it
-  /// commits the composition and nothing else happens. If not, the embedder
-  /// performs the `send` action, and [_onSubmitted] turns it into a newline
-  /// when [_lastEnterWasShiftEnter] is set.
-  bool get _inputMethodOwnsEnter =>
-      defaultTargetPlatform == TargetPlatform.linux;
-
-  /// Linux only: whether the most recent Enter press was Shift+Enter.
+  /// Linux: the field uses `TextInputAction.newline`, and the roles are
+  /// inverted compared with Windows and macOS (#376, review of #384).
   ///
-  /// The Linux embedder performs the `send` action only for an Enter key
-  /// that GTK's input method didn't consume (`fl_text_input_handler.cc`,
-  /// `GDK_KEY_Return`/`KP_Enter`/`ISO_Enter`). So every action belongs to an
-  /// Enter press the composer has already seen, and it is attributed to the
-  /// most recent one:
-  /// - It is set at key-down, so releasing Shift before the action arrives
-  ///   doesn't matter.
-  /// - Non-Enter keys never touch it. Keys typed before the action comes
-  ///   back (`xdotool key --delay 0 shift+Return a`) can't turn the newline
-  ///   into a send.
-  /// - An Enter the IM consumed leaves no action behind, and the next Enter
-  ///   press overwrites its record. So a consumed Shift+Enter can't turn a
-  ///   later plain Enter into a newline, and the reverse can't happen either.
-  /// - It is not reset on submit. Two quick Shift+Enters whose actions
-  ///   arrive back to back must both become newlines.
+  /// - **Shift+Enter** is never handled here. GTK's input method sees it first
+  ///   (`fl_text_input_handler_filter_keypress`). If the IM is composing, even
+  ///   when Dart sees no composing range (Ctrl+Shift+U hex entry, a pending
+  ///   IBus key), it commits. Otherwise the embedder inserts `\n` into its own
+  ///   model, and that edit is queued in order with any keys typed after it.
+  ///   A `newline` action on a multiline field does nothing in Dart: no
+  ///   unfocus, no `onSubmitted`, and no text-input connection restart.
+  ///   So there is nothing to race and no queued update is dropped.
+  /// - **Plain Enter** (no modifiers, no reported composition) sends from the
+  ///   key handler. [_send] clears the field synchronously, so the embedder's
+  ///   model is reset before it processes any key typed after Enter.
   ///
-  /// Limitation: two Enters with *different* Shift state, both unconsumed
-  /// and pressed within one embedder round trip, use the later one's state
-  /// for both actions.
-  bool _lastEnterWasShiftEnter = false;
+  /// Why not the `send` action with a Shift+Enter flag, as before:
+  /// `EditableText._finalizeEditing` always schedules a text-input connection
+  /// restart for `send`, and GTK updates still queued for the old client are
+  /// discarded, so keys typed right after Shift+Enter were lost.
+  ///
+  /// Known limitations:
+  /// - A plain Enter during a composition that GTK hasn't reported to Dart
+  ///   sends instead of committing.
+  /// - Enter with Ctrl or Alt held inserts a newline here, where it sends on
+  ///   Windows and macOS.
+  static bool get _nativeNewlines =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
 
   void _onSubmitted() {
     // EditableText unfocuses on a `send` action just before onSubmitted runs;
     // the field is enabled, so asking for focus straight back lands in the
-    // same frame.
+    // same frame. (Not reached on Linux: see [_nativeNewlines].)
     _focusNode.requestFocus();
-    if (_inputMethodOwnsEnter && _lastEnterWasShiftEnter) {
-      _insertNewline();
-      return;
-    }
     _send();
   }
 
@@ -917,7 +912,9 @@ class _ComposerState extends ConsumerState<_Composer> {
                       // in _send() are what stop a double-send.
                       minLines: 1,
                       maxLines: 6,
-                      textInputAction: TextInputAction.send,
+                      textInputAction: _nativeNewlines
+                          ? TextInputAction.newline
+                          : TextInputAction.send,
                       onChanged: _onChanged,
                       onSubmitted: (_) => _onSubmitted(),
                       style: Theme.of(context).textTheme.bodyLarge,
