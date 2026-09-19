@@ -79,28 +79,58 @@ void main() {
     },
   );
 
-  test('the committed override stays comment-only between releases', () {
-    // Regression guard for #377: every release from 0.2.14 to 0.2.21
-    // overwrote dist/release-notes.txt with hand-written copy and never
-    // reset it, so the next version bump failed store validation with a
-    // stale "# Release version:" marker. This check runs on every PR (unlike
-    // the script itself, which only runs during a tagged release) so a
-    // forgotten reset fails fast instead of at release time.
-    final contents = File('dist/release-notes.txt').readAsStringSync();
-    final withoutComments = contents
-        .split('\n')
-        .where((line) => !line.trim().startsWith('#'))
-        .join('\n')
-        .trim();
+  test(
+    'derives notes from commits when the override is comment-only',
+    () async {
+      final result = await runScript(
+        '# Optional override; comment-only means derive from commits.\n',
+      );
 
-    expect(
-      withoutComments,
-      isEmpty,
-      reason:
-          'dist/release-notes.txt has content after its comment lines, so it '
-          'is still overriding release notes for a specific version. Reset '
-          'it to the comment-only template once that release ships (see '
-          'docs/app-store-deploy.md).',
-    );
-  });
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(result.stdout, contains('no content after comments'));
+    },
+  );
+
+  test(
+    'the committed override does not fail store validation',
+    () async {
+      // Regression guard for #377: every release from 0.2.14 to 0.2.21
+      // overwrote dist/release-notes.txt with hand-written copy and never
+      // reset it, so the next version bump failed store validation with a
+      // stale "# Release version:" marker. This runs the real script
+      // against the actual committed pubspec.yaml/dist/release-notes.txt
+      // pair, tagged at the current app version, on every PR — unlike the
+      // script itself, which only runs during a tagged release — so a
+      // forgotten reset fails fast instead of at release time.
+      //
+      // This intentionally permits a valid, current-version hand-written
+      // override (the workflow docs/app-store-deploy.md documents): only a
+      // stale or malformed override fails here, matching what
+      // app-store-release-notes.sh itself accepts.
+      File(
+        '${temporary.path}/pubspec.yaml',
+      ).writeAsStringSync(File('pubspec.yaml').readAsStringSync());
+      File(
+        '${temporary.path}/dist/release-notes.txt',
+      ).writeAsStringSync(File('dist/release-notes.txt').readAsStringSync());
+
+      final appVersion = RegExp(
+        r'^version:\s*([^+\s]+)',
+        multiLine: true,
+      ).firstMatch(File('pubspec.yaml').readAsStringSync())!.group(1)!;
+
+      final result = await Process.run(
+        'bash',
+        ['dist/app-store-release-notes.sh'],
+        workingDirectory: temporary.path,
+        environment: {
+          ...Platform.environment,
+          'GITHUB_REF_TYPE': 'tag',
+          'GITHUB_REF_NAME': 'v$appVersion',
+        },
+      );
+
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+    },
+  );
 }
