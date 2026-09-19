@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/messaging/controllers/history_request.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/list_ext.dart';
@@ -25,6 +26,8 @@ final Set<ServerChannelKey> activeForumChannels = <ServerChannelKey>{};
 class ForumPostsController extends _$ForumPostsController {
   @override
   List<AccordMessage>? build(String serverKey, String channelId) {
+    _history.reset();
+    ref.onDispose(_history.reset);
     final key = (serverKey: serverKey, channelId: channelId);
     activeForumChannels.add(key);
     ref.onDispose(() => activeForumChannels.remove(key));
@@ -36,17 +39,30 @@ class ForumPostsController extends _$ForumPostsController {
     return null;
   }
 
+  final _history = HistoryRequests();
+
+  bool _owns(HistoryRequest request, AccordClient client) =>
+      ref.mounted &&
+      _history.owns(request) &&
+      ref.isCurrentAccordClient(serverKey, client);
+
   Future<void> _load(AccordClient client) async {
-    final result = await client.messages.listPosts(channelId);
     if (!ref.mounted || !ref.isCurrentAccordClient(serverKey, client)) return;
-    final posts = result.listOrLog<AccordMessage>('forum posts for $channelId');
-    if (posts == null) {
-      // Settle on empty rather than spin forever (matches the previous view
-      // behavior); pull-to-refresh or a re-identify [reload] retries.
-      state = const [];
-      return;
+    final request = _history.begin();
+    try {
+      final result = await client.messages.listPosts(channelId);
+      if (!_owns(request, client)) return;
+      final posts = result.listOrLog<AccordMessage>('posts for $channelId');
+      if (posts == null) {
+        // Settle an initial failure without discarding live rows or the cache
+        // the user is reading during a failed reconnect refresh.
+        state ??= const [];
+        return;
+      }
+      state = _history.reconcile(posts, state ?? const [], prependLive: true);
+    } finally {
+      if (_owns(request, client)) _history.finish(request);
     }
-    state = posts;
   }
 
   /// Re-fetches the post list, replacing the cache in place (no flash back to
@@ -92,6 +108,7 @@ class ForumPostsController extends _$ForumPostsController {
     final post = current.firstWhereOrNull((m) => m.id == postId);
     if (post == null || post.pinned == pinned) return;
     post.pinned = pinned;
+    _history.patch(postId, (m) => m.pinned = pinned);
     state = [...current];
   }
 
@@ -101,12 +118,14 @@ class ForumPostsController extends _$ForumPostsController {
     if (post.threadId != null) return;
     final current = state ?? const <AccordMessage>[];
     if (current.any((m) => m.id == post.id)) return;
+    _history.add(post);
     state = [post, ...current];
   }
 
   /// Replaces an existing post (edit result / thread-root edit / gateway
   /// echo); unknown ids are ignored.
   void updatePost(AccordMessage post) {
+    _history.update(post);
     final next = state?.replaceById(post, (m) => m.id);
     if (next != null) state = next;
   }
@@ -114,6 +133,7 @@ class ForumPostsController extends _$ForumPostsController {
   /// Removes a deleted post; a no-op when [postId] isn't a root post here
   /// (message deletes in a forum channel may be thread replies).
   void removePost(String postId) {
+    _history.remove(postId);
     final current = state;
     if (current == null || !current.any((m) => m.id == postId)) return;
     state = current.removeById(postId, (m) => m.id);

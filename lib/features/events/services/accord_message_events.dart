@@ -538,6 +538,7 @@ void bindMessageEvents(
           added: added,
           isOwn: isOwn,
           emojiId: emoji.id,
+          userId: data['user_id']?.toString(),
         );
   }
 
