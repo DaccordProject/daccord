@@ -90,11 +90,13 @@ class _Account {
           final key =
               '${reactorPath[1]}/${Uri.decodeComponent(reactorPath[2]!)}';
           reactorRequests.add(key);
-          return (heldReactors[key]?.future ?? Future.value()).then(
+          // Each request answers with the listing set when it was made, once
+          // the hold registered at that moment (if any) is released.
+          final users = [...?reactors[key]];
+          return (heldReactors.remove(key)?.future ?? Future.value()).then(
             (_) => http.Response(
               jsonEncode([
-                for (final id in reactors[key] ?? const <String>[])
-                  {'id': id, 'username': id},
+                for (final id in users) {'id': id, 'username': id},
               ]),
               200,
             ),
@@ -128,7 +130,8 @@ class _Account {
   final spaces = <_Pending>[];
 
   /// Reactor listings served for `<messageId>/<emoji>`; unlisted keys are
-  /// empty. A completer in [heldReactors] holds that listing until completed.
+  /// empty. A completer in [heldReactors] holds the next request for that key
+  /// until completed.
   final reactors = <String, List<String>>{};
   final heldReactors = <String, Completer<void>>{};
   final reactorRequests = <String>[];
@@ -768,6 +771,54 @@ void main() {
           'emo_a': (3, true),
         }, reason: 'listing $listingHasIt');
       }
+    });
+
+    test('a listing started for an older reload cannot overwrite a newer '
+        'reload that finished first', () async {
+      // Reload A: another user's add, snapshot count 1, listing held.
+      final (h, loadingA, pendingA) = await reloading();
+      h.account.reactors['x/emo_a'] = ['u1'];
+      final listingA = h.account.heldReactors['x/emo_a'] = Completer();
+      other(h, 'u1');
+      await settle(h, loadingA, pendingA, row([reaction('emo_a', 1)]));
+      expect(h.account.reactorRequests, ['x/emo_a']);
+      // Reload B publishes a newer snapshot with count 5.
+      final loadingB = h.reload();
+      await settle(
+        h,
+        loadingB,
+        await h.account.next(),
+        row([reaction('emo_a', 5)]),
+      );
+      expect(summary(h), {'emo_a': (5, false)});
+      // A's listing finishes last and must be dropped.
+      listingA.complete();
+      await h.flush();
+      expect(summary(h), {'emo_a': (5, false)});
+    });
+
+    test('a newer listing for the same emoji supersedes an older one that '
+        'finishes after it', () async {
+      final (h, loadingA, pendingA) = await reloading();
+      h.account.reactors['x/emo_a'] = ['u1'];
+      final listingA = h.account.heldReactors['x/emo_a'] = Completer();
+      other(h, 'u1');
+      await settle(h, loadingA, pendingA, row([reaction('emo_a', 1)]));
+      // Reload B also sees another user's change, so it starts its own
+      // listing for the same emoji, which answers with the newer set.
+      final loadingB = h.reload();
+      final pendingB = await h.account.next();
+      h.account.reactors['x/emo_a'] = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6'];
+      final listingB = h.account.heldReactors['x/emo_a'] = Completer();
+      other(h, 'u6');
+      await settle(h, loadingB, pendingB, row([reaction('emo_a', 5)]));
+      expect(h.account.reactorRequests, ['x/emo_a', 'x/emo_a']);
+      listingB.complete();
+      await h.flush();
+      expect(summary(h), {'emo_a': (6, false)});
+      listingA.complete();
+      await h.flush();
+      expect(summary(h), {'emo_a': (6, false)});
     });
 
     test('a truncated or failed listing leaves the server count', () async {

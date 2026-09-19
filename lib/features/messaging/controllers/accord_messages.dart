@@ -21,6 +21,14 @@ part 'accord_messages.g.dart';
 
 /// An emoji whose aggregate must be settled from the reactor listing, with the
 /// reaction changes the history fetch saw for it.
+/// A reactor listing in flight: the snapshot generation it may settle, and
+/// the reaction changes received since it started.
+final class _ReactorRefresh {
+  _ReactorRefresh(this.generation, this.ops);
+  final int generation;
+  final List<ReactionOp> ops;
+}
+
 typedef _PendingRefresh = ({
   String messageId,
   String key,
@@ -123,6 +131,7 @@ class AccordMessagesController extends _$AccordMessagesController {
       hasMoreOlder = list.length >= _pageSize;
       final rows = _history.reconcile(list.reversed, state ?? const []);
       final pending = _replayReactions(rows);
+      _snapshotGeneration++;
       state = rows;
       _setLoadFailed(false);
       _refreshReactors(client, pending);
@@ -614,10 +623,17 @@ class AccordMessagesController extends _$AccordMessagesController {
   // server reactions the event did not touch survive and the event is never
   // counted twice. See reaction_journal.dart.
 
-  /// Reactor listings requested per (message, emoji), with the reaction
-  /// changes received while each is in flight.
-  final _reactorRefreshes = <(String, String), List<ReactionOp>>{};
+  /// The reactor listing in flight per (message, emoji). Only this one may
+  /// settle that emoji.
+  final _reactorRefreshes = <(String, String), _ReactorRefresh>{};
   int _reactorSession = 0;
+
+  /// Advanced each time a newest-page snapshot is published. A reactor listing
+  /// settles only the snapshot it was started for. A newer snapshot already
+  /// includes every change the older listing was started for, and replacing
+  /// it with that listing (which may finish later) would bring back an old
+  /// count.
+  int _snapshotGeneration = 0;
 
   /// Reactor listings larger than this are truncated and cannot be trusted as
   /// a full set; the server count then stands.
@@ -632,7 +648,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     _history.recordReaction(messageId, op);
     for (final entry in _reactorRefreshes.entries) {
       final (id, key) = entry.key;
-      if (id == messageId && op.touches(key)) entry.value.add(op);
+      if (id == messageId && op.touches(key)) entry.value.ops.add(op);
     }
   }
 
@@ -672,11 +688,17 @@ class AccordMessagesController extends _$AccordMessagesController {
     List<ReactionOp> earlier,
   ) async {
     final id = (messageId, key);
-    // One in flight already journals every change since it started.
-    if (_reactorRefreshes.containsKey(id)) return;
+    // One in flight for the same snapshot already journals every change since
+    // it started. One started for an older snapshot is replaced: its result
+    // can no longer be applied.
+    if (_reactorRefreshes[id]?.generation == _snapshotGeneration) return;
     // The fetch's changes are replayed too. The listing is requested after
     // they arrived, so replaying them per user is idempotent.
-    final ops = _reactorRefreshes[id] = [...earlier];
+    final refresh = _reactorRefreshes[id] = _ReactorRefresh(
+      _snapshotGeneration,
+      [...earlier],
+    );
+    final ops = refresh.ops;
     final session = _reactorSession;
     try {
       final emojiId = emoji['id']?.toString();
@@ -692,6 +714,11 @@ class AccordMessagesController extends _$AccordMessagesController {
       if (!ref.mounted ||
           session != _reactorSession ||
           !ref.isCurrentAccordClient(serverKey, client)) {
+        return;
+      }
+      // A newer snapshot, or a newer listing for this emoji, has won.
+      if (!identical(_reactorRefreshes[id], refresh) ||
+          refresh.generation != _snapshotGeneration) {
         return;
       }
       final data = result.data;
@@ -713,7 +740,10 @@ class AccordMessagesController extends _$AccordMessagesController {
         replayOntoReactors(reactors, ops, key),
       );
     } finally {
-      if (session == _reactorSession) _reactorRefreshes.remove(id);
+      if (session == _reactorSession &&
+          identical(_reactorRefreshes[id], refresh)) {
+        _reactorRefreshes.remove(id);
+      }
     }
   }
 
