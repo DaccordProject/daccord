@@ -849,4 +849,56 @@ void main() {
     // only the list rebuilds without its spinner.
     expect(seen.last, isFalse);
   });
+
+  for (final mutation in ['edit', 'pin', 'react']) {
+    test('a live $mutation of an older-page row during a reload does not '
+        'append it to the newest page; pagination restores it', () async {
+      final h = _Harness(_Kind.messages);
+      await h.seed(_page('new'));
+      final older = h.messages.loadOlder(h.account.client);
+      (await h.account.next()).complete(_page('old'));
+      expect(await older, 50);
+      final reload = h.reload();
+      final pending = await h.account.next();
+      switch (mutation) {
+        case 'edit':
+          h.edit(_message('old30', 'live edit'));
+        case 'pin':
+          await h.messages.pin(h.account.client, 'old30');
+        default:
+          h.messages.applyReaction('old30', 'emo_a', added: true, isOwn: true);
+      }
+      pending.complete(_page('new'));
+      await reload;
+      await h.flush();
+      expect(h.ids, [for (var i = 1; i <= 50; i++) 'new$i']);
+      final restore = h.messages.loadOlder(h.account.client);
+      final page = await h.account.next();
+      expect(page.request.url.queryParameters['before'], 'new1');
+      page.complete([
+        for (var i = 50; i > 0; i--)
+          i == 30
+              ? (_message('old30', 'server copy')
+                  ..pinned = mutation == 'pin'
+                  ..reactions = [
+                    if (mutation == 'react')
+                      AccordReaction(
+                        emoji: {'name': 'emo_a'},
+                        count: 1,
+                        includesMe: true,
+                      ),
+                  ])
+              : _message('old$i'),
+      ]);
+      expect(await restore, 50);
+      expect(h.ids, [
+        for (var i = 1; i <= 50; i++) 'old$i',
+        for (var i = 1; i <= 50; i++) 'new$i',
+      ]);
+      final old30 = h.state!.firstWhere((m) => m.id == 'old30');
+      expect(old30.content, 'server copy');
+      if (mutation == 'pin') expect(old30.pinned, isTrue);
+      if (mutation == 'react') expect(old30.reactions!.single.count, 1);
+    });
+  }
 }
