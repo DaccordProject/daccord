@@ -57,11 +57,7 @@ class AccordMarkdownBox extends StatelessWidget {
         ),
       ),
       highlightBuilder: (text, language, infoString) {
-        final prism = Prism(
-          style: Theme.of(context).brightness == Brightness.dark
-              ? const PrismStyle.dark()
-              : const PrismStyle(),
-        );
+        final prism = Prism(style: getMarkdownPrismStyle(context));
         try {
           return prism.render(text, language ?? 'plain');
         } catch (e) {
