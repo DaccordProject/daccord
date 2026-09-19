@@ -12,7 +12,7 @@ section: troubleshooting
 | Shortcut | Action |
 |----------|--------|
 | Enter | Send message |
-| Shift+Enter | New line in message |
+| Shift+Enter | New line in message (desktop apps: Windows, macOS and Linux) |
 | Ctrl+V / Cmd+V | Paste image or text from clipboard |
 
 ## Editing a Message

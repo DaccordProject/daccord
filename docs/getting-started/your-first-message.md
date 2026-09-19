@@ -16,7 +16,7 @@ Once you're connected to a server, you're ready to start chatting.
 3. Type your message in the **composer** at the bottom.
 4. Press **Enter** to send.
 
-To insert a new line without sending, press **Shift+Enter**.
+In the desktop apps (Windows, macOS and Linux), press **Shift+Enter** to insert a new line without sending.
 
 ## Reading Messages
 

@@ -22,6 +22,17 @@ import 'package:http/testing.dart';
 /// but the desktop embedders ignore Shift and perform that action on any Enter.
 /// The composer therefore claims Shift+Enter itself, and leaves plain Enter to
 /// the embedder, which sends.
+///
+/// Windows and macOS: the composer handles the chord in its key handler.
+/// Linux: the chord goes to GTK's input method first (it may be composing
+/// with no composing range visible to Dart), and the embedder's `send` action
+/// that follows becomes a newline.
+
+final _interceptingDesktops = TargetPlatformVariant({
+  TargetPlatform.windows,
+  TargetPlatform.macOS,
+});
+final _linux = TargetPlatformVariant.only(TargetPlatform.linux);
 
 const _channelId = 'c1';
 
@@ -125,105 +136,221 @@ KeyEventResult _dispatch(TextField field, LogicalKeyboardKey key) =>
     );
 
 void main() {
-  testWidgets('Shift+Enter inserts a newline at the caret and does not send', (
-    tester,
-  ) async {
-    final (harness, field) = await _pumpWithText(
-      tester,
-      const TextEditingValue(
-        text: 'hello world',
-        selection: TextSelection.collapsed(offset: 5),
-      ),
-    );
+  testWidgets(
+    'Shift+Enter inserts a newline at the caret and does not send',
+    (tester) async {
+      final (harness, field) = await _pumpWithText(
+        tester,
+        const TextEditingValue(
+          text: 'hello world',
+          selection: TextSelection.collapsed(offset: 5),
+        ),
+      );
 
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-    await _tick(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await _tick(tester);
 
-    expect(field.controller!.text, 'hello\n world');
-    expect(
-      field.controller!.selection,
-      const TextSelection.collapsed(offset: 6),
-    );
-    expect(field.focusNode!.hasFocus, isTrue);
-    expect(harness.sends, isEmpty);
-  }, skip: kIsWeb);
+      expect(field.controller!.text, 'hello\n world');
+      expect(
+        field.controller!.selection,
+        const TextSelection.collapsed(offset: 6),
+      );
+      expect(field.focusNode!.hasFocus, isTrue);
+      expect(harness.sends, isEmpty);
+    },
+    skip: kIsWeb,
+    variant: _interceptingDesktops,
+  );
 
-  testWidgets('Shift+numpad Enter replaces the selection with a newline', (
-    tester,
-  ) async {
-    final (_, field) = await _pumpWithText(
-      tester,
-      const TextEditingValue(
-        text: 'one XX two',
-        selection: TextSelection(baseOffset: 3, extentOffset: 7),
-      ),
-    );
+  testWidgets(
+    'Shift+numpad Enter replaces the selection with a newline',
+    (tester) async {
+      final (_, field) = await _pumpWithText(
+        tester,
+        const TextEditingValue(
+          text: 'one XX two',
+          selection: TextSelection(baseOffset: 3, extentOffset: 7),
+        ),
+      );
 
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-    final result = _dispatch(field, LogicalKeyboardKey.numpadEnter);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-    await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      final result = _dispatch(field, LogicalKeyboardKey.numpadEnter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
 
-    expect(result, KeyEventResult.handled);
-    expect(field.controller!.text, 'one\ntwo');
-  }, skip: kIsWeb);
+      expect(result, KeyEventResult.handled);
+      expect(field.controller!.text, 'one\ntwo');
+    },
+    skip: kIsWeb,
+    variant: _interceptingDesktops,
+  );
 
-  testWidgets('plain Enter is left to the embedder, which sends', (
-    tester,
-  ) async {
-    final (_, field) = await _pumpWithText(
-      tester,
-      const TextEditingValue(
-        text: 'hi',
-        selection: TextSelection.collapsed(offset: 2),
-      ),
-    );
+  testWidgets(
+    'plain Enter is left to the embedder',
+    (tester) async {
+      final (_, field) = await _pumpWithText(
+        tester,
+        const TextEditingValue(
+          text: 'hi',
+          selection: TextSelection.collapsed(offset: 2),
+        ),
+      );
 
-    // Not claimed by the composer, so the desktop text input plugin receives
-    // it and performs the field's `send` action.
-    expect(_dispatch(field, LogicalKeyboardKey.enter), KeyEventResult.ignored);
-    expect(field.textInputAction, TextInputAction.send);
-    expect(field.controller!.text, 'hi');
-  }, skip: kIsWeb);
+      // Not claimed by the composer, so the desktop text input plugin receives
+      // it and performs the field's `send` action.
+      expect(
+        _dispatch(field, LogicalKeyboardKey.enter),
+        KeyEventResult.ignored,
+      );
+      expect(field.textInputAction, TextInputAction.send);
+      expect(field.controller!.text, 'hi');
+    },
+    skip: kIsWeb,
+    variant: _interceptingDesktops,
+  );
 
-  testWidgets('Shift+Enter is left to the IME while it is composing', (
-    tester,
-  ) async {
-    final (_, field) = await _pumpWithText(
-      tester,
-      const TextEditingValue(
-        text: 'nihon',
-        selection: TextSelection.collapsed(offset: 5),
-        composing: TextRange(start: 0, end: 5),
-      ),
-    );
+  testWidgets(
+    'Shift+Enter is left to the IME while it is composing',
+    (tester) async {
+      final (_, field) = await _pumpWithText(
+        tester,
+        const TextEditingValue(
+          text: 'nihon',
+          selection: TextSelection.collapsed(offset: 5),
+          composing: TextRange(start: 0, end: 5),
+        ),
+      );
 
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-    final result = _dispatch(field, LogicalKeyboardKey.enter);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      final result = _dispatch(field, LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
 
-    expect(result, KeyEventResult.ignored);
-    expect(field.controller!.text, 'nihon');
-  }, skip: kIsWeb);
+      expect(result, KeyEventResult.ignored);
+      expect(field.controller!.text, 'nihon');
+    },
+    skip: kIsWeb,
+    variant: _interceptingDesktops,
+  );
 
-  testWidgets('Ctrl+Shift+Enter is not treated as a newline', (tester) async {
-    final (_, field) = await _pumpWithText(
-      tester,
-      const TextEditingValue(
-        text: 'hi',
-        selection: TextSelection.collapsed(offset: 2),
-      ),
-    );
+  testWidgets(
+    'Ctrl+Shift+Enter is not treated as a newline',
+    (tester) async {
+      final (_, field) = await _pumpWithText(
+        tester,
+        const TextEditingValue(
+          text: 'hi',
+          selection: TextSelection.collapsed(offset: 2),
+        ),
+      );
 
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-    final result = _dispatch(field, LogicalKeyboardKey.enter);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      final result = _dispatch(field, LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
 
-    expect(result, KeyEventResult.ignored);
-    expect(field.controller!.text, 'hi');
-  }, skip: kIsWeb);
+      expect(result, KeyEventResult.ignored);
+      expect(field.controller!.text, 'hi');
+    },
+    skip: kIsWeb,
+    variant: _interceptingDesktops,
+  );
+
+  // --- Linux / GTK --------------------------------------------------------
+
+  testWidgets(
+    'Linux: Shift+Enter is passed to the input method, even with no Dart '
+    'composing range',
+    (tester) async {
+      // The review's reproduction: Ctrl+Shift+U, 3042, Shift+Enter. GTK is
+      // composing but the controller reports no composing range at all.
+      final (harness, field) = await _pumpWithText(
+        tester,
+        const TextEditingValue(selection: TextSelection.collapsed(offset: 0)),
+      );
+      expect(field.controller!.value.composing, TextRange.empty);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      final handled = await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      expect(handled, isFalse, reason: 'the embedder/IM must see the key');
+      expect(field.controller!.text, isEmpty);
+
+      // GTK's IM consumes the key and commits the character, with no action.
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'あ',
+          selection: TextSelection.collapsed(offset: 1),
+        ),
+      );
+      await _tick(tester);
+      expect(field.controller!.text, 'あ');
+      expect(harness.sends, isEmpty);
+
+      // The recorded chord must not outlive the key the IM consumed: a later
+      // plain Enter still sends.
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await _tick(tester);
+      expect(field.controller!.text, isNot(contains('\n')));
+      expect(harness.sends, hasLength(1));
+    },
+    skip: kIsWeb,
+    variant: _linux,
+  );
+
+  testWidgets(
+    'Linux: the send action after an unconsumed Shift+Enter inserts a newline',
+    (tester) async {
+      final (harness, field) = await _pumpWithText(
+        tester,
+        const TextEditingValue(
+          text: 'hello world',
+          selection: TextSelection.collapsed(offset: 5),
+        ),
+      );
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.enter), isFalse);
+      // Released before the embedder's action arrives: the chord was
+      // recorded at key-down, so this must not matter.
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await _tick(tester);
+
+      expect(field.controller!.text, 'hello\n world');
+      expect(
+        field.controller!.selection,
+        const TextSelection.collapsed(offset: 6),
+      );
+      expect(field.focusNode!.hasFocus, isTrue);
+      expect(harness.sends, isEmpty);
+    },
+    skip: kIsWeb,
+    variant: _linux,
+  );
+
+  testWidgets(
+    'Linux: plain Enter sends',
+    (tester) async {
+      final (harness, field) = await _pumpWithText(
+        tester,
+        const TextEditingValue(
+          text: 'hi',
+          selection: TextSelection.collapsed(offset: 2),
+        ),
+      );
+
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.enter), isFalse);
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await _tick(tester);
+
+      expect(harness.sends, hasLength(1));
+      expect(field.controller!.text, isNot(contains('\n')));
+    },
+    skip: kIsWeb,
+    variant: _linux,
+  );
 }

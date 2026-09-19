@@ -98,7 +98,15 @@ class _ComposerState extends ConsumerState<_Composer> {
       return KeyEventResult.ignored;
     }
     final mods = HardwareKeyboard.instance;
-    if (_isShiftEnter(event, mods)) {
+    final shiftEnter = _isShiftEnterChord(event, mods);
+    if (_inputMethodOwnsEnter) {
+      // Every key press reaches this handler before GTK's input method, so
+      // this records whether the latest one was Shift+Enter. Any other key
+      // clears it, so a Shift+Enter the IM consumed can't turn a later
+      // plain Enter into a newline.
+      _shiftEnterPending = shiftEnter;
+      if (shiftEnter) return KeyEventResult.ignored;
+    } else if (shiftEnter && !_isComposing) {
       _insertNewline();
       return KeyEventResult.handled;
     }
@@ -112,16 +120,17 @@ class _ComposerState extends ConsumerState<_Composer> {
     return KeyEventResult.handled;
   }
 
-  /// Whether [event] is Shift+Enter (either Enter key, no other modifiers)
-  /// outside an IME composition.
+  /// Whether [event] is Shift+Enter (either Enter key, no other modifiers).
   ///
   /// The field's `textInputAction` is `send` so mobile keyboards show a Send
   /// key. The desktop embedders (Linux `fl_text_input_handler.cc`, Windows
   /// `text_input_plugin.cc`, macOS `FlutterTextInputPlugin.mm`) only insert a
   /// newline for Enter when the action is `newline`, and they ignore Shift, so
-  /// without this Shift+Enter would send the message (#376). Handling the key
-  /// here stops it from ever reaching the embedder's text input plugin.
-  bool _isShiftEnter(KeyEvent event, HardwareKeyboard mods) {
+  /// a plain TextField sends on Shift+Enter (#376). On Windows and macOS the
+  /// composer handles the chord itself, which stops it from ever reaching the
+  /// embedder's text input plugin. Linux works differently: see
+  /// [_inputMethodOwnsEnter].
+  bool _isShiftEnterChord(KeyEvent event, HardwareKeyboard mods) {
     final key = event.logicalKey;
     if (key != LogicalKeyboardKey.enter &&
         key != LogicalKeyboardKey.numpadEnter) {
@@ -133,9 +142,44 @@ class _ComposerState extends ConsumerState<_Composer> {
         mods.isAltPressed) {
       return false;
     }
-    // Leave Enter to the IME while it is composing (it commits the candidate).
+    return true;
+  }
+
+  /// Whether the IME has reported a composition. Enter is left to the IME
+  /// then, because it commits the candidate.
+  bool get _isComposing {
     final composing = _controller.value.composing;
-    return !composing.isValid || composing.isCollapsed;
+    return composing.isValid && !composing.isCollapsed;
+  }
+
+  /// On Linux the composer never claims Shift+Enter. GTK's input method can be
+  /// composing without reporting a composing range to Dart (for example
+  /// Ctrl+Shift+U hex entry, or an async IBus key that is still pending), so
+  /// [_isComposing] can't be trusted there. The key goes to the embedder
+  /// instead, which gives GTK's input method the first look
+  /// (`fl_text_input_handler_filter_keypress`). If the IM consumes it, it
+  /// commits the composition and nothing else happens. If not, the embedder
+  /// performs the `send` action, and [_onSubmitted] turns it into a newline
+  /// because [_shiftEnterPending] is set.
+  bool get _inputMethodOwnsEnter =>
+      defaultTargetPlatform == TargetPlatform.linux;
+
+  /// Linux only: whether the latest key press was Shift+Enter. It is recorded
+  /// at key-down because Shift may already be released by the time the
+  /// embedder's action arrives.
+  bool _shiftEnterPending = false;
+
+  void _onSubmitted() {
+    // EditableText unfocuses on a `send` action just before onSubmitted runs;
+    // the field is enabled, so asking for focus straight back lands in the
+    // same frame.
+    _focusNode.requestFocus();
+    if (_shiftEnterPending) {
+      _shiftEnterPending = false;
+      _insertNewline();
+      return;
+    }
+    _send();
   }
 
   /// Inserts a line break at the caret, replacing any selection, and runs the
@@ -858,13 +902,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                       maxLines: 6,
                       textInputAction: TextInputAction.send,
                       onChanged: _onChanged,
-                      onSubmitted: (_) {
-                        // EditableText unfocuses on a `send` action just before
-                        // onSubmitted runs; the field is enabled, so asking for
-                        // focus straight back lands in the same frame.
-                        _focusNode.requestFocus();
-                        _send();
-                      },
+                      onSubmitted: (_) => _onSubmitted(),
                       style: Theme.of(context).textTheme.bodyLarge,
                       decoration: InputDecoration(
                         isDense: true,
