@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/messaging/controllers/reaction_journal.dart';
 
 /// A request belongs to one provider build/session and one history generation.
 typedef HistoryRequest = ({int session, int request});
@@ -15,11 +16,15 @@ class _Mutation {
   /// as the snapshot row, so it replaces it.
   AccordMessage? replacement;
 
-  /// Field-level changes (pin, reactions) received during the fetch. They are
-  /// replayed onto whichever row wins, so a reaction arriving mid-reload does
-  /// not drag the pre-disconnect copy of the message back over the fresh one.
-  /// Each patch sets a field to a value, so re-applying it is harmless.
+  /// Field-level changes (pin) received during the fetch. They are replayed
+  /// onto whichever row wins, so a pin arriving mid-reload does not drag the
+  /// pre-disconnect copy of the message back over the fresh one. Each patch
+  /// sets a field to a value, so re-applying it is harmless.
   final List<void Function(AccordMessage)> patches = [];
+
+  /// Per-user reaction changes received during the fetch, in arrival order.
+  /// See [replayReactionOps].
+  final List<ReactionOp> reactions = [];
 }
 
 /// Owns a single history fetch and the live mutations received during it.
@@ -82,10 +87,22 @@ class HistoryRequests {
       ..patches.clear();
   }
 
-  /// A field-level change (pin, reactions) received live. [apply] must set
+  /// A field-level change (pin) received live. [apply] must set
   /// fields to fixed values rather than compute deltas, so it is idempotent.
   void patch(String id, void Function(AccordMessage) apply) {
     _entry(id)?.patches.add(apply);
+  }
+
+  /// A reaction change received live. Recorded even for ids not in the cache
+  /// yet: the snapshot may contain the message.
+  void recordReaction(String id, ReactionOp op) {
+    _entry(id)?.reactions.add(op);
+  }
+
+  /// The reaction changes to replay onto the row for [id] (empty when none).
+  List<ReactionOp> reactionOps(String id) {
+    final entry = _mutations[id];
+    return entry == null || entry.deleted ? const [] : entry.reactions;
   }
 
   void remove(String id) {

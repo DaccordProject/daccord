@@ -83,6 +83,23 @@ class _Account {
           spaces.add(pending);
           return pending.response.future;
         }
+        final reactorPath = RegExp(
+          r'/messages/([^/]+)/reactions/([^/]+)$',
+        ).firstMatch(request.url.path);
+        if (reactorPath != null) {
+          final key =
+              '${reactorPath[1]}/${Uri.decodeComponent(reactorPath[2]!)}';
+          reactorRequests.add(key);
+          return (heldReactors[key]?.future ?? Future.value()).then(
+            (_) => http.Response(
+              jsonEncode([
+                for (final id in reactors[key] ?? const <String>[])
+                  {'id': id, 'username': id},
+              ]),
+              200,
+            ),
+          );
+        }
         if (!request.url.path.endsWith('/messages')) {
           return Future.value(http.Response('[]', 200));
         }
@@ -109,6 +126,12 @@ class _Account {
 
   final gateway = _Gateway();
   final spaces = <_Pending>[];
+
+  /// Reactor listings served for `<messageId>/<emoji>`; unlisted keys are
+  /// empty. A completer in [heldReactors] holds that listing until completed.
+  final reactors = <String, List<String>>{};
+  final heldReactors = <String, Completer<void>>{};
+  final reactorRequests = <String>[];
   final _requests = StreamController<_Pending>();
   late final _iterator = StreamIterator(_requests.stream);
   late final AccordClient client;
@@ -545,7 +568,14 @@ void main() {
 
     test('a reaction is replayed onto the fresh row', () async {
       final (h, loading, pending) = await reloading(_Kind.messages);
-      h.messages.applyReaction('x', 'thumbsup', added: true, isOwn: false);
+      h.account.reactors['x/emo_a'] = ['u1'];
+      h.messages.applyReaction(
+        'x',
+        'emo_a',
+        added: true,
+        isOwn: false,
+        userId: 'u1',
+      );
       final x = await settle(h, loading, pending);
       expect(x.content, 'edited while offline');
       expect(x.reactions, hasLength(1));
@@ -610,5 +640,213 @@ void main() {
         expect(h.ids, ['kept']);
       });
     }
+  });
+
+  group('reaction changes during a reconnect reload', () {
+    AccordReaction reaction(String name, int count, {bool me = false}) =>
+        AccordReaction(emoji: {'name': name}, count: count, includesMe: me);
+
+    AccordMessage row(List<AccordReaction> reactions) =>
+        _message('x', 'edited while offline')..reactions = reactions;
+
+    Map<String, (int, bool)> summary(_Harness h) => {
+      for (final r in h.state!.single.reactions ?? const <AccordReaction>[])
+        r.emoji['name'] as String: (r.count, r.includesMe),
+    };
+
+    Future<(_Harness, Future<void>, _Pending)> reloading([
+      List<AccordReaction> cached = const [],
+    ]) async {
+      final h = _Harness(_Kind.messages);
+      await h.seed([_message('x', 'before disconnect')..reactions = cached]);
+      final loading = h.reload();
+      return (h, loading, await h.account.next());
+    }
+
+    Future<void> settle(
+      _Harness h,
+      Future<void> loading,
+      _Pending pending,
+      AccordMessage snapshot,
+    ) async {
+      pending.complete([snapshot]);
+      await loading;
+      await h.flush();
+    }
+
+    void other(_Harness h, String user, {bool added = true}) => h.messages
+        .applyReaction('x', 'emo_a', added: added, isOwn: false, userId: user);
+
+    for (final snapshotHasIt in [false, true]) {
+      final when = snapshotHasIt ? 'includes' : 'predates';
+      test('own reaction: unrelated server reactions survive and the live '
+          'change is not double-counted (snapshot $when it)', () async {
+        final (h, loading, pending) = await reloading();
+        h.messages.applyReaction('x', 'emo_a', added: true, isOwn: true);
+        // The gateway echo of the same reaction, qualified or not, is own too.
+        h.messages.applyReaction(
+          'x',
+          'emo_a',
+          added: true,
+          isOwn: true,
+          userId: 'self',
+        );
+        await settle(
+          h,
+          loading,
+          pending,
+          row([
+            snapshotHasIt
+                ? reaction('emo_a', 3, me: true)
+                : reaction('emo_a', 2),
+            reaction('emo_b', 4),
+          ]),
+        );
+        expect(summary(h), {'emo_a': (3, true), 'emo_b': (4, false)});
+        expect(h.state!.single.content, 'edited while offline');
+        // Our own membership is settled by `includesMe`; no listing needed.
+        expect(h.account.reactorRequests, isEmpty);
+      });
+
+      test(
+        "another user's reaction: unrelated server reactions survive and "
+        'the live change is not double-counted (snapshot $when it)',
+        () async {
+          final (h, loading, pending) = await reloading([reaction('emo_a', 1)]);
+          h.account.reactors['x/emo_a'] = ['u1', 'u2'];
+          final listing = h.account.heldReactors['x/emo_a'] = Completer();
+          other(h, 'u2');
+          await settle(
+            h,
+            loading,
+            pending,
+            row([
+              reaction('emo_a', snapshotHasIt ? 2 : 1),
+              reaction('emo_b', 4),
+            ]),
+          );
+          // Until the listing settles it, the server count stands: never 3.
+          expect(summary(h), {
+            'emo_a': (snapshotHasIt ? 2 : 1, false),
+            'emo_b': (4, false),
+          });
+          listing.complete();
+          await h.flush();
+          expect(summary(h), {'emo_a': (2, false), 'emo_b': (4, false)});
+          expect(h.account.reactorRequests, ['x/emo_a']);
+        },
+      );
+
+      test("another user's removal is applied per user "
+          '(snapshot $when it)', () async {
+        final (h, loading, pending) = await reloading([reaction('emo_a', 2)]);
+        h.account.reactors['x/emo_a'] = snapshotHasIt ? ['u1'] : ['u1', 'u2'];
+        other(h, 'u2', added: false);
+        await settle(
+          h,
+          loading,
+          pending,
+          row([reaction('emo_a', snapshotHasIt ? 1 : 2), reaction('emo_b', 4)]),
+        );
+        expect(summary(h), {'emo_a': (1, false), 'emo_b': (4, false)});
+      });
+    }
+
+    test('a change arriving while the listing is in flight is applied once, '
+        'whether or not the listing includes it', () async {
+      for (final listingHasIt in [false, true]) {
+        final (h, loading, pending) = await reloading();
+        final listing = h.account.heldReactors['x/emo_a'] = Completer();
+        h.account.reactors['x/emo_a'] = ['u1', if (listingHasIt) 'u2', 'self'];
+        other(h, 'u1');
+        await settle(h, loading, pending, row([reaction('emo_a', 1)]));
+        other(h, 'u2');
+        h.messages.applyReaction('x', 'emo_a', added: true, isOwn: true);
+        listing.complete();
+        await h.flush();
+        expect(summary(h), {
+          'emo_a': (3, true),
+        }, reason: 'listing $listingHasIt');
+      }
+    });
+
+    test('a truncated or failed listing leaves the server count', () async {
+      final (h, loading, pending) = await reloading();
+      h.account.reactors['x/emo_a'] = [for (var i = 0; i < 100; i++) 'u$i'];
+      other(h, 'u1');
+      await settle(h, loading, pending, row([reaction('emo_a', 150)]));
+      expect(summary(h), {'emo_a': (150, false)});
+    });
+
+    test('clearing one emoji keeps the other server reactions', () async {
+      final (h, loading, pending) = await reloading([reaction('emo_a', 1)]);
+      h.messages.clearReactionEmoji('x', 'emo_a');
+      await settle(
+        h,
+        loading,
+        pending,
+        row([reaction('emo_a', 1), reaction('emo_b', 4)]),
+      );
+      expect(summary(h), {'emo_b': (4, false)});
+    });
+
+    test('reactions after a clear are replayed per user', () async {
+      final (h, loading, pending) = await reloading([reaction('emo_a', 1)]);
+      h.messages.clearReactions('x');
+      h.messages.applyReaction('x', 'emo_b', added: true, isOwn: true);
+      await settle(
+        h,
+        loading,
+        pending,
+        row([reaction('emo_a', 1), reaction('emo_b', 1, me: true)]),
+      );
+      expect(summary(h), {'emo_b': (1, true)});
+    });
+
+    test('a reaction on a message only in the snapshot is not lost', () async {
+      final h = _Harness(_Kind.messages);
+      await h.seed([_message('y')]);
+      final loading = h.reload();
+      final pending = await h.account.next();
+      h.messages.applyReaction('x', 'emo_a', added: true, isOwn: true);
+      pending.complete([
+        _message('y'),
+        row([reaction('emo_b', 4)]),
+      ]);
+      await loading;
+      await h.flush();
+      final x = h.state!.firstWhere((m) => m.id == 'x');
+      expect(
+        {
+          for (final r in x.reactions!)
+            r.emoji['name']: (r.count, r.includesMe),
+        },
+        {'emo_b': (4, false), 'emo_a': (1, true)},
+      );
+    });
+  });
+
+  test('a reload that fails still clears a superseded older-page spinner '
+      'for list watchers', () async {
+    final h = _Harness(_Kind.messages);
+    await h.seed(_page('m'));
+    final seen = <bool>[];
+    h.container.listen(
+      accordMessagesControllerProvider(_key, _channel),
+      (_, _) => seen.add(h.messages.isLoadingOlder),
+    );
+    final older = h.messages.loadOlder(h.account.client);
+    final page = await h.account.next();
+    expect(seen.last, isTrue);
+    final reload = h.reload();
+    (await h.account.next()).fail();
+    await reload;
+    page.complete(_page('old'));
+    expect(await older, 0);
+    await h.flush();
+    expect(h.messages.isLoadingOlder, isFalse);
+    // The watcher was told after the flag cleared, so a header that watches
+    // only the list rebuilds without its spinner.
+    expect(seen.last, isFalse);
   });
 }
