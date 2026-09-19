@@ -1,10 +1,11 @@
-# Release version: 0.2.20
+# Release version: 0.2.21
 
-• Read positions now synchronize across connected devices, with retries for
-  failed acknowledgements and fewer repeated notifications.
-• Fixed missing direct-message alerts, mobile call audio, and the DM call screen.
-• Improved saved-session reliability and fixed a Linux video playback crash.
-• Added AutoMod controls, upload review states, and clearer rate-limit guidance.
-• Improved mobile channel permissions and space menus, and added easy access
-  to the Privacy Policy.
-• Fixed the local MCP connection handshake for desktop tools.
+• Space folders now preview the servers inside them on the rail.
+• Daccord links now open straight in the app on iOS.
+• YouTube links show previews and play inline, only after you allow them.
+• Joining a space or invite reuses an account you are already signed in to.
+• Restored pasting into the composer on the web, tidied the space actions menu,
+  and added an optional relay-only mode for voice on restrictive networks.
+• Space icons and banners keep their crop, replaced images refresh right away,
+  and member counts and last-week timestamps read correctly.
+• Installs from a package manager no longer offer in-app updates.
