@@ -5,7 +5,10 @@ import 'package:markdown_viewer/markdown_viewer.dart';
 
 MarkdownStyle getMarkdownStyleSheet(BuildContext context) {
   final palette = BonfireThemeExtension.of(context);
-  const textColor = Color.fromARGB(255, 235, 235, 235);
+  // Body text follows the theme's high-emphasis colour, like the rest of the
+  // app's typography. It was hard-coded to #EBEBEB, which is ~1:1 on the Light
+  // theme's background and left message text effectively invisible.
+  final textColor = palette.dirtyWhite;
   final codeStyle = TextStyle(
     fontFamily: 'monospace',
     fontSize: 14.5,
@@ -13,7 +16,7 @@ MarkdownStyle getMarkdownStyleSheet(BuildContext context) {
     color: palette.dirtyWhite,
   );
   return MarkdownStyle(
-    paragraph: const TextStyle(
+    paragraph: TextStyle(
       fontSize: 14.5,
       fontWeight: FontWeight.w400,
       color: textColor,
@@ -24,42 +27,42 @@ MarkdownStyle getMarkdownStyleSheet(BuildContext context) {
       borderRadius: BorderRadius.circular(8),
     ),
     codeSpan: codeStyle.copyWith(backgroundColor: palette.foreground),
-    list: const TextStyle(
+    list: TextStyle(
       fontSize: 14.5,
       fontWeight: FontWeight.w500,
       color: textColor,
     ),
-    listItem: const TextStyle(
+    listItem: TextStyle(
       fontSize: 14.5,
       fontWeight: FontWeight.w500,
       color: textColor,
     ),
-    headline1: const TextStyle(
+    headline1: TextStyle(
       fontSize: 30,
       fontWeight: FontWeight.bold,
       color: textColor,
     ),
-    headline2: const TextStyle(
+    headline2: TextStyle(
       fontSize: 24,
       fontWeight: FontWeight.bold,
       color: textColor,
     ),
-    headline3: const TextStyle(
+    headline3: TextStyle(
       fontSize: 20,
       fontWeight: FontWeight.bold,
       color: textColor,
     ),
-    headline4: const TextStyle(
+    headline4: TextStyle(
       fontSize: 18,
       fontWeight: FontWeight.bold,
       color: textColor,
     ),
-    headline5: const TextStyle(
+    headline5: TextStyle(
       fontSize: 16,
       fontWeight: FontWeight.bold,
       color: textColor,
     ),
-    headline6: const TextStyle(
+    headline6: TextStyle(
       fontSize: 14,
       fontWeight: FontWeight.bold,
       color: textColor,
