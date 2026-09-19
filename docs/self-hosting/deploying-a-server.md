@@ -133,7 +133,7 @@ Make sure the following ports are accessible:
 
 ## Connecting from daccord
 
-Once your server is running, open daccord and click the **+** button in the sidebar to add a new server. Enter your server's address and create an account. Use `chat.example.com` for a server behind an HTTPS reverse proxy, or `http://your-ip:39099` when connecting directly over the local network — the `http://` prefix is required there, since a bare address defaults to `https://` and a plain-HTTP server will fail with a "Broken pipe" error.
+Once your server is running, open daccord and click the **+** button in the sidebar to add a new server. Enter your server's address and create an account. Use the HTTPS domain served by the Caddy reverse proxy, for example `chat.example.com`. The client connects to accordserver's plain-HTTP port `39099` directly only from the same machine (`http://localhost:39099`). Plain `http://` to a LAN or public IP, such as `http://192.168.1.50:39099`, is rejected with "Accord server URL must use HTTPS. HTTP is allowed only for loopback development." Reach the server through the reverse proxy instead.
 
 ## Updating
 

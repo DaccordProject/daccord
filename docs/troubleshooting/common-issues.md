@@ -10,7 +10,8 @@ section: troubleshooting
 ## Can't Connect to a Server
 
 - **Check the URL** -- Make sure you entered the server address correctly. It should look like `chat.example.com` or `chat.example.com:8443`.
-- **"Broken pipe" error on a local server** -- When you enter an address with no scheme, the client assumes `https://`. A self-hosted Accord server speaks plain HTTP, so the TLS handshake fails and the connection drops. Add the `http://` prefix explicitly, e.g. `http://localhost:39099` or `http://192.168.1.50:39099`.
+- **"Broken pipe" error on a local server** -- When you enter an address with no scheme, the client assumes `https://`. A self-hosted Accord server speaks plain HTTP, so the TLS handshake fails and the connection drops. If the server runs on the same computer, add the `http://` prefix explicitly, e.g. `http://localhost:39099`.
+- **"Accord server URL must use HTTPS. HTTP is allowed only for loopback development."** -- The client accepts plain `http://` only for loopback addresses (`localhost`, `127.0.0.1`, `::1`). Addresses such as `http://192.168.1.50:39099` or a public IP are refused, so credentials never cross a network unencrypted. Put an HTTPS reverse proxy in front of the server and connect with `https://`. See "Reaching the server from other devices" in [Running Accord on Your Desktop](../self-hosting/desktop-app.md).
 - **Server unreachable** -- The server may be down or behind a firewall. Contact the server admin.
 - **Wrong credentials** -- Double-check your username and password. Passwords are case-sensitive.
 
