@@ -3,6 +3,25 @@ import 'package:accordkit/accordkit.dart';
 /// A request belongs to one provider build/session and one history generation.
 typedef HistoryRequest = ({int session, int request});
 
+/// What happened to one message id while a history fetch was in flight.
+class _Mutation {
+  /// Deleted during the fetch: the snapshot row must not come back.
+  bool deleted = false;
+
+  /// Created during the fetch: survives even if the snapshot predates it.
+  bool created = false;
+
+  /// A whole-row create/edit received during the fetch. It is at least as new
+  /// as the snapshot row, so it replaces it.
+  AccordMessage? replacement;
+
+  /// Field-level changes (pin, reactions) received during the fetch. They are
+  /// replayed onto whichever row wins, so a reaction arriving mid-reload does
+  /// not drag the pre-disconnect copy of the message back over the fresh one.
+  /// Each patch sets a field to a value, so re-applying it is harmless.
+  final List<void Function(AccordMessage)> patches = [];
+}
+
 /// Owns a single history fetch and the live mutations received during it.
 /// Supersession, completion and disposal release the journal; it never grows
 /// with the lifetime of the message cache. Transport cancellation is optional:
@@ -12,7 +31,7 @@ class HistoryRequests {
   int _session = 0;
   int _generation = 0;
   HistoryRequest? _active;
-  final Map<String, AccordMessage?> _mutations = {};
+  final Map<String, _Mutation> _mutations = {};
 
   bool get isLoading => _active != null;
 
@@ -35,23 +54,49 @@ class HistoryRequests {
     _mutations.clear();
   }
 
+  /// Returns the journal entry for [id], or null when nothing should be
+  /// recorded (no fetch in flight, or the id was already deleted during it:
+  /// a late edit/echo cannot undo that deletion).
+  _Mutation? _entry(String id) {
+    if (!isLoading) return null;
+    final entry = _mutations.putIfAbsent(id, _Mutation.new);
+    return entry.deleted ? null : entry;
+  }
+
+  /// A message created live (gateway create / send result).
+  void add(AccordMessage message) {
+    final entry = _entry(message.id);
+    if (entry == null) return;
+    entry
+      ..created = true
+      ..replacement = message
+      ..patches.clear();
+  }
+
+  /// A whole-row edit received live.
   void update(AccordMessage message) {
-    if (!isLoading) return;
-    // A late edit/echo cannot undo a deletion observed during this fetch.
-    if (_mutations.containsKey(message.id) && _mutations[message.id] == null) {
-      return;
-    }
-    _mutations[message.id] = message;
+    final entry = _entry(message.id);
+    if (entry == null) return;
+    entry
+      ..replacement = message
+      ..patches.clear();
+  }
+
+  /// A field-level change (pin, reactions) received live. [apply] must set
+  /// fields to fixed values rather than compute deltas, so it is idempotent.
+  void patch(String id, void Function(AccordMessage) apply) {
+    _entry(id)?.patches.add(apply);
   }
 
   void remove(String id) {
-    if (isLoading) _mutations[id] = null;
+    if (isLoading) _mutations[id] = _Mutation()..deleted = true;
   }
 
-  /// Retain server ordering, dedupe, then overlay live edits/deletions. Live
-  /// rows absent from the snapshot survive in their current display order.
-  /// Unknown edits only apply if the snapshot contains their id (deletes fan
-  /// out to every open thread, and must not insert unrelated rows there).
+  /// Retain server ordering, dedupe, then overlay live edits/deletions and
+  /// replay field patches. Rows created live that are absent from the snapshot
+  /// survive in their current display order. Edits and patches only apply if
+  /// the snapshot contains their id (deletes fan out to every open thread, and
+  /// must not insert unrelated rows there).
   List<AccordMessage> reconcile(
     Iterable<AccordMessage> snapshot,
     Iterable<AccordMessage> current, {
@@ -59,16 +104,24 @@ class HistoryRequests {
   }) {
     final rows = <String, AccordMessage>{};
     for (final message in snapshot) {
-      final value = _mutations.containsKey(message.id)
-          ? _mutations[message.id]
-          : message;
-      if (value != null) rows.putIfAbsent(value.id, () => value);
+      final entry = _mutations[message.id];
+      if (entry == null) {
+        rows.putIfAbsent(message.id, () => message);
+        continue;
+      }
+      if (entry.deleted) continue;
+      final value = entry.replacement ?? message;
+      for (final apply in entry.patches) {
+        apply(value);
+      }
+      rows.putIfAbsent(value.id, () => value);
     }
     final live = <String, AccordMessage>{};
     for (final message in current) {
-      if (!rows.containsKey(message.id) && _mutations[message.id] != null) {
-        live[message.id] = _mutations[message.id]!;
-      }
+      final entry = _mutations[message.id];
+      if (rows.containsKey(message.id) || entry == null) continue;
+      if (entry.deleted || !entry.created) continue;
+      live[message.id] = message;
     }
     return prependLive
         ? [...live.values, ...rows.values]

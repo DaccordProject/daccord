@@ -129,9 +129,8 @@ class ThreadRepliesController extends _$ThreadRepliesController {
   void addReply(AccordMessage message) {
     if (message.id == rootId) return;
     final current = state ?? const <AccordMessage>[];
-    final existing = current.where((m) => m.id == message.id).firstOrNull;
-    _history.update(existing ?? message);
-    if (existing != null) return;
+    if (current.any((m) => m.id == message.id)) return;
+    _history.add(message);
     state = [...current, message];
   }
 

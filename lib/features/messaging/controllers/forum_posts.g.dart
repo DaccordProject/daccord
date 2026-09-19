@@ -74,7 +74,7 @@ final class ForumPostsControllerProvider
 }
 
 String _$forumPostsControllerHash() =>
-    r'3e339b1007f6e95b773a97b6740a8d51bb00d353';
+    r'a9866eb46268f9dce17604fb89a77d62bf3b6e0f';
 
 /// A forum channel's top-level posts (thread roots), keyed by channel ID, in
 /// server order (the board sorts for display). Self-loads via

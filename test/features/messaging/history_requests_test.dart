@@ -523,4 +523,92 @@ void main() {
       },
     );
   });
+
+  group('live field changes during a reconnect reload', () {
+    Future<(_Harness, Future<void>, _Pending)> reloading(_Kind kind) async {
+      final h = _Harness(kind);
+      await h.seed([_message('x', 'before disconnect')]);
+      final loading = h.reload();
+      return (h, loading, await h.account.next());
+    }
+
+    Future<AccordMessage> settle(
+      _Harness h,
+      Future<void> loading,
+      _Pending pending,
+    ) async {
+      pending.complete([_message('x', 'edited while offline')]);
+      await loading;
+      await h.flush();
+      return h.state!.single;
+    }
+
+    test('a reaction is replayed onto the fresh row', () async {
+      final (h, loading, pending) = await reloading(_Kind.messages);
+      h.messages.applyReaction('x', 'thumbsup', added: true, isOwn: false);
+      final x = await settle(h, loading, pending);
+      expect(x.content, 'edited while offline');
+      expect(x.reactions, hasLength(1));
+      expect(x.reactions!.single.count, 1);
+    });
+
+    test('cleared reactions stay cleared on the fresh row', () async {
+      final (h, loading, pending) = await reloading(_Kind.messages);
+      h.messages.clearReactions('x');
+      pending.complete([
+        _message('x', 'edited while offline')
+          ..reactions = [
+            AccordReaction(
+              emoji: {'name': 'thumbsup'},
+              count: 2,
+              includesMe: false,
+            ),
+          ],
+      ]);
+      await loading;
+      await h.flush();
+      final x = h.state!.single;
+      expect(x.content, 'edited while offline');
+      expect(x.reactions, isEmpty);
+    });
+
+    for (final kind in [_Kind.messages, _Kind.posts]) {
+      test('a pin is replayed onto the fresh row (${kind.name})', () async {
+        final (h, loading, pending) = await reloading(kind);
+        if (kind == _Kind.messages) {
+          await h.messages.pin(h.account.client, 'x');
+        } else {
+          await h.posts.togglePin(h.account.client, h.state!.single);
+        }
+        final x = await settle(h, loading, pending);
+        expect(x.content, 'edited while offline');
+        expect(x.pinned, isTrue);
+      });
+    }
+
+    for (final kind in _Kind.values) {
+      test(
+        'a duplicate create echo keeps the fresh row (${kind.name})',
+        () async {
+          final (h, loading, pending) = await reloading(kind);
+          h.add(_message('x', 'before disconnect'));
+          final x = await settle(h, loading, pending);
+          expect(x.content, 'edited while offline');
+        },
+      );
+
+      test('an edit cannot resurrect a row deleted while offline '
+          '(${kind.name})', () async {
+        final h = _Harness(kind);
+        await h.seed([_message('gone'), _message('kept')]);
+        final loading = h.reload();
+        final pending = await h.account.next();
+        h.edit(_message('gone', 'live edit'));
+        pending.complete([_message('kept')]);
+        await loading;
+        await h.flush();
+        expect(h.ids, ['kept']);
+      });
+    }
+  });
 }

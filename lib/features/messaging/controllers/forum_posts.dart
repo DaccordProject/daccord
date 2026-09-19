@@ -108,7 +108,7 @@ class ForumPostsController extends _$ForumPostsController {
     final post = current.firstWhereOrNull((m) => m.id == postId);
     if (post == null || post.pinned == pinned) return;
     post.pinned = pinned;
-    _history.update(post);
+    _history.patch(postId, (m) => m.pinned = pinned);
     state = [...current];
   }
 
@@ -117,9 +117,8 @@ class ForumPostsController extends _$ForumPostsController {
   void addPost(AccordMessage post) {
     if (post.threadId != null) return;
     final current = state ?? const <AccordMessage>[];
-    final existing = current.where((m) => m.id == post.id).firstOrNull;
-    _history.update(existing ?? post);
-    if (existing != null) return;
+    if (current.any((m) => m.id == post.id)) return;
+    _history.add(post);
     state = [post, ...current];
   }
 

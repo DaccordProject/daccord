@@ -245,7 +245,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     final message = current.firstWhereOrNull((m) => m.id == messageId);
     if (message == null || message.pinned == pinned) return;
     message.pinned = pinned;
-    _history.update(message);
+    _history.patch(messageId, (m) => m.pinned = pinned);
     state = [...current];
   }
 
@@ -362,9 +362,8 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// echo of a message we just sent).
   void addMessage(AccordMessage message) {
     final current = state ?? const <AccordMessage>[];
-    final existing = current.firstWhereOrNull((m) => m.id == message.id);
-    _history.update(existing ?? message);
-    if (existing != null) return;
+    if (current.any((m) => m.id == message.id)) return;
+    _history.add(message);
     state = [...current, message];
   }
 
@@ -536,7 +535,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     }
 
     message.reactions = reactions;
-    _history.update(message);
+    _history.patch(messageId, (m) => m.reactions = reactions);
     state = [...current];
   }
 
@@ -547,10 +546,11 @@ class AccordMessagesController extends _$AccordMessagesController {
     if (current == null) return;
     final message = current.firstWhereOrNull((m) => m.id == messageId);
     if (message?.reactions == null) return;
-    message!.reactions = message.reactions!
+    final reactions = message!.reactions!
         .where((r) => _emojiName(r) != _emojiKey(emojiName, null))
         .toList();
-    _history.update(message);
+    message.reactions = reactions;
+    _history.patch(messageId, (m) => m.reactions = reactions);
     state = [...current];
   }
 
@@ -561,7 +561,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     final message = current.firstWhereOrNull((m) => m.id == messageId);
     if (message == null) return;
     message.reactions = <AccordReaction>[];
-    _history.update(message);
+    _history.patch(messageId, (m) => m.reactions = <AccordReaction>[]);
     state = [...current];
   }
 
