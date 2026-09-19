@@ -76,6 +76,8 @@ To connect from a phone, a second computer, or a friend's machine, put an HTTPS 
 
 WebSocket traffic (`/ws`) goes through the same proxy. Caddy forwards it with no extra configuration.
 
+> **Voice and video work only on the computer running Accord, for now.** The desktop app always tells clients to reach its voice server (LiveKit) at `http://127.0.0.1:7880`, and there is no setting to change that address. Members on any other device can chat through the setups above but cannot join voice channels. That includes the LAN, a public domain and Tailscale (`tailscale serve` publishes only the chat port). Configurable voice is tracked in [accordserver#84](https://github.com/DaccordProject/accordserver/issues/84). If your community needs voice from other devices today, use a [server deployment](deploying-a-server.md), which serves voice over its own `wss://` hostname.
+
 Create an account on your new server and you're in. See [Creating an Account](../getting-started/creating-an-account.md) and [Adding a Server](../getting-started/adding-a-server.md) for the client-side steps.
 
 ## Inviting people from outside your network
@@ -85,10 +87,10 @@ To let friends connect over the internet, follow the domain-name option in "Reac
 | Port | Protocol | Purpose |
 |------|----------|---------|
 | 80, 443 | TCP | HTTPS reverse proxy (chat HTTP + WebSocket to Accord on `39099`) |
-| 7880, 7881 | TCP | LiveKit voice signaling |
-| 50000–60000 | UDP | LiveKit voice/video media |
 
 Don't forward port `39099` directly. The client won't connect to a public IP over plain `http://`. Share your `https://` domain name with the people you invite instead.
+
+Don't forward the voice ports either (`7880` LiveKit signaling, `7881` TCP media fallback, `50000–60000` UDP media). As explained above, remote members can't use voice on a desktop-app server yet, and forwarding `7880` would expose unencrypted signaling.
 
 > If port-forwarding isn't an option, or you want a server that's always reachable, a full [server deployment](deploying-a-server.md) on a VPS is the better fit.
 
