@@ -166,7 +166,7 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
             ),
             child: Row(
               children: [
-                Flexible(
+                Expanded(
                   child: Text(
                     spaceName ?? 'Select a space',
                     overflow: TextOverflow.ellipsis,
@@ -177,7 +177,6 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
                   const SizedBox(width: 6),
                   RemoteOriginBadge(domain: space!.origin),
                 ],
-                const Spacer(),
                 if (id != null)
                   _HeaderAction(
                     tooltip: 'Search',
