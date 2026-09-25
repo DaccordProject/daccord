@@ -19,7 +19,9 @@ The DM panel has two tabs at the top: **Messages** and **Friends**.
 - **Friends** — shows your friends list and lets you start new DMs.
 - **Messages** — shows your existing DM conversations.
 
-Each DM shows the other person's avatar, display name, a preview of the last message, and an unread indicator if there are new messages.
+Each DM shows the other person's avatar with their presence dot, display name, when the last message was sent (a time today, then **Yesterday**, a weekday, or a date), and a one-line preview of that message — prefixed with **You:** when you sent it. Unread conversations are shown in bold with the time highlighted and an unread dot, or a mention count badge.
+
+Beside the search field, the **New group** and **Message remote user** icon buttons start a group DM or a DM with a user on another Accord server.
 
 ## Starting a Conversation
 

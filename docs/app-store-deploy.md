@@ -672,8 +672,9 @@ MESSAGING
 
 DIRECT MESSAGES AND FRIENDS
 10. The speech-bubble icon at the top of the far-left rail opens Direct Messages.
-    "Friends" manages friend requests and blocking; "New group" starts a group
-    DM; "Message remote user" starts a DM with a user on another Accord server.
+    "Friends" manages friend requests and blocking. Beside the conversation
+    search, the "New group" icon starts a group DM and the "Message remote
+    user" (@) icon starts a DM with a user on another Accord server.
 11. Report and Block are available on messages, on user profiles, and in the DM
     user menu — including in DMs, where there are no space moderators, in which
     case the report is filed to the server operator.

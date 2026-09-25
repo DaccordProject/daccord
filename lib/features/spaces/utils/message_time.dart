@@ -86,6 +86,31 @@ String messageTimeString(DateTime local, {DateTime? now}) {
   return '$dd/$mo/${local.year} $clock';
 }
 
+/// Compact label for a conversation-list row (the DM list's last activity).
+///
+/// | Age      | Result       |
+/// |----------|--------------|
+/// | Today    | `18:43`      |
+/// | Yesterday| `Yesterday`  |
+/// | 2–6 days | `Mon`        |
+/// | Older    | `12/06/2026` |
+///
+/// Shorter than [messageTimeString] so it fits beside a truncated title.
+String conversationTimeString(DateTime local, {DateTime? now}) {
+  final ref = now ?? DateTime.now();
+  final today = DateTime(ref.year, ref.month, ref.day);
+  final thatDay = DateTime(local.year, local.month, local.day);
+  final daysAgo = today.difference(thatDay).inDays;
+
+  if (daysAgo <= 0) return messageClockString(local);
+  if (daysAgo == 1) return 'Yesterday';
+  if (daysAgo <= 6) return _weekdays[local.weekday - 1].substring(0, 3);
+
+  final dd = local.day.toString().padLeft(2, '0');
+  final mo = local.month.toString().padLeft(2, '0');
+  return '$dd/$mo/${local.year}';
+}
+
 /// [messageTimeString] for a raw ISO-8601 [iso] timestamp (the form carried on
 /// `AccordMessage.timestamp`), converted to local time. Empty when [iso]
 /// doesn't parse.
