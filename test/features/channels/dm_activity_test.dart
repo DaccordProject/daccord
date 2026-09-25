@@ -58,4 +58,27 @@ void main() {
     controller.removeMessagePreview('dm', 'latest');
     expect(controller.previewFor('dm'), isNull);
   });
+
+  test('preview carries the sent time and author', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final controller = container.read(
+      dmChannelsControllerProvider('server').notifier,
+    );
+    controller.setChannels([AccordChannel(id: 'dm', type: 'dm')]);
+    expect(controller.previewTimeFor('dm'), isNull);
+    expect(controller.previewAuthorFor('dm'), isNull);
+
+    controller.applyMessage(_message('m1', 'dm', 'hi'));
+
+    expect(
+      controller.previewTimeFor('dm'),
+      DateTime.utc(2026, 8, 24, 12).toLocal(),
+    );
+    expect(controller.previewTimeFor('dm')!.isUtc, isFalse);
+    expect(controller.previewAuthorFor('dm'), 'user');
+
+    controller.removeMessagePreview('dm', 'm1');
+    expect(controller.previewTimeFor('dm'), isNull);
+  });
 }

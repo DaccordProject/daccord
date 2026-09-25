@@ -165,6 +165,7 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
     final previews = ref.read(dmChannelsControllerProvider(serverKey).notifier);
     final cdnUrl = ref.watchCdnUrl();
     final missed = ref.watch(missedCallsControllerProvider);
+    final presences = ref.watch(activePresencesProvider);
     final readState = ref.watch(readStateControllerProvider(serverKey));
     final channelLevels = ref.watch(
       settingsControllerProvider.select(
@@ -186,38 +187,36 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-          child: Column(
+          padding: const EdgeInsets.fromLTRB(12, 12, 4, 4),
+          child: Row(
             children: [
-              TextField(
-                controller: _search,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  isDense: true,
-                  prefixIcon: Icon(Icons.search, size: 20),
-                  hintText: 'Search conversations',
-                  border: OutlineInputBorder(),
+              Expanded(
+                child: TextField(
+                  controller: _search,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    filled: true,
+                    fillColor: colors.background,
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    hintText: 'Search conversations',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: _createGroup,
-                      icon: const Icon(Icons.group_add, size: 18),
-                      label: const Text('New group'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _messageRemoteUser,
-                      icon: const Icon(Icons.alternate_email, size: 18),
-                      label: const Text('Message remote user'),
-                    ),
-                  ],
-                ),
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: 'New group',
+                onPressed: _createGroup,
+                icon: Icon(Icons.group_add_outlined, color: colors.dirtyWhite),
+              ),
+              IconButton(
+                tooltip: 'Message remote user',
+                onPressed: _messageRemoteUser,
+                icon: Icon(Icons.alternate_email, color: colors.dirtyWhite),
               ),
             ],
           ),
@@ -235,92 +234,43 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
                     final channel = filtered[index];
-                    final title = _channelTitle(channel, widget.selfId);
                     final group = _isGroup(channel, widget.selfId);
-                    final origin = _dmRemoteOrigin(channel, widget.selfId);
                     final others = _others(channel, widget.selfId);
                     final other = group || others.isEmpty ? null : others.first;
-                    final avatarUrl = other == null
-                        ? null
-                        : accordAvatarUrl(other, cdnUrl);
-                    final missedCall = missed[channel.id];
-                    final unread = readState.isUnreadVisible(
-                      channel.id,
-                      channelLevels: channelLevels,
-                    );
-                    final mentions = readState.visibleMentionCount(
-                      channel.id,
-                      channelLevels: channelLevels,
-                    );
-                    final preview = previews.previewFor(channel.id);
-                    final tile = ListTile(
-                      tileColor: unread
-                          ? colors.primary.withValues(alpha: 0.08)
-                          : null,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                    final previewAuthor = previews.previewAuthorFor(channel.id);
+                    final tile = _DmConversationTile(
+                      title: _channelTitle(channel, widget.selfId),
+                      group: group,
+                      avatarId: other?.id ?? channel.id,
+                      avatarUrl: other == null
+                          ? null
+                          : accordAvatarUrl(other, cdnUrl),
+                      status: other == null
+                          ? null
+                          : accordPresenceStatus(presences, other.id),
+                      origin: _dmRemoteOrigin(channel, widget.selfId),
+                      preview: previews.previewFor(channel.id),
+                      previewIsOwn:
+                          previewAuthor != null &&
+                          previewAuthor == widget.selfId,
+                      sentAt: previews.previewTimeFor(channel.id),
+                      memberCount: others.length + 1,
+                      missedCall: missed[channel.id],
+                      unread: readState.isUnreadVisible(
+                        channel.id,
+                        channelLevels: channelLevels,
                       ),
-                      leading: group
-                          ? CircleAvatar(
-                              backgroundColor: colors.darkGray,
-                              child: Icon(
-                                Icons.group,
-                                size: 18,
-                                color: colors.dirtyWhite,
-                              ),
-                            )
-                          : UserAvatar(title, imageUrl: avatarUrl, radius: 20),
-                      title: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: unread
-                                  ? const TextStyle(fontWeight: FontWeight.w700)
-                                  : null,
-                            ),
-                          ),
-                          if (origin != null) ...[
-                            const SizedBox(width: 6),
-                            RemoteOriginBadge(domain: origin),
-                          ],
-                        ],
+                      mentions: readState.visibleMentionCount(
+                        channel.id,
+                        channelLevels: channelLevels,
                       ),
-                      subtitle: missedCall != null
-                          ? _MissedCallLabel(missed: missedCall)
-                          : preview != null
-                          ? Text(
-                              preview,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall,
-                            )
-                          : group
-                          ? Text(
-                              '${_others(channel, widget.selfId).length + 1} members',
-                              style: theme.textTheme.bodySmall,
-                            )
-                          : null,
-                      trailing: mentions > 0
-                          ? Badge(label: Text('$mentions'))
-                          : unread || missedCall != null
-                          ? Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: missedCall != null
-                                    ? colors.red
-                                    : colors.primary,
-                                shape: BoxShape.circle,
-                              ),
-                            )
-                          : null,
                       onTap: () => widget.onOpen(channel),
                     );
                     return GestureDetector(
@@ -339,6 +289,181 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
                 ),
         ),
       ],
+    );
+  }
+}
+
+/// One row of the DM list: a large avatar with presence, the conversation title
+/// with its last-activity time, and the last-message preview with any unread
+/// or mention indicator. Unread rows are emphasised by weight and colour rather
+/// than a background fill, so the list reads cleanly at a glance.
+class _DmConversationTile extends StatelessWidget {
+  const _DmConversationTile({
+    required this.title,
+    required this.group,
+    required this.avatarId,
+    required this.avatarUrl,
+    required this.status,
+    required this.origin,
+    required this.preview,
+    required this.previewIsOwn,
+    required this.sentAt,
+    required this.memberCount,
+    required this.missedCall,
+    required this.unread,
+    required this.mentions,
+    required this.onTap,
+  });
+
+  final String title;
+  final bool group;
+
+  /// Seeds the fallback avatar colour: the other user for a 1:1 DM, the
+  /// channel for a group.
+  final String avatarId;
+  final String? avatarUrl;
+  final String? status;
+  final String? origin;
+  final String? preview;
+  final bool previewIsOwn;
+  final DateTime? sentAt;
+  final int memberCount;
+  final MissedCall? missedCall;
+  final bool unread;
+  final int mentions;
+  final VoidCallback onTap;
+
+  static const double _avatarRadius = 24;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
+    final emphasised = unread || mentions > 0;
+    final titleStyle = theme.textTheme.titleSmall?.copyWith(
+      fontSize: 16,
+      fontWeight: emphasised ? FontWeight.w700 : FontWeight.w600,
+      color: emphasised
+          ? colors.dirtyWhite
+          : colors.dirtyWhite.withValues(alpha: 0.9),
+    );
+    final metaStyle = theme.textTheme.bodySmall?.copyWith(
+      color: emphasised ? colors.primary : colors.gray,
+      fontWeight: emphasised ? FontWeight.w600 : null,
+    );
+    final previewStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: emphasised ? colors.dirtyWhite : colors.gray,
+      fontWeight: emphasised ? FontWeight.w500 : null,
+    );
+    final sentAt = this.sentAt;
+    final missedCall = this.missedCall;
+    final preview = this.preview;
+
+    final Widget? subtitle = missedCall != null
+        ? _MissedCallLabel(missed: missedCall)
+        : preview != null
+        ? Text(
+            previewIsOwn ? 'You: $preview' : preview,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: previewStyle,
+          )
+        : group
+        ? Text('$memberCount members', style: previewStyle)
+        : null;
+
+    final Widget? indicator = mentions > 0
+        ? Badge(label: Text('$mentions'), backgroundColor: colors.red)
+        : unread || missedCall != null
+        ? Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: missedCall != null ? colors.red : colors.primary,
+              shape: BoxShape.circle,
+            ),
+          )
+        : null;
+
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          child: Row(
+            children: [
+              group
+                  ? CircleAvatar(
+                      radius: _avatarRadius,
+                      backgroundColor: accordIdColor(avatarId),
+                      child: Icon(
+                        Icons.group,
+                        size: 22,
+                        color: accordOnColor(accordIdColor(avatarId)),
+                      ),
+                    )
+                  : AccordMemberAvatar(
+                      avatarUrl: avatarUrl,
+                      initial: accordInitial(title),
+                      status: status,
+                      radius: _avatarRadius,
+                      backgroundColor: accordIdColor(avatarId),
+                      initialStyle: theme.textTheme.titleMedium,
+                    ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: titleStyle,
+                          ),
+                        ),
+                        if (origin != null) ...[
+                          const SizedBox(width: 6),
+                          RemoteOriginBadge(domain: origin!),
+                        ],
+                        const Spacer(),
+                        if (sentAt != null) ...[
+                          const SizedBox(width: 8),
+                          Tooltip(
+                            message: messageTimestampString(sentAt),
+                            child: Text(
+                              conversationTimeString(sentAt),
+                              style: metaStyle,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (subtitle != null || indicator != null) ...[
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Expanded(child: subtitle ?? const SizedBox.shrink()),
+                          if (indicator != null) ...[
+                            const SizedBox(width: 8),
+                            indicator,
+                          ],
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
