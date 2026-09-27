@@ -16,7 +16,7 @@ part of 'global_unread.dart';
 /// window is minimised.
 
 @ProviderFor(globalUnread)
-const globalUnreadProvider = GlobalUnreadProvider._();
+final globalUnreadProvider = GlobalUnreadProvider._();
 
 /// The unread state of the *whole app*, across every connected server.
 ///
@@ -34,7 +34,7 @@ final class GlobalUnreadProvider
   /// reusable for a future tray icon or mobile app-icon badge. Kept alive because
   /// its consumers are services, not widgets, and it must keep updating while the
   /// window is minimised.
-  const GlobalUnreadProvider._()
+  GlobalUnreadProvider._()
     : super(
         from: null,
         argument: null,

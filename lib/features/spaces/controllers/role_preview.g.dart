@@ -13,7 +13,7 @@ part of 'role_preview.dart';
 /// it to show the exit control. App-wide (keepAlive) so it survives navigation.
 
 @ProviderFor(RolePreviewController)
-const rolePreviewControllerProvider = RolePreviewControllerProvider._();
+final rolePreviewControllerProvider = RolePreviewControllerProvider._();
 
 /// Holds the active role preview (null when not previewing). Permission checks
 /// read this to gate the UI as the previewed role, and the preview banner reads
@@ -23,7 +23,7 @@ final class RolePreviewControllerProvider
   /// Holds the active role preview (null when not previewing). Permission checks
   /// read this to gate the UI as the previewed role, and the preview banner reads
   /// it to show the exit control. App-wide (keepAlive) so it survives navigation.
-  const RolePreviewControllerProvider._()
+  RolePreviewControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -61,8 +61,7 @@ abstract class _$RolePreviewController extends $Notifier<RolePreview?> {
   RolePreview? build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<RolePreview?, RolePreview?>;
     final element =
         ref.element
@@ -72,6 +71,6 @@ abstract class _$RolePreviewController extends $Notifier<RolePreview?> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

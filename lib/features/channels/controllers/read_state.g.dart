@@ -23,7 +23,7 @@ part of 'read_state.dart';
 ///  * [applyRemoteRead] consumes acknowledgements from other devices.
 
 @ProviderFor(ReadStateController)
-const readStateControllerProvider = ReadStateControllerFamily._();
+final readStateControllerProvider = ReadStateControllerFamily._();
 
 /// Client-side read/unread tracker, one instance per connected server (keyed by
 /// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
@@ -53,7 +53,7 @@ final class ReadStateControllerProvider
   ///  * visible panes and explicit read actions call [acknowledge], which clears
   ///    local state and queues the server read position;
   ///  * [applyRemoteRead] consumes acknowledgements from other devices.
-  const ReadStateControllerProvider._({
+  ReadStateControllerProvider._({
     required ReadStateControllerFamily super.from,
     required String super.argument,
   }) : super(
@@ -123,7 +123,7 @@ final class ReadStateControllerFamily extends $Family
           ReadStateSnapshot,
           String
         > {
-  const ReadStateControllerFamily._()
+  ReadStateControllerFamily._()
     : super(
         retry: null,
         name: r'readStateControllerProvider',
@@ -174,8 +174,7 @@ abstract class _$ReadStateController extends $Notifier<ReadStateSnapshot> {
   ReadStateSnapshot build(String serverKey);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<ReadStateSnapshot, ReadStateSnapshot>;
     final element =
         ref.element
@@ -185,6 +184,6 @@ abstract class _$ReadStateController extends $Notifier<ReadStateSnapshot> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

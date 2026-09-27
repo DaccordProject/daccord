@@ -13,7 +13,7 @@ part of 'accord_emojis.dart';
 /// an empty list means the space has no custom emoji.
 
 @ProviderFor(AccordEmojisController)
-const accordEmojisControllerProvider = AccordEmojisControllerFamily._();
+final accordEmojisControllerProvider = AccordEmojisControllerFamily._();
 
 /// A space's custom emoji, keyed by space ID. Self-loads via `emojis.list` the
 /// first time it's watched (once logged in). `null` means "not loaded yet";
@@ -23,7 +23,7 @@ final class AccordEmojisControllerProvider
   /// A space's custom emoji, keyed by space ID. Self-loads via `emojis.list` the
   /// first time it's watched (once logged in). `null` means "not loaded yet";
   /// an empty list means the space has no custom emoji.
-  const AccordEmojisControllerProvider._({
+  AccordEmojisControllerProvider._({
     required AccordEmojisControllerFamily super.from,
     required (String, String) super.argument,
   }) : super(
@@ -84,7 +84,7 @@ final class AccordEmojisControllerFamily extends $Family
           List<AccordEmoji>?,
           (String, String)
         > {
-  const AccordEmojisControllerFamily._()
+  AccordEmojisControllerFamily._()
     : super(
         retry: null,
         name: r'accordEmojisControllerProvider',
@@ -119,8 +119,7 @@ abstract class _$AccordEmojisController extends $Notifier<List<AccordEmoji>?> {
   List<AccordEmoji>? build(String serverKey, String spaceId);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args.$1, _$args.$2);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<List<AccordEmoji>?, List<AccordEmoji>?>;
     final element =
         ref.element
@@ -130,6 +129,6 @@ abstract class _$AccordEmojisController extends $Notifier<List<AccordEmoji>?> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args.$1, _$args.$2));
   }
 }

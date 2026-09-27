@@ -17,7 +17,7 @@ part of 'voice_states.dart';
 /// with a null `channelId` means the user left voice entirely.
 
 @ProviderFor(VoiceStatesController)
-const voiceStatesControllerProvider = VoiceStatesControllerFamily._();
+final voiceStatesControllerProvider = VoiceStatesControllerFamily._();
 
 /// Per-server cache of who is in which voice channel, keyed `channel_id →
 /// {user_id → state}`. User moves scan channels and copy only affected buckets.
@@ -39,7 +39,7 @@ final class VoiceStatesControllerProvider
   /// `channels.fetchVoiceStates`, then kept in sync by `voice.state_update`
   /// events (all wired in `accord_event_handler.dart`). A `voice.state_update`
   /// with a null `channelId` means the user left voice entirely.
-  const VoiceStatesControllerProvider._({
+  VoiceStatesControllerProvider._({
     required VoiceStatesControllerFamily super.from,
     required String super.argument,
   }) : super(
@@ -104,7 +104,7 @@ final class VoiceStatesControllerFamily extends $Family
           Map<String, Map<String, AccordVoiceState>>,
           String
         > {
-  const VoiceStatesControllerFamily._()
+  VoiceStatesControllerFamily._()
     : super(
         retry: null,
         name: r'voiceStatesControllerProvider',
@@ -144,8 +144,7 @@ abstract class _$VoiceStatesController
   Map<String, Map<String, AccordVoiceState>> build(String serverKey);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args);
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -163,6 +162,6 @@ abstract class _$VoiceStatesController
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

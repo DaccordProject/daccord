@@ -27,7 +27,7 @@ part of 'load_failed.dart';
 /// its own scope.
 
 @ProviderFor(LoadFailed)
-const loadFailedProvider = LoadFailedFamily._();
+final loadFailedProvider = LoadFailedFamily._();
 
 /// Whether a self-loading cache's initial REST fetch failed (a non-2xx
 /// response, a network error, or a timeout).
@@ -64,7 +64,7 @@ final class LoadFailedProvider extends $NotifierProvider<LoadFailed, bool> {
   /// Don't watch this provider directly — each feature exposes a named helper
   /// (`membersLoadFailedProvider`, `channelsLoadFailedProvider`, …) that fills in
   /// its own scope.
-  const LoadFailedProvider._({
+  LoadFailedProvider._({
     required LoadFailedFamily super.from,
     required (String, String, String) super.argument,
   }) : super(
@@ -137,7 +137,7 @@ final class LoadFailedFamily extends $Family
           bool,
           (String, String, String)
         > {
-  const LoadFailedFamily._()
+  LoadFailedFamily._()
     : super(
         retry: null,
         name: r'loadFailedProvider',
@@ -198,8 +198,7 @@ abstract class _$LoadFailed extends $Notifier<bool> {
   bool build(String scope, String serverKey, String id);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args.$1, _$args.$2, _$args.$3);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<bool, bool>;
     final element =
         ref.element
@@ -209,6 +208,9 @@ abstract class _$LoadFailed extends $Notifier<bool> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, _$args.$2, _$args.$3),
+    );
   }
 }

@@ -17,7 +17,7 @@ part of 'hidden_messages.dart';
 /// (App Review 1.2, #290).
 
 @ProviderFor(HiddenMessagesController)
-const hiddenMessagesControllerProvider = HiddenMessagesControllerProvider._();
+final hiddenMessagesControllerProvider = HiddenMessagesControllerProvider._();
 
 /// Messages the user has reported and therefore no longer wants to see.
 ///
@@ -35,7 +35,7 @@ final class HiddenMessagesControllerProvider
   /// moderator at all. Either way the reporter should stop seeing what they just
   /// flagged, so the pane filters these out locally, on this device, for good
   /// (App Review 1.2, #290).
-  const HiddenMessagesControllerProvider._()
+  HiddenMessagesControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -77,8 +77,7 @@ abstract class _$HiddenMessagesController extends $Notifier<Set<String>> {
   Set<String> build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<Set<String>, Set<String>>;
     final element =
         ref.element
@@ -88,6 +87,6 @@ abstract class _$HiddenMessagesController extends $Notifier<Set<String>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

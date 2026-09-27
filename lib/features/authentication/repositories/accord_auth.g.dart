@@ -21,7 +21,7 @@ part of 'accord_auth.dart';
 /// connection without re-authenticating.
 
 @ProviderFor(AccordAuth)
-const accordAuthProvider = AccordAuthProvider._();
+final accordAuthProvider = AccordAuthProvider._();
 
 /// Authentication + connection lifecycle against Accord servers. The Accord
 /// replacement for the Discord-specific `Auth` provider.
@@ -47,7 +47,7 @@ final class AccordAuthProvider
   /// spaces cached in `ConnectionsController`) so the rail can show every server's
   /// spaces at once; selecting a space on another server flips the active
   /// connection without re-authenticating.
-  const AccordAuthProvider._()
+  AccordAuthProvider._()
     : super(
         from: null,
         argument: null,
@@ -92,8 +92,7 @@ abstract class _$AccordAuth extends $Notifier<AccordAuthState> {
   AccordAuthState build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AccordAuthState, AccordAuthState>;
     final element =
         ref.element
@@ -103,6 +102,6 @@ abstract class _$AccordAuth extends $Notifier<AccordAuthState> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }
