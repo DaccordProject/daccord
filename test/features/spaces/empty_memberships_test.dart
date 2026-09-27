@@ -1,9 +1,13 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
+import 'package:bonfire/features/events/services/accord_event_handler.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
@@ -44,11 +48,36 @@ class _Updates extends UpdateController {
   Future<void> maybeCheckOnStartup() async {}
 }
 
+/// A gateway transport the test drives by hand: it opens at once and delivers
+/// whatever frames [receive] is given.
+class _FakeGateway implements GatewayConnection {
+  final _messages = StreamController<String>();
+
+  void receive(Map<String, dynamic> frame) => _messages.add(jsonEncode(frame));
+
+  @override
+  Future<void> get ready => Future.value();
+  @override
+  Stream<String> get messages => _messages.stream;
+  @override
+  void sendText(String text) {}
+  @override
+  Future<void> close([int? code, String? reason]) => _messages.close();
+  @override
+  int? closeCode;
+  @override
+  String? closeReason;
+}
+
+/// Exposes a container [Ref] so the test can bind the real event handler.
+final _refProvider = Provider<Ref>((ref) => ref);
+
 void main() {
   late ProviderContainer container;
   late AccordClient client;
   late AccordSession session;
   late GoRouter router;
+  late _FakeGateway gateway;
 
   Future<void> mount(
     WidgetTester tester, {
@@ -64,7 +93,9 @@ void main() {
       username: 'operator',
       isAdmin: isAdmin,
     );
+    gateway = _FakeGateway();
     client = AccordClient(
+      connectionFactory: (_) => gateway,
       baseUrl: session.server.baseUrl,
       httpClient: MockClient((_) async => http.Response('{"data":[]}', 200)),
     );
@@ -211,6 +242,50 @@ void main() {
       spaces.removeSpace(space.id);
       await tester.pumpAndSettle();
       expect(find.text('No spaces yet'), findsOneWidget);
+      expect(find.byType(LoadingView), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'a successful gateway RESUME restores ready and keeps the empty state',
+    (tester) async {
+      await mount(tester, isAdmin: true);
+      expect(find.text('No spaces yet'), findsOneWidget);
+      final disposeEvents = handleAccordEvents(
+        container.read(_refProvider),
+        client,
+        serverKey: session.key,
+        currentUserId: session.userId,
+        selfDomain: session.server.homeDomain,
+        isActive: () => true,
+      );
+      addTearDown(disposeEvents);
+      // The account already reached READY and fetched an authoritative empty
+      // list. The gateway drops, the socket reopens, and the server accepts
+      // the RESUME: it sends RESUMED, not another READY.
+      final connections = container.read(
+        connectionsControllerProvider.notifier,
+      );
+      connections.setStatus(session.key, ConnectionStatus.reconnecting);
+      client.login();
+      await tester.pump();
+      expect(
+        container.read(connectionsControllerProvider).active?.status,
+        ConnectionStatus.connected,
+      );
+      gateway.receive({
+        'op': GatewayOpcodes.event,
+        'type': 'resumed',
+        'data': <String, dynamic>{},
+      });
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+      expect(
+        container.read(connectionsControllerProvider).active?.status,
+        ConnectionStatus.ready,
+      );
+      expect(find.text('No spaces yet'), findsOneWidget);
+      expect(find.text('Server administration'), findsOneWidget);
       expect(find.byType(LoadingView), findsNothing);
     },
   );
