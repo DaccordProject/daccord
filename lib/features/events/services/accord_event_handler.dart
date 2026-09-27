@@ -61,6 +61,16 @@ VoidCallback handleAccordEvents(
       setConnection(ConnectionStatus.connected);
     }),
   );
+  // A successful RESUME restores the previous session, so the server sends
+  // `resumed` and replays missed events instead of sending a new READY. The
+  // session state from the earlier READY is still valid, so the connection is
+  // ready again. Without this, it would stay `connected` until the next full
+  // re-identify, and views that wait for `ready` would spin forever.
+  subs.add(
+    client.onResumed.listen((_) {
+      setConnection(ConnectionStatus.ready);
+    }),
+  );
   subs.add(
     client.onReconnecting.listen((_) {
       setConnection(ConnectionStatus.reconnecting);
