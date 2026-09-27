@@ -14,7 +14,7 @@ part of 'muted_channels.dart';
 /// surface does not refetch the full mute list or leave the other one stale.
 
 @ProviderFor(MutedChannelsController)
-const mutedChannelsControllerProvider = MutedChannelsControllerFamily._();
+final mutedChannelsControllerProvider = MutedChannelsControllerFamily._();
 
 /// Server-backed channel mutes for one connected account.
 ///
@@ -26,7 +26,7 @@ final class MutedChannelsControllerProvider
   ///
   /// Both the channel header and context menu use this cache so opening either
   /// surface does not refetch the full mute list or leave the other one stale.
-  const MutedChannelsControllerProvider._({
+  MutedChannelsControllerProvider._({
     required MutedChannelsControllerFamily super.from,
     required String super.argument,
   }) : super(
@@ -80,7 +80,7 @@ final class MutedChannelsControllerFamily extends $Family
           FutureOr<Set<String>>,
           String
         > {
-  const MutedChannelsControllerFamily._()
+  MutedChannelsControllerFamily._()
     : super(
         retry: null,
         name: r'mutedChannelsControllerProvider',
@@ -113,8 +113,7 @@ abstract class _$MutedChannelsController extends $AsyncNotifier<Set<String>> {
   FutureOr<Set<String>> build(String serverKey);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<Set<String>>, Set<String>>;
     final element =
         ref.element
@@ -124,6 +123,6 @@ abstract class _$MutedChannelsController extends $AsyncNotifier<Set<String>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

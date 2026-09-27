@@ -32,7 +32,7 @@ part of 'release_notes_controller.dart';
 /// has no body nothing is shown at all (never a broken/empty sheet).
 
 @ProviderFor(ReleaseNotesController)
-const releaseNotesControllerProvider = ReleaseNotesControllerProvider._();
+final releaseNotesControllerProvider = ReleaseNotesControllerProvider._();
 
 /// Shows the release notes for the build the user is *now* running, once, after
 /// an update is applied (#183).
@@ -80,7 +80,7 @@ final class ReleaseNotesControllerProvider
   /// the user updated through the store and still deserves to know what changed.
   /// Nothing here can install anything, and when the fetch fails or the release
   /// has no body nothing is shown at all (never a broken/empty sheet).
-  const ReleaseNotesControllerProvider._()
+  ReleaseNotesControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -137,8 +137,7 @@ abstract class _$ReleaseNotesController extends $Notifier<ReleaseNotesState> {
   ReleaseNotesState build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<ReleaseNotesState, ReleaseNotesState>;
     final element =
         ref.element
@@ -148,6 +147,6 @@ abstract class _$ReleaseNotesController extends $Notifier<ReleaseNotesState> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

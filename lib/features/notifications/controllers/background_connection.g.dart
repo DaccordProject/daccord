@@ -19,7 +19,7 @@ part of 'background_connection.dart';
 /// the login state. A no-op on every platform but Android.
 
 @ProviderFor(BackgroundConnectionController)
-const backgroundConnectionControllerProvider =
+final backgroundConnectionControllerProvider =
     BackgroundConnectionControllerProvider._();
 
 /// Starts/stops the Android foreground service (`BackgroundConnectionService`)
@@ -42,7 +42,7 @@ final class BackgroundConnectionControllerProvider
   /// Mirrors the MCP server controller pattern: kept alive by a `ref.watch` in
   /// `MainWindow`, reacting to the persisted "Background connection" setting and
   /// the login state. A no-op on every platform but Android.
-  const BackgroundConnectionControllerProvider._()
+  BackgroundConnectionControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -86,8 +86,7 @@ abstract class _$BackgroundConnectionController extends $Notifier<void> {
   void build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<void, void>;
     final element =
         ref.element
@@ -97,6 +96,6 @@ abstract class _$BackgroundConnectionController extends $Notifier<void> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, null);
+    return element.handleCreate(ref, build);
   }
 }

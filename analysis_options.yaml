@@ -1,3 +1,22 @@
+analyzer:
+  exclude:
+    # Flutter 3.47+ adds these on every `pub get` when missing; listing them
+    # keeps the file stable across channels.
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+    # Nested packages whose tests depend on `package:test`, which is not in the
+    # app's dependency graph. The root analysis context resolves them against
+    # the app's package config, so they cannot be analyzed from here:
+    # accordkit is analyzed and tested in its own CI job, and the media_kit
+    # fork's tests are upstream's and are not run in this repo.
+    - packages/accordkit/test/**
+    - packages/media_kit/test/**
+
 include: package:flutter_lints/flutter.yaml
 
 linter:

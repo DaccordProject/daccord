@@ -14,7 +14,7 @@ part of 'typing.dart';
 /// member cache.
 
 @ProviderFor(TypingController)
-const typingControllerProvider = TypingControllerFamily._();
+final typingControllerProvider = TypingControllerFamily._();
 
 /// The set of users currently typing in a channel, keyed by channel ID. Each
 /// user is held for [_typingTimeout] after their last event, then expires.
@@ -26,7 +26,7 @@ final class TypingControllerProvider
   /// user is held for [_typingTimeout] after their last event, then expires.
   /// Returns user IDs in arrival order; the UI resolves them to names via the
   /// member cache.
-  const TypingControllerProvider._({
+  TypingControllerProvider._({
     required TypingControllerFamily super.from,
     required (String, String) super.argument,
   }) : super(
@@ -86,7 +86,7 @@ final class TypingControllerFamily extends $Family
           List<String>,
           (String, String)
         > {
-  const TypingControllerFamily._()
+  TypingControllerFamily._()
     : super(
         retry: null,
         name: r'typingControllerProvider',
@@ -120,8 +120,7 @@ abstract class _$TypingController extends $Notifier<List<String>> {
   List<String> build(String serverKey, String channelId);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args.$1, _$args.$2);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<List<String>, List<String>>;
     final element =
         ref.element
@@ -131,6 +130,6 @@ abstract class _$TypingController extends $Notifier<List<String>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args.$1, _$args.$2));
   }
 }

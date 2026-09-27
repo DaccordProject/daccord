@@ -28,15 +28,18 @@ This is the simplest way to get a server running. It includes accordserver, a Li
    cd accordserver
    ```
 
-2. Create a `.env` file with your configuration:
+2. Create a `.env` file with your LiveKit credentials (use unique random values):
 
    ```bash
-   # Required -- replace with your actual domains
-   LIVEKIT_EXTERNAL_URL=wss://livekit.example.com
-   LIVEKIT_INTERNAL_URL=http://livekit:7880
    LIVEKIT_API_KEY=your-api-key
    LIVEKIT_API_SECRET=your-api-secret
    ```
+
+   Then edit `docker-compose.yml` (or `docker-compose.postgres.yml`) and replace the example domains with your own. The compose file sets them directly, so values in `.env` don't override them:
+   - `caddy: chat.example.com` (chat) and `MASTER_SERVER_PUBLIC_URL`
+   - `caddy: livekit.example.com` (voice) and `LIVEKIT_EXTERNAL_URL: wss://livekit.example.com`
+
+   Point both hostnames' DNS at the server.
 
 3. Start the stack:
 
@@ -88,6 +91,20 @@ All configuration is done through environment variables.
 
 Voice and video features require all four LiveKit variables to be set. Without them, voice channels will not work.
 
+`LIVEKIT_EXTERNAL_URL` is the address accordserver gives clients for voice, and the client connects to it as-is. Point it at a `wss://` hostname that terminates TLS in front of LiveKit's signaling port `7880`, not at `ws://` or a raw IP. Otherwise the voice token travels unencrypted and browsers block the connection from an HTTPS page. The Docker Compose stack does this with a second Caddy hostname. If you run your own Caddy (for example when building from source), use one site per hostname:
+
+```
+chat.example.com {
+    reverse_proxy localhost:39099
+}
+
+livekit.example.com {
+    reverse_proxy localhost:7880
+}
+```
+
+Then set `LIVEKIT_EXTERNAL_URL=wss://livekit.example.com`.
+
 ### Security
 
 | Variable | Description |
@@ -125,15 +142,15 @@ Make sure the following ports are accessible:
 
 | Port | Service |
 |------|---------|
-| 39099 | accordserver (HTTP + WebSocket) |
-| 7880 | LiveKit (HTTP) |
-| 7881 | LiveKit (TCP) |
-| 7882/UDP | LiveKit (UDP, media) |
-| 443, 80 | Caddy reverse proxy (HTTPS) |
+| 443, 80 | Caddy reverse proxy (HTTPS for chat and `wss://` LiveKit signaling) |
+| 7881/TCP | LiveKit media over TCP (ICE/TCP fallback) |
+| 7882/UDP | LiveKit media over UDP |
+
+Keep `39099` (accordserver) and `7880` (LiveKit signaling) off the public internet. Caddy reaches them over the internal Docker network, and the Compose file doesn't publish them.
 
 ## Connecting from daccord
 
-Once your server is running, open daccord and click the **+** button in the sidebar to add a new server. Enter your server's address and create an account. Use the HTTPS domain served by the Caddy reverse proxy, for example `chat.example.com`. The client connects to accordserver's plain-HTTP port `39099` directly only from the same machine (`http://localhost:39099`). Plain `http://` to a LAN or public IP, such as `http://192.168.1.50:39099`, is rejected with "Accord server URL must use HTTPS. HTTP is allowed only for loopback development." Reach the server through the reverse proxy instead.
+Once your server is running, open daccord and click the **+** button in the sidebar to add a new server. Enter your server's address and create an account. Use the HTTPS domain served by the Caddy reverse proxy, for example `chat.example.com`. The client connects to accordserver's plain-HTTP port `39099` directly only from the same machine, e.g. `http://localhost:39099` when running from source (the Compose stack doesn't publish `39099`). Plain `http://` to a LAN or public IP, such as `http://192.168.1.50:39099`, is rejected with "Accord server URL must use HTTPS. HTTP is allowed only for loopback development." Reach the server through the reverse proxy instead.
 
 ## Updating
 

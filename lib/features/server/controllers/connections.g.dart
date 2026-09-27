@@ -15,7 +15,7 @@ part of 'connections.dart';
 /// spaces grouped across all connected servers.
 
 @ProviderFor(ConnectionsController)
-const connectionsControllerProvider = ConnectionsControllerProvider._();
+final connectionsControllerProvider = ConnectionsControllerProvider._();
 
 /// Rail-level registry of every connected server (see [AccordConnection]).
 ///
@@ -29,7 +29,7 @@ final class ConnectionsControllerProvider
   /// `AccordAuth` writes connection lifecycle here; the gateway event handler
   /// writes each server's space cache here. The space rail watches this to render
   /// spaces grouped across all connected servers.
-  const ConnectionsControllerProvider._()
+  ConnectionsControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -69,8 +69,7 @@ abstract class _$ConnectionsController extends $Notifier<ConnectionsState> {
   ConnectionsState build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<ConnectionsState, ConnectionsState>;
     final element =
         ref.element
@@ -80,6 +79,6 @@ abstract class _$ConnectionsController extends $Notifier<ConnectionsState> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

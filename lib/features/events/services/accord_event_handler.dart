@@ -127,7 +127,6 @@ VoidCallback handleAccordEvents(
       if (isActive()) {
         seedVoiceStatesFromReady(ref, data, serverKey: serverKey);
       }
-      await loadSpaces(ref, client, serverKey: serverKey, isActive: isActive);
       // A READY after the first means the gateway re-identified on a fresh
       // session (a resumed session replays missed events instead, and emits
       // `resumed`, not `ready`). Nothing replays what was missed while
@@ -177,7 +176,10 @@ VoidCallback handleAccordEvents(
           );
         }
       }
+      // Mark the session and supersede history before waiting for unrelated
+      // space loading. Another READY (or an old page) may arrive during it.
       hadReady = true;
+      await loadSpaces(ref, client, serverKey: serverKey, isActive: isActive);
     }),
   );
 

@@ -11,7 +11,7 @@ import 'package:http/testing.dart';
 void main() {
   late ProviderContainer container;
   late ReadStateController reads;
-  const provider = readStateControllerProvider;
+  final provider = readStateControllerProvider;
   setUp(() {
     container = ProviderContainer();
     reads = container.read(provider('server').notifier);

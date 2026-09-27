@@ -21,7 +21,7 @@ part of 'onboarding_controller.dart';
 /// re-introduce it" decision later. Any non-empty value counts as seen.
 
 @ProviderFor(OnboardingController)
-const onboardingControllerProvider = OnboardingControllerProvider._();
+final onboardingControllerProvider = OnboardingControllerProvider._();
 
 /// Owns the first-launch walkthrough's persistence and gating (#175).
 ///
@@ -47,7 +47,7 @@ final class OnboardingControllerProvider
   /// The value stored is the app version that showed the tour, which costs
   /// nothing and leaves the door open for a "this release changed the layout,
   /// re-introduce it" decision later. Any non-empty value counts as seen.
-  const OnboardingControllerProvider._()
+  OnboardingControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -93,8 +93,7 @@ abstract class _$OnboardingController extends $Notifier<bool> {
   bool build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<bool, bool>;
     final element =
         ref.element
@@ -104,6 +103,6 @@ abstract class _$OnboardingController extends $Notifier<bool> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

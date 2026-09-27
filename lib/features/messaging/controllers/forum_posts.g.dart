@@ -15,7 +15,7 @@ part of 'forum_posts.dart';
 /// `null` means "not loaded yet".
 
 @ProviderFor(ForumPostsController)
-const forumPostsControllerProvider = ForumPostsControllerFamily._();
+final forumPostsControllerProvider = ForumPostsControllerFamily._();
 
 /// A forum channel's top-level posts (thread roots), keyed by channel ID, in
 /// server order (the board sorts for display). Self-loads via
@@ -29,7 +29,7 @@ final class ForumPostsControllerProvider
   /// `messages.listPosts` the first time it's watched (once logged in) and is
   /// kept in sync by top-level message create/update/delete gateway events.
   /// `null` means "not loaded yet".
-  const ForumPostsControllerProvider._({
+  ForumPostsControllerProvider._({
     required ForumPostsControllerFamily super.from,
     required (String, String) super.argument,
   }) : super(
@@ -74,7 +74,7 @@ final class ForumPostsControllerProvider
 }
 
 String _$forumPostsControllerHash() =>
-    r'a96ab9c5cf0e01afae795e871095f9f195e4eb30';
+    r'a9866eb46268f9dce17604fb89a77d62bf3b6e0f';
 
 /// A forum channel's top-level posts (thread roots), keyed by channel ID, in
 /// server order (the board sorts for display). Self-loads via
@@ -91,7 +91,7 @@ final class ForumPostsControllerFamily extends $Family
           List<AccordMessage>?,
           (String, String)
         > {
-  const ForumPostsControllerFamily._()
+  ForumPostsControllerFamily._()
     : super(
         retry: null,
         name: r'forumPostsControllerProvider',
@@ -130,8 +130,7 @@ abstract class _$ForumPostsController extends $Notifier<List<AccordMessage>?> {
   List<AccordMessage>? build(String serverKey, String channelId);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args.$1, _$args.$2);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<List<AccordMessage>?, List<AccordMessage>?>;
     final element =
         ref.element
@@ -141,6 +140,6 @@ abstract class _$ForumPostsController extends $Notifier<List<AccordMessage>?> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args.$1, _$args.$2));
   }
 }

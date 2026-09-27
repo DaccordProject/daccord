@@ -13,7 +13,7 @@ part of 'profiles_controller.dart';
 /// the lock gate update together.
 
 @ProviderFor(ProfilesController)
-const profilesControllerProvider = ProfilesControllerProvider._();
+final profilesControllerProvider = ProfilesControllerProvider._();
 
 /// Reactive view over the local device-profile registry. Delegates persistence
 /// to [ProfileStore] and re-reads after each mutation so the profiles page and
@@ -23,7 +23,7 @@ final class ProfilesControllerProvider
   /// Reactive view over the local device-profile registry. Delegates persistence
   /// to [ProfileStore] and re-reads after each mutation so the profiles page and
   /// the lock gate update together.
-  const ProfilesControllerProvider._()
+  ProfilesControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -61,8 +61,7 @@ abstract class _$ProfilesController extends $Notifier<List<DeviceProfile>> {
   List<DeviceProfile> build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<List<DeviceProfile>, List<DeviceProfile>>;
     final element =
         ref.element
@@ -72,6 +71,6 @@ abstract class _$ProfilesController extends $Notifier<List<DeviceProfile>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

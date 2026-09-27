@@ -14,7 +14,7 @@ part of 'accord_messages.dart';
 /// create/update/delete gateway events. `null` means "not loaded yet".
 
 @ProviderFor(AccordMessagesController)
-const accordMessagesControllerProvider = AccordMessagesControllerFamily._();
+final accordMessagesControllerProvider = AccordMessagesControllerFamily._();
 
 /// A channel's recent message history, keyed by channel ID, ordered
 /// oldest→newest for display. Self-loads via `messages.list` the first time
@@ -26,7 +26,7 @@ final class AccordMessagesControllerProvider
   /// oldest→newest for display. Self-loads via `messages.list` the first time
   /// it's watched (once logged in) and is kept in sync by message
   /// create/update/delete gateway events. `null` means "not loaded yet".
-  const AccordMessagesControllerProvider._({
+  AccordMessagesControllerProvider._({
     required AccordMessagesControllerFamily super.from,
     required (String, String) super.argument,
   }) : super(
@@ -72,7 +72,7 @@ final class AccordMessagesControllerProvider
 }
 
 String _$accordMessagesControllerHash() =>
-    r'b55b4d1abcd88ee17f465b24ff30601c28244738';
+    r'c44c71170a6bd8acb5fe10f07ecf7ca126a0b3bd';
 
 /// A channel's recent message history, keyed by channel ID, ordered
 /// oldest→newest for display. Self-loads via `messages.list` the first time
@@ -88,7 +88,7 @@ final class AccordMessagesControllerFamily extends $Family
           List<AccordMessage>?,
           (String, String)
         > {
-  const AccordMessagesControllerFamily._()
+  AccordMessagesControllerFamily._()
     : super(
         retry: null,
         name: r'accordMessagesControllerProvider',
@@ -126,8 +126,7 @@ abstract class _$AccordMessagesController
   List<AccordMessage>? build(String serverKey, String channelId);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args.$1, _$args.$2);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<List<AccordMessage>?, List<AccordMessage>?>;
     final element =
         ref.element
@@ -137,6 +136,6 @@ abstract class _$AccordMessagesController
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args.$1, _$args.$2));
   }
 }

@@ -13,7 +13,7 @@ part of 'settings.dart';
 /// to build the active [ThemeData] and by the notification + emoji layers.
 
 @ProviderFor(SettingsController)
-const settingsControllerProvider = SettingsControllerProvider._();
+final settingsControllerProvider = SettingsControllerProvider._();
 
 /// Local client preferences (theme, notifications, recent emoji), persisted to
 /// the `accord-settings` Hive box (opened in `setupHive`). Watched by `main`
@@ -23,7 +23,7 @@ final class SettingsControllerProvider
   /// Local client preferences (theme, notifications, recent emoji), persisted to
   /// the `accord-settings` Hive box (opened in `setupHive`). Watched by `main`
   /// to build the active [ThemeData] and by the notification + emoji layers.
-  const SettingsControllerProvider._()
+  SettingsControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -61,8 +61,7 @@ abstract class _$SettingsController extends $Notifier<AccordSettings> {
   AccordSettings build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AccordSettings, AccordSettings>;
     final element =
         ref.element
@@ -72,6 +71,6 @@ abstract class _$SettingsController extends $Notifier<AccordSettings> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }
