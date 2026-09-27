@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
@@ -48,6 +51,9 @@ class _Harness {
   _Harness() {
     final responder = MockClient((request) async {
       requests.add('${request.method} ${request.url.path}');
+      if (request.method == 'POST' && request.url.path.contains('/messages')) {
+        sentBodies.add(request.body);
+      }
       return http.Response(
         '[]',
         200,
@@ -82,6 +88,12 @@ class _Harness {
   }
 
   final List<String> requests = [];
+  final List<String> sentBodies = [];
+
+  /// The `content` of every message POST, in order.
+  List<Object?> get sentContents => [
+    for (final body in sentBodies) (jsonDecode(body) as Map)['content'],
+  ];
   late final AccordClient client;
   late final ProviderContainer container;
 
@@ -384,7 +396,81 @@ void main() {
   );
 
   testWidgets(
-    'Linux: plain Enter sends once and keeps a key typed right after it',
+    'Linux: plain Enter waits for a key typed just before it',
+    (tester) async {
+      // Review of #384 (r4102862858): `xdotool key --delay 0 x Return` on `hi`
+      // sent `hi` and left `x` in the composer. The Enter key event reaches
+      // Dart before GTK's update for the `x`.
+      final (harness, field) = await _pumpWithText(
+        tester,
+        const TextEditingValue(
+          text: 'hi',
+          selection: TextSelection.collapsed(offset: 2),
+        ),
+      );
+      final client = _Embedder.capture(tester);
+      final barrier = _Barrier.hold(tester);
+
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.keyX), isFalse);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.enter), isTrue);
+      await tester.pump();
+      expect(harness.sends, isEmpty, reason: 'must wait for GTK first');
+      expect(field.controller!.text, 'hi');
+
+      // GTK delivers the `x` update, then answers the barrier.
+      await client.type(tester, 'x');
+      await barrier.release(tester);
+      await _tick(tester);
+
+      expect(harness.sentContents, ['hix']);
+      expect(field.controller!.text, isEmpty);
+      client.expectNoRestart(tester);
+    },
+    skip: kIsWeb,
+    variant: _linux,
+  );
+
+  testWidgets(
+    'Linux: keys typed while the send waits are kept for the next message',
+    (tester) async {
+      // `Return a` (and Shift+Enter, `b`) inside the barrier's round trip:
+      // they must neither reach GTK's copy of the old draft nor be lost.
+      final (harness, field) = await _pumpWithText(
+        tester,
+        const TextEditingValue(
+          text: 'hi',
+          selection: TextSelection.collapsed(offset: 2),
+        ),
+      );
+      final client = _Embedder.capture(tester);
+      final barrier = _Barrier.hold(tester);
+
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.enter), isTrue);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.keyA), isTrue);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.enter), isTrue);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.keyB), isTrue);
+      await barrier.release(tester);
+      await _tick(tester);
+
+      expect(harness.sentContents, ['hi']);
+      expect(field.controller!.text, 'a\nb');
+      expect(field.focusNode!.hasFocus, isTrue);
+      // GTK's copy was replaced by the replayed text, so its next key builds
+      // on `a\nb`, not on the draft that was sent.
+      await client.type(tester, 'c');
+      await _tick(tester);
+      expect(field.controller!.text, 'a\nbc');
+      expect(harness.sends, hasLength(1));
+      client.expectNoRestart(tester);
+    },
+    skip: kIsWeb,
+    variant: _linux,
+  );
+
+  testWidgets(
+    'Linux: a key typed after the send completes goes to GTK as usual',
     (tester) async {
       final (harness, field) = await _pumpWithText(
         tester,
@@ -396,24 +482,15 @@ void main() {
       final client = _Embedder.capture(tester);
 
       expect(await tester.sendKeyEvent(LogicalKeyboardKey.enter), isTrue);
-      // The draft was cleared before the embedder saw the next key...
+      await _tick(tester);
+      expect(harness.sentContents, ['hi']);
       expect(field.controller!.text, isEmpty);
-      expect(
-        tester.testTextInput.log.any(
-          (c) =>
-              c.method == 'TextInput.setEditingState' &&
-              (c.arguments as Map)['text'] == '',
-        ),
-        isTrue,
-      );
+
       expect(await tester.sendKeyEvent(LogicalKeyboardKey.keyA), isFalse);
-      // ...so the embedder's update for it carries just `a`.
       await client.type(tester, 'a');
       await _tick(tester);
-
-      expect(harness.sends, hasLength(1));
       expect(field.controller!.text, 'a');
-      expect(field.focusNode!.hasFocus, isTrue);
+      expect(harness.sends, hasLength(1));
       client.expectNoRestart(tester);
     },
     skip: kIsWeb,
@@ -557,5 +634,41 @@ class _Embedder {
       setClientCalls,
       reason: 'a text-input connection restart drops queued GTK updates',
     );
+  }
+}
+
+/// Holds the replies on [composerNativeInputBarrierChannel], as the GTK
+/// embedder does until it has handled every message queued before the barrier.
+class _Barrier {
+  _Barrier._();
+
+  factory _Barrier.hold(WidgetTester tester) {
+    final barrier = _Barrier._();
+    tester.binding.defaultBinaryMessenger.setMockMessageHandler(
+      composerNativeInputBarrierChannel,
+      (_) {
+        final reply = Completer<ByteData?>();
+        barrier._pending.add(reply);
+        return reply.future;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMessageHandler(
+        composerNativeInputBarrierChannel,
+        null,
+      ),
+    );
+    return barrier;
+  }
+
+  final List<Completer<ByteData?>> _pending = [];
+
+  Future<void> release(WidgetTester tester) async {
+    expect(_pending, isNotEmpty, reason: 'no barrier was sent');
+    for (final reply in _pending) {
+      reply.complete(null);
+    }
+    _pending.clear();
+    await tester.pump();
   }
 }
