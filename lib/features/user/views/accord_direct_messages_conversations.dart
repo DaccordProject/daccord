@@ -385,87 +385,142 @@ class _DmConversationTile extends StatelessWidget {
           )
         : null;
 
-    return Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          child: Row(
-            children: [
-              group
-                  ? CircleAvatar(
-                      radius: _avatarRadius,
-                      backgroundColor: accordIdColor(avatarId),
-                      child: Icon(
-                        Icons.group,
-                        size: 22,
-                        color: accordOnColor(accordIdColor(avatarId)),
-                      ),
-                    )
-                  : AccordMemberAvatar(
-                      avatarUrl: avatarUrl,
-                      initial: accordInitial(title),
-                      status: status,
-                      radius: _avatarRadius,
-                      backgroundColor: accordIdColor(avatarId),
-                      initialStyle: theme.textTheme.titleMedium,
-                    ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: titleStyle,
+    // Unread, mentions and presence are drawn as weight, colour and dots, which
+    // a screen reader can't see: announce the row as one sentence instead of
+    // its separate fragments. MergeSemantics keeps the InkWell's tap and focus
+    // actions on that same node.
+    return MergeSemantics(
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Semantics(
+            button: true,
+            label: _semanticsLabel(),
+            excludeSemantics: true,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              child: Row(
+                children: [
+                  group
+                      ? CircleAvatar(
+                          radius: _avatarRadius,
+                          backgroundColor: accordIdColor(avatarId),
+                          child: Icon(
+                            Icons.group,
+                            size: 22,
+                            color: accordOnColor(accordIdColor(avatarId)),
                           ),
+                        )
+                      : AccordMemberAvatar(
+                          avatarUrl: avatarUrl,
+                          initial: accordInitial(title),
+                          status: status,
+                          radius: _avatarRadius,
+                          backgroundColor: accordIdColor(avatarId),
+                          initialStyle: theme.textTheme.titleMedium,
                         ),
-                        if (origin != null) ...[
-                          const SizedBox(width: 6),
-                          RemoteOriginBadge(domain: origin!),
-                        ],
-                        const Spacer(),
-                        if (sentAt != null) ...[
-                          const SizedBox(width: 8),
-                          Tooltip(
-                            message: messageTimestampString(sentAt),
-                            child: Text(
-                              conversationTimeString(sentAt),
-                              style: metaStyle,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            // The title (and its origin badge) take all the width
+                            // the time label leaves, so long names only truncate
+                            // when they really run into it.
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: titleStyle,
+                                    ),
+                                  ),
+                                  if (origin != null) ...[
+                                    const SizedBox(width: 6),
+                                    RemoteOriginBadge(domain: origin!),
+                                  ],
+                                ],
+                              ),
                             ),
+                            if (sentAt != null) ...[
+                              const SizedBox(width: 8),
+                              Tooltip(
+                                message: messageTimestampString(sentAt),
+                                child: Text(
+                                  conversationTimeString(sentAt),
+                                  style: metaStyle,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (subtitle != null || indicator != null) ...[
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: subtitle ?? const SizedBox.shrink(),
+                              ),
+                              if (indicator != null) ...[
+                                const SizedBox(width: 8),
+                                indicator,
+                              ],
+                            ],
                           ),
                         ],
                       ],
                     ),
-                    if (subtitle != null || indicator != null) ...[
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Expanded(child: subtitle ?? const SizedBox.shrink()),
-                          if (indicator != null) ...[
-                            const SizedBox(width: 8),
-                            indicator,
-                          ],
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  /// The row read as one phrase, e.g. "bob, online, Unread, 2 mentions,
+  /// You: see you there, Sun, 27 Sep 2026 at 12:30".
+  String _semanticsLabel() {
+    final status = this.status;
+    final origin = this.origin;
+    final preview = this.preview;
+    final sentAt = this.sentAt;
+    final missedCall = this.missedCall;
+    return [
+      title,
+      if (origin != null && origin.isNotEmpty) 'homed on $origin',
+      if (group) 'group' else if (status != null) _presenceLabel(status),
+      if (unread || mentions > 0) 'Unread',
+      if (mentions == 1)
+        '1 mention'
+      else if (mentions > 1)
+        '$mentions mentions',
+      if (missedCall != null)
+        missedCall.label
+      else if (preview != null)
+        previewIsOwn ? 'You: $preview' : preview
+      else if (group)
+        '$memberCount members',
+      if (sentAt != null) messageTimestampString(sentAt),
+    ].join(', ');
+  }
+
+  static String _presenceLabel(String status) => switch (status) {
+    'online' => 'online',
+    'idle' => 'idle',
+    'dnd' => 'do not disturb',
+    _ => 'offline',
+  };
 }
 
 /// The "Missed call" line under a DM row: an unanswered incoming call the user
