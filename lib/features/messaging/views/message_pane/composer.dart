@@ -1,5 +1,16 @@
 part of 'message_pane.dart';
 
+/// Linux: the channel the composer uses as an ordering barrier with the GTK
+/// embedder before a plain-Enter send (#376).
+///
+/// Nothing on the platform side handles it, so `fl_engine.cc` answers it with
+/// an empty reply straight away, on the platform thread, in order with the key
+/// responses it already has queued. By the time that reply reaches Dart,
+/// every text-input update GTK produced for keys typed before the Enter has
+/// been delivered. See [_ComposerState._sendAfterNativeEdits].
+@visibleForTesting
+const composerNativeInputBarrierChannel = 'daccord/composer/input_barrier';
+
 class _Composer extends ConsumerStatefulWidget {
   const _Composer({
     required this.channelId,
@@ -84,7 +95,8 @@ class _ComposerState extends ConsumerState<_Composer> {
         .read(settingsControllerProvider)
         .draftFor(_serverKey, widget.channelId);
     // Intercept Ctrl/Cmd+V to support pasting images and large text (the
-    // EditableText's own paste only handles inline text).
+    // EditableText's own paste only handles inline text), and Shift+Enter to
+    // insert a newline instead of sending.
     _focusNode.onKeyEvent = _onComposerKey;
   }
 
@@ -93,8 +105,32 @@ class _ComposerState extends ConsumerState<_Composer> {
     // paste/input event. Consuming Ctrl/Cmd+V cancels that event, and the async
     // Clipboard API may be unavailable or require a separate permission.
     if (kIsWeb) return KeyEventResult.ignored;
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
     final mods = HardwareKeyboard.instance;
+    if (_nativeNewlines) {
+      if (_awaitingNativeEdits) {
+        // A plain-Enter send is waiting for GTK's earlier edits. Keys must not
+        // reach GTK now, or their updates would be computed on the draft that
+        // is about to be cleared. Keep their text and replay it after.
+        _bufferWhileAwaiting(event, mods);
+        return KeyEventResult.handled;
+      }
+      if (_isPlainEnter(event, mods) && !_isComposing) {
+        // Held Enter repeats are swallowed: they must neither resend nor
+        // fall through to the embedder as newlines.
+        if (event is KeyDownEvent) _sendAfterNativeEdits();
+        return KeyEventResult.handled;
+      }
+      // Shift+Enter (and Enter with any other modifier, or during a
+      // composition) goes to GTK's input method and then the embedder, which
+      // inserts the newline itself. See [_nativeNewlines].
+    } else if (_isShiftEnterChord(event, mods) && !_isComposing) {
+      _insertNewline();
+      return KeyEventResult.handled;
+    }
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final isPaste =
         (mods.isControlPressed || mods.isMetaPressed) &&
         event.logicalKey == LogicalKeyboardKey.keyV;
@@ -102,6 +138,150 @@ class _ComposerState extends ConsumerState<_Composer> {
     // Consume and handle the paste ourselves (image / large-text aware).
     _handlePaste();
     return KeyEventResult.handled;
+  }
+
+  /// Whether [event] is Shift+Enter (either Enter key, no other modifiers).
+  ///
+  /// The field's `textInputAction` is `send` so mobile keyboards show a Send
+  /// key. The desktop embedders (Linux `fl_text_input_handler.cc`, Windows
+  /// `text_input_plugin.cc`, macOS `FlutterTextInputPlugin.mm`) only insert a
+  /// newline for Enter when the action is `newline`, and they ignore Shift, so
+  /// a plain TextField sends on Shift+Enter (#376). On Windows and macOS the
+  /// composer handles the chord itself, which stops it from ever reaching the
+  /// embedder's text input plugin. Linux works differently: see
+  /// [_nativeNewlines].
+  bool _isShiftEnterChord(KeyEvent event, HardwareKeyboard mods) =>
+      _isEnterKey(event) &&
+      mods.isShiftPressed &&
+      !mods.isControlPressed &&
+      !mods.isMetaPressed &&
+      !mods.isAltPressed;
+
+  /// Whether [event] is Enter (either Enter key) with no modifiers held.
+  bool _isPlainEnter(KeyEvent event, HardwareKeyboard mods) =>
+      _isEnterKey(event) &&
+      !mods.isShiftPressed &&
+      !mods.isControlPressed &&
+      !mods.isMetaPressed &&
+      !mods.isAltPressed;
+
+  static bool _isEnterKey(KeyEvent event) =>
+      event.logicalKey == LogicalKeyboardKey.enter ||
+      event.logicalKey == LogicalKeyboardKey.numpadEnter;
+
+  /// Whether the IME has reported a composition. Enter is left to the IME
+  /// then, because it commits the candidate.
+  bool get _isComposing {
+    final composing = _controller.value.composing;
+    return composing.isValid && !composing.isCollapsed;
+  }
+
+  /// Linux: the field uses `TextInputAction.newline`, and the roles are
+  /// inverted compared with Windows and macOS (#376, review of #384).
+  ///
+  /// - **Shift+Enter** is never handled here. GTK's input method sees it first
+  ///   (`fl_text_input_handler_filter_keypress`). If the IM is composing, even
+  ///   when Dart sees no composing range (Ctrl+Shift+U hex entry, a pending
+  ///   IBus key), it commits. Otherwise the embedder inserts `\n` into its own
+  ///   model, and that edit is queued in order with any keys typed after it.
+  ///   A `newline` action on a multiline field does nothing in Dart: no
+  ///   unfocus, no `onSubmitted`, and no text-input connection restart.
+  ///   So there is nothing to race and no queued update is dropped.
+  /// - **Plain Enter** (no modifiers, no reported composition) is claimed by
+  ///   the key handler, and the send waits for GTK to deliver every edit
+  ///   queued before it: see [_sendAfterNativeEdits].
+  ///
+  /// Why not the `send` action with a Shift+Enter flag, as before:
+  /// `EditableText._finalizeEditing` always schedules a text-input connection
+  /// restart for `send`, and GTK updates still queued for the old client are
+  /// discarded, so keys typed right after Shift+Enter were lost.
+  ///
+  /// Known limitations:
+  /// - A plain Enter during a composition that GTK hasn't reported to Dart
+  ///   sends instead of committing.
+  /// - An input method that commits text asynchronously (IBus in async mode)
+  ///   can deliver a key typed just before Enter after the send barrier.
+  /// - Enter with Ctrl or Alt held inserts a newline here, where it sends on
+  ///   Windows and macOS.
+  static bool get _nativeNewlines =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
+
+  void _onSubmitted() {
+    // EditableText unfocuses on a `send` action just before onSubmitted runs;
+    // the field is enabled, so asking for focus straight back lands in the
+    // same frame. (Not reached on Linux: see [_nativeNewlines].)
+    _focusNode.requestFocus();
+    _send();
+  }
+
+  /// Linux: a plain-Enter send is waiting for [_sendAfterNativeEdits]'s
+  /// barrier.
+  bool _awaitingNativeEdits = false;
+
+  /// Text typed while [_awaitingNativeEdits], replayed after the send.
+  final StringBuffer _typedWhileAwaiting = StringBuffer();
+
+  /// Linux plain Enter: sends only once GTK has delivered every edit for keys
+  /// typed before the Enter (review of #384, r4102862858).
+  ///
+  /// Key events reach Dart before GTK's text update for them, so with
+  /// `x Return` typed fast the Enter arrives while the `x` update is still
+  /// queued. Reading the draft straight away sent `hi` and left `x` behind.
+  /// A round trip on [composerNativeInputBarrierChannel] is answered only
+  /// after those queued updates, so the draft is complete when it returns.
+  ///
+  /// Keys pressed in that window (about a millisecond) are claimed and
+  /// buffered by [_bufferWhileAwaiting]. If they reached GTK, it would apply
+  /// them to the draft being sent, and the late update would bring that
+  /// draft back after the clear. [_send] then reads and clears the draft
+  /// synchronously, and the buffered text is inserted into the cleared field.
+  /// That field edit reaches GTK before any later key does. The text-input
+  /// connection is never restarted.
+  Future<void> _sendAfterNativeEdits() async {
+    _awaitingNativeEdits = true;
+    try {
+      await const BasicMessageChannel<Object?>(
+        composerNativeInputBarrierChannel,
+        StandardMessageCodec(),
+      ).send(null).timeout(const Duration(milliseconds: 250));
+    } catch (_) {
+      // No reply only costs the ordering guarantee; don't leave Enter dead.
+    }
+    if (!mounted) return;
+    _awaitingNativeEdits = false;
+    final typed = _typedWhileAwaiting.toString();
+    _typedWhileAwaiting.clear();
+    _send();
+    if (typed.isNotEmpty) {
+      _insertAtCursor(typed);
+      _onChanged(_controller.text);
+    }
+  }
+
+  /// Keeps the text of a key claimed while [_awaitingNativeEdits].
+  ///
+  /// Shift+Enter keeps its newline. Plain Enter is dropped because the draft
+  /// is already being sent. Shortcuts and non-printing keys are dropped too.
+  void _bufferWhileAwaiting(KeyEvent event, HardwareKeyboard mods) {
+    if (mods.isControlPressed || mods.isMetaPressed || mods.isAltPressed) {
+      return;
+    }
+    if (_isEnterKey(event)) {
+      if (mods.isShiftPressed) _typedWhileAwaiting.write('\n');
+      return;
+    }
+    final character = event.character;
+    if (character == null || character.isEmpty) return;
+    if (character.runes.any((r) => r < 0x20 || r == 0x7f)) return;
+    _typedWhileAwaiting.write(character);
+  }
+
+  /// Inserts a line break at the caret, replacing any selection, and runs the
+  /// usual change handling (mention popup, typing indicator) that a
+  /// programmatic edit would otherwise skip.
+  void _insertNewline() {
+    _insertAtCursor('\n');
+    _onChanged(_controller.text);
   }
 
   /// Handles a clipboard paste: an image becomes a pending attachment; very
@@ -814,15 +994,11 @@ class _ComposerState extends ConsumerState<_Composer> {
                       // in _send() are what stop a double-send.
                       minLines: 1,
                       maxLines: 6,
-                      textInputAction: TextInputAction.send,
+                      textInputAction: _nativeNewlines
+                          ? TextInputAction.newline
+                          : TextInputAction.send,
                       onChanged: _onChanged,
-                      onSubmitted: (_) {
-                        // EditableText unfocuses on a `send` action just before
-                        // onSubmitted runs; the field is enabled, so asking for
-                        // focus straight back lands in the same frame.
-                        _focusNode.requestFocus();
-                        _send();
-                      },
+                      onSubmitted: (_) => _onSubmitted(),
                       style: Theme.of(context).textTheme.bodyLarge,
                       decoration: InputDecoration(
                         isDense: true,

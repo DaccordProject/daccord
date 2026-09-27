@@ -9,7 +9,7 @@ section: messaging
 
 ## Sending
 
-Type your message in the composer at the bottom of the message area and press **Enter** to send. Press **Shift+Enter** to insert a new line without sending.
+Type your message in the composer at the bottom of the message area and press **Enter** to send. In the desktop apps (Windows, macOS and Linux), press **Shift+Enter** to insert a new line without sending. On mobile, the keyboard's **Send** key sends the message.
 
 daccord supports basic Markdown formatting in messages:
 
