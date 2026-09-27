@@ -40,6 +40,7 @@ You can share your custom theme with others:
 - **UI Scale** -- Adjust the interface size from 50% to 200%
 - **Emoji skin tone** -- Set your preferred default skin tone
 
-Animated images also pause automatically whenever daccord is hidden,
-backgrounded, or not focused. They resume from the displayed frame when the
-app regains focus. Reduce motion continues to keep them paused while enabled.
+Animated images pause automatically whenever daccord is hidden or minimised.
+A visible desktop window continues updating and animating while unfocused.
+Animations resume from the displayed frame when the app becomes visible again.
+Reduce motion continues to keep animated images paused while enabled.

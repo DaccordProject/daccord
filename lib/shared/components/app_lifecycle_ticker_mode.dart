@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
-/// Pauses descendant animations while the app is not visible and focused.
+/// Pauses descendant animations only while the app is not visible.
+/// An inactive desktop window is still visible and must keep rendering updates.
 ///
 /// Flutter's [Image] widget responds to [TickerMode] by retaining the currently
 /// displayed frame of a multiframe image, unsubscribing from further frames,
@@ -19,14 +20,19 @@ class AppLifecycleTickerMode extends StatefulWidget {
 
 class _AppLifecycleTickerModeState extends State<AppLifecycleTickerMode>
     with WidgetsBindingObserver {
-  late bool _isResumed;
+  late bool _isVisible;
+
+  bool _isVisibleState(AppLifecycleState? state) =>
+      state == null ||
+      state == AppLifecycleState.resumed ||
+      state == AppLifecycleState.inactive;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     final state = WidgetsBinding.instance.lifecycleState;
-    _isResumed = state == null || state == AppLifecycleState.resumed;
+    _isVisible = _isVisibleState(state);
   }
 
   @override
@@ -37,9 +43,9 @@ class _AppLifecycleTickerModeState extends State<AppLifecycleTickerMode>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final isResumed = state == AppLifecycleState.resumed;
-    if (_isResumed == isResumed) return;
-    setState(() => _isResumed = isResumed);
+    final isVisible = _isVisibleState(state);
+    if (_isVisible == isVisible) return;
+    setState(() => _isVisible = isVisible);
   }
 
   @override
@@ -48,7 +54,7 @@ class _AppLifecycleTickerModeState extends State<AppLifecycleTickerMode>
     // visibility boundary higher in the tree.
     final ancestorTickersEnabled = TickerMode.valuesOf(context).enabled;
     return TickerMode(
-      enabled: ancestorTickersEnabled && _isResumed,
+      enabled: ancestorTickersEnabled && _isVisible,
       child: widget.child,
     );
   }

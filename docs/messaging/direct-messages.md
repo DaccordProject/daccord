@@ -27,6 +27,10 @@ Beside the search field, the **New group** and **Message remote user** icon butt
 
 Click on a user's name in a member list or open their right-click/long-press menu and choose **Direct message**. You can also start a DM from the Friends tab.
 
+Starting a DM reopens a cached conversation with that account. Local IDs and IDs qualified with your server’s domain identify the same account; accounts on different servers remain distinct.
+
+If you already have duplicate conversations, check the history in each and use **Close direct message** on the unwanted conversation. Histories are not automatically merged or hidden. The remote-origin badge helps distinguish accounts with the same name on different servers.
+
 ## Searching DMs
 
 Use the search field at the top of the DM list to filter conversations by name.

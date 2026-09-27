@@ -90,13 +90,9 @@ Future<void> showAccordDirectMessages(
   );
 }
 
-/// Opens (creating if needed) the 1:1 direct message with [userId] and shows the
-/// DM dialog focused on that conversation. Accord's `createDm` is idempotent for
-/// a single recipient — it returns the existing DM when one already exists.
-///
-/// A **qualified** [userId] (`<snowflake>@<domain>`) opens a *cross-server* DM:
-/// the server picks a deterministic home server and mirrors a replica DM channel
-/// for us, returned with a qualified channel ID. A bare id is a same-server DM.
+/// Opens a cached 1:1 conversation with [userId], or creates one using a
+/// normalized recipient id. Qualified ids on other domains use federation;
+/// ids qualified with our own domain use the local DM path.
 Future<void> openAccordDirectMessage(
   BuildContext context,
   WidgetRef ref,
@@ -105,11 +101,19 @@ Future<void> openAccordDirectMessage(
   final client = ref.accordClient;
   final serverKey = ref.readActiveServerKey();
   if (client == null || serverKey == null) return;
-  final result = await client.users.createDm(dmCreateBody(userId));
+  final dmChannels = ref.read(dmChannelsControllerProvider(serverKey).notifier);
+  final existing = dmChannels.findDirectMessage(userId);
+  if (existing != null) {
+    await showAccordDirectMessages(context, initialChannel: existing);
+    return;
+  }
+  final result = await client.users.createDm(
+    dmCreateBody(userId, homeDomain: ref.readHomeDomain()),
+  );
   if (!context.mounted || ref.readActiveServerKey() != serverKey) return;
   final data = result.data;
   if (result.ok && data is AccordChannel) {
-    ref.read(dmChannelsControllerProvider(serverKey).notifier).upsert(data);
+    dmChannels.upsert(data);
     await showAccordDirectMessages(context, initialChannel: data);
   } else {
     // Surface the server's reason (federation disabled, recipient not
