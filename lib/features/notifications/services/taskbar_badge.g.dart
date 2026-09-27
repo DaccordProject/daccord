@@ -19,7 +19,7 @@ part of 'taskbar_badge.dart';
 /// `BackgroundConnectionController` / the MCP server controller.
 
 @ProviderFor(TaskbarBadgeController)
-const taskbarBadgeControllerProvider = TaskbarBadgeControllerProvider._();
+final taskbarBadgeControllerProvider = TaskbarBadgeControllerProvider._();
 
 /// Mirrors [globalUnreadProvider] onto the OS taskbar/dock icon.
 ///
@@ -41,7 +41,7 @@ final class TaskbarBadgeControllerProvider
   ///
   /// Kept alive by a `ref.watch` in `MainWindow`, matching
   /// `BackgroundConnectionController` / the MCP server controller.
-  const TaskbarBadgeControllerProvider._()
+  TaskbarBadgeControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -85,8 +85,7 @@ abstract class _$TaskbarBadgeController extends $Notifier<void> {
   void build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<void, void>;
     final element =
         ref.element
@@ -96,6 +95,6 @@ abstract class _$TaskbarBadgeController extends $Notifier<void> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, null);
+    return element.handleCreate(ref, build);
   }
 }

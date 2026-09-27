@@ -26,7 +26,7 @@ part of 'mcp_server_controller.dart';
 /// is inert there too.
 
 @ProviderFor(McpServerController)
-const mcpServerControllerProvider = McpServerControllerProvider._();
+final mcpServerControllerProvider = McpServerControllerProvider._();
 
 /// Owns the desktop-only local MCP server lifecycle, driven by the persisted
 /// [SettingsController] flags. The server runs only while Developer Mode **and**
@@ -62,7 +62,7 @@ final class McpServerControllerProvider
   ///
   /// On web (no `dart:io`) the [McpServer] facade is a no-op, so this controller
   /// is inert there too.
-  const McpServerControllerProvider._()
+  McpServerControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -113,8 +113,7 @@ abstract class _$McpServerController extends $Notifier<McpServerState> {
   McpServerState build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<McpServerState, McpServerState>;
     final element =
         ref.element
@@ -124,6 +123,6 @@ abstract class _$McpServerController extends $Notifier<McpServerState> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

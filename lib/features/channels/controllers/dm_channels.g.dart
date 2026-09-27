@@ -20,7 +20,7 @@ part of 'dm_channels.dart';
 /// dialog has ever opened are intentionally dropped (the next open refetches).
 
 @ProviderFor(DmChannelsController)
-const dmChannelsControllerProvider = DmChannelsControllerFamily._();
+final dmChannelsControllerProvider = DmChannelsControllerFamily._();
 
 /// Per-server cache of the current user's direct-message and group-DM channels
 /// (the ones with no `spaceId`). The direct-messages dialog populates it from a
@@ -44,7 +44,7 @@ final class DmChannelsControllerProvider
   /// A `null` state means "not loaded yet" — the dialog's fetch is the only thing
   /// that transitions it out of null, so gateway upserts that arrive before the
   /// dialog has ever opened are intentionally dropped (the next open refetches).
-  const DmChannelsControllerProvider._({
+  DmChannelsControllerProvider._({
     required DmChannelsControllerFamily super.from,
     required String super.argument,
   }) : super(
@@ -111,7 +111,7 @@ final class DmChannelsControllerFamily extends $Family
           List<AccordChannel>?,
           String
         > {
-  const DmChannelsControllerFamily._()
+  DmChannelsControllerFamily._()
     : super(
         retry: null,
         name: r'dmChannelsControllerProvider',
@@ -156,8 +156,7 @@ abstract class _$DmChannelsController extends $Notifier<List<AccordChannel>?> {
   List<AccordChannel>? build(String serverKey);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<List<AccordChannel>?, List<AccordChannel>?>;
     final element =
         ref.element
@@ -167,6 +166,6 @@ abstract class _$DmChannelsController extends $Notifier<List<AccordChannel>?> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

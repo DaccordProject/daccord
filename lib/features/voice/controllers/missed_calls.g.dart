@@ -26,7 +26,7 @@ part of 'missed_calls.dart';
 /// .serverKey] carries the origin connection for callers that care.
 
 @ProviderFor(MissedCallsController)
-const missedCallsControllerProvider = MissedCallsControllerProvider._();
+final missedCallsControllerProvider = MissedCallsControllerProvider._();
 
 /// Unanswered incoming DM calls, keyed by channel id.
 ///
@@ -62,7 +62,7 @@ final class MissedCallsControllerProvider
   /// Keyed by channel id alone; ids are per-server snowflakes, so the (unlikely)
   /// case of two servers minting the same DM channel id could collide. [MissedCall
   /// .serverKey] carries the origin connection for callers that care.
-  const MissedCallsControllerProvider._()
+  MissedCallsControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -114,8 +114,7 @@ abstract class _$MissedCallsController
   Map<String, MissedCall> build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref =
         this.ref as $Ref<Map<String, MissedCall>, Map<String, MissedCall>>;
     final element =
@@ -126,6 +125,6 @@ abstract class _$MissedCallsController
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

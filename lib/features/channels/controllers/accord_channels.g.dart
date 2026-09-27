@@ -14,7 +14,7 @@ part of 'accord_channels.dart';
 /// channel create/update/delete gateway events. `null` means "not loaded yet".
 
 @ProviderFor(AccordChannelsController)
-const accordChannelsControllerProvider = AccordChannelsControllerFamily._();
+final accordChannelsControllerProvider = AccordChannelsControllerFamily._();
 
 /// A space's channel list, keyed by space ID. The Accord analogue of Bonfire's
 /// firebridge-backed channel list. Self-loads via `spaces.listChannels` the
@@ -26,7 +26,7 @@ final class AccordChannelsControllerProvider
   /// firebridge-backed channel list. Self-loads via `spaces.listChannels` the
   /// first time it's watched (once logged in) and is kept in sync by
   /// channel create/update/delete gateway events. `null` means "not loaded yet".
-  const AccordChannelsControllerProvider._({
+  AccordChannelsControllerProvider._({
     required AccordChannelsControllerFamily super.from,
     required (String, String) super.argument,
   }) : super(
@@ -88,7 +88,7 @@ final class AccordChannelsControllerFamily extends $Family
           List<AccordChannel>?,
           (String, String)
         > {
-  const AccordChannelsControllerFamily._()
+  AccordChannelsControllerFamily._()
     : super(
         retry: null,
         name: r'accordChannelsControllerProvider',
@@ -126,8 +126,7 @@ abstract class _$AccordChannelsController
   List<AccordChannel>? build(String serverKey, String spaceId);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args.$1, _$args.$2);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<List<AccordChannel>?, List<AccordChannel>?>;
     final element =
         ref.element
@@ -137,6 +136,6 @@ abstract class _$AccordChannelsController
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args.$1, _$args.$2));
   }
 }
