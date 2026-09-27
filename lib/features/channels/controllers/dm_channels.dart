@@ -64,7 +64,7 @@ String dmChannelTitle(
 /// dialog has ever opened are intentionally dropped (the next open refetches).
 @Riverpod(keepAlive: true)
 class DmChannelsController extends _$DmChannelsController {
-  final Map<String, String> _previews = {};
+  final Map<String, _DmPreview> _previews = {};
 
   @override
   List<AccordChannel>? build(String serverKey) => null;
@@ -78,12 +78,21 @@ class DmChannelsController extends _$DmChannelsController {
 
   /// Last-message text shown under a DM conversation. Attachment-only messages
   /// use a human-readable fallback rather than leaving a blank row.
-  String? previewFor(String channelId) => _previews[channelId];
+  String? previewFor(String channelId) => _previews[channelId]?.text;
+
+  /// When the previewed last message was sent (local time), or null when no
+  /// preview is loaded or its timestamp doesn't parse. Shown beside the
+  /// conversation title.
+  DateTime? previewTimeFor(String channelId) => _previews[channelId]?.sentAt;
+
+  /// Author of the previewed last message, so the list can prefix the user's
+  /// own messages with "You:".
+  String? previewAuthorFor(String channelId) => _previews[channelId]?.authorId;
 
   /// Seeds a preview loaded alongside the conversation list without changing
   /// its server-provided order.
   void setPreview(String channelId, AccordMessage message) {
-    _previews[channelId] = _messagePreview(message);
+    _previews[channelId] = _DmPreview.of(message);
     final current = state;
     if (current != null) state = [...current];
   }
@@ -99,7 +108,7 @@ class DmChannelsController extends _$DmChannelsController {
     );
     if (index < 0) return;
     final channel = current[index]..lastMessageId = message.id;
-    _previews[channel.id] = _messagePreview(message);
+    _previews[channel.id] = _DmPreview.of(message);
     state = [channel, ...current.where((item) => item.id != channel.id)];
   }
 
@@ -108,7 +117,7 @@ class DmChannelsController extends _$DmChannelsController {
     if (current == null) return;
     final channel = _findChannel(current, message.channelId);
     if (channel?.lastMessageId != message.id) return;
-    _previews[message.channelId] = _messagePreview(message);
+    _previews[message.channelId] = _DmPreview.of(message);
     state = [...current];
   }
 
@@ -147,6 +156,22 @@ class DmChannelsController extends _$DmChannelsController {
     _previews.remove(channelId);
     state = current.removeById(channelId, (c) => c.id);
   }
+}
+
+/// The last-message summary cached per DM conversation.
+class _DmPreview {
+  const _DmPreview(this.text, this.sentAt, this.authorId);
+
+  _DmPreview.of(AccordMessage message)
+    : this(
+        _messagePreview(message),
+        DateTime.tryParse(message.timestamp)?.toLocal(),
+        message.authorId,
+      );
+
+  final String text;
+  final DateTime? sentAt;
+  final String authorId;
 }
 
 String _messagePreview(AccordMessage message) {

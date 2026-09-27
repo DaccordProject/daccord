@@ -177,4 +177,35 @@ void main() {
       }
     });
   });
+
+  group('conversationTimeString', () {
+    // 2026-06-13 is a Saturday.
+    final now = DateTime(2026, 6, 13, 12, 0);
+
+    test('today shows bare clock', () {
+      final local = DateTime(2026, 6, 13, 8, 15);
+      expect(conversationTimeString(local, now: now), '08:15');
+    });
+
+    test('yesterday drops the clock', () {
+      final local = DateTime(2026, 6, 12, 23, 59);
+      expect(conversationTimeString(local, now: now), 'Yesterday');
+    });
+
+    test('2-6 days ago shows the short weekday', () {
+      expect(
+        conversationTimeString(DateTime(2026, 6, 7, 9, 0), now: now),
+        'Sun',
+      );
+      expect(
+        conversationTimeString(DateTime(2026, 6, 11, 9, 0), now: now),
+        'Thu',
+      );
+    });
+
+    test('older than a week shows the date only', () {
+      final local = DateTime(2026, 6, 6, 18, 43);
+      expect(conversationTimeString(local, now: now), '06/06/2026');
+    });
+  });
 }
