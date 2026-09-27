@@ -335,6 +335,9 @@ class _DmConversationTile extends StatelessWidget {
 
   static const double _avatarRadius = 24;
 
+  /// Below this title width the origin badge shows its globe only.
+  static const double _originDomainMinWidth = 240;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -431,23 +434,33 @@ class _DmConversationTile extends StatelessWidget {
                           children: [
                             // The title (and its origin badge) take all the width
                             // the time label leaves, so long names only truncate
-                            // when they really run into it.
+                            // when they really run into it. On a narrow row the
+                            // badge drops its "@domain" text for the globe alone
+                            // (its tooltip and the row semantics keep the domain)
+                            // so it can't crowd the name out or overflow.
                             Expanded(
-                              child: Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: titleStyle,
+                              child: LayoutBuilder(
+                                builder: (context, constraints) => Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: titleStyle,
+                                      ),
                                     ),
-                                  ),
-                                  if (origin != null) ...[
-                                    const SizedBox(width: 6),
-                                    RemoteOriginBadge(domain: origin!),
+                                    if (origin != null) ...[
+                                      const SizedBox(width: 6),
+                                      RemoteOriginBadge(
+                                        domain: origin!,
+                                        showDomain:
+                                            constraints.maxWidth >=
+                                            _originDomainMinWidth,
+                                      ),
+                                    ],
                                   ],
-                                ],
+                                ),
                               ),
                             ),
                             if (sentAt != null) ...[

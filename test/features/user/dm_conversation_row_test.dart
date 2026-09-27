@@ -71,7 +71,12 @@ void main() {
 
   /// Recreates [container] with bob (`u2`) at the given presence and name,
   /// signed in as [selfId] when given.
-  void useConversation({String name = 'bob', String? status, String? selfId}) {
+  void useConversation({
+    String name = 'bob',
+    String? status,
+    String? selfId,
+    String? origin,
+  }) {
     container.dispose();
     container = ProviderContainer(
       overrides: [
@@ -89,7 +94,9 @@ void main() {
             AccordChannel(
               id: 'dm1',
               type: 'dm',
-              recipients: [AccordUser(id: 'u2', username: name)],
+              recipients: [
+                AccordUser(id: 'u2', username: name, origin: origin),
+              ],
             ),
           ]),
         ),
@@ -152,6 +159,16 @@ void main() {
 
     expect(find.text('bob'), findsOneWidget);
     expect(find.text('Yesterday'), findsNothing);
+  });
+
+  testWidgets('a wide row shows the origin badge with its domain', (
+    tester,
+  ) async {
+    useConversation(origin: 'remote.example');
+
+    await openDialog(tester);
+
+    expect(find.text('@remote.example'), findsOneWidget);
   });
 
   testWidgets('header actions are compact icon buttons', (tester) async {
@@ -244,6 +261,21 @@ void main() {
       semantics.dispose();
     });
 
+    testWidgets('a remote user is announced with their home domain', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      useConversation(origin: 'remote.example', status: 'online');
+
+      await openDialog(tester);
+
+      expect(
+        find.bySemanticsLabel('bob, homed on remote.example, online'),
+        findsOneWidget,
+      );
+      semantics.dispose();
+    });
+
     testWidgets('the row stays tappable for screen readers', (tester) async {
       final semantics = tester.ensureSemantics();
 
@@ -327,7 +359,11 @@ void main() {
       testWidgets('a long name leaves room for the time and badge at '
           '${width.toInt()}px', (tester) async {
         useWidth(tester, width);
-        useConversation(name: longName, status: 'online');
+        useConversation(
+          name: longName,
+          status: 'online',
+          origin: 'remote.example',
+        );
         final sentAt = DateTime.now();
         container
             .read(dmChannelsControllerProvider('').notifier)
@@ -346,8 +382,13 @@ void main() {
         expect(time, findsOneWidget);
         expect(find.text('12'), findsOneWidget);
         final titleRect = tester.getRect(find.text(longName));
+        // Too narrow for the "@domain" text: the badge keeps its globe.
+        expect(find.text('@remote.example'), findsNothing);
+        final originRect = tester.getRect(find.byIcon(Icons.public));
         final timeRect = tester.getRect(time);
-        expect(titleRect.right, lessThanOrEqualTo(timeRect.left));
+        // Name, then the origin badge beside it, then the time at the end.
+        expect(titleRect.right, lessThanOrEqualTo(originRect.left));
+        expect(originRect.right, lessThanOrEqualTo(timeRect.left));
         expect(timeRect.right, lessThanOrEqualTo(width));
       });
     }
