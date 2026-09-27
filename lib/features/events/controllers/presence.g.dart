@@ -34,7 +34,7 @@ part of 'presence.dart';
 /// [activePresencesProvider] rather than picking a key by hand.
 
 @ProviderFor(PresenceController)
-const presenceControllerProvider = PresenceControllerFamily._();
+final presenceControllerProvider = PresenceControllerFamily._();
 
 /// One connection's per-user presence cache, scoped to [serverKey]
 /// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the
@@ -86,7 +86,7 @@ final class PresenceControllerProvider
   /// an absent entry means "offline" (the gateway only pushes presence for
   /// non-offline users). Read the active connection's map through
   /// [activePresencesProvider] rather than picking a key by hand.
-  const PresenceControllerProvider._({
+  PresenceControllerProvider._({
     required PresenceControllerFamily super.from,
     required String super.argument,
   }) : super(
@@ -167,7 +167,7 @@ final class PresenceControllerFamily extends $Family
           PresenceMap,
           String
         > {
-  const PresenceControllerFamily._()
+  PresenceControllerFamily._()
     : super(
         retry: null,
         name: r'presenceControllerProvider',
@@ -240,8 +240,7 @@ abstract class _$PresenceController extends $Notifier<PresenceMap> {
   PresenceMap build(String serverKey);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<PresenceMap, PresenceMap>;
     final element =
         ref.element
@@ -251,7 +250,7 @@ abstract class _$PresenceController extends $Notifier<PresenceMap> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args));
   }
 }
 
@@ -261,7 +260,7 @@ abstract class _$PresenceController extends $Notifier<PresenceMap> {
 /// correct immediately on a switch with no reconnect.
 
 @ProviderFor(activePresences)
-const activePresencesProvider = ActivePresencesProvider._();
+final activePresencesProvider = ActivePresencesProvider._();
 
 /// The presence map of the connection currently driving the panes, or an empty
 /// map when no server is active. Switching servers re-reads the new
@@ -275,7 +274,7 @@ final class ActivePresencesProvider
   /// map when no server is active. Switching servers re-reads the new
   /// connection's own (already-seeded, already-live) cache, so presence is
   /// correct immediately on a switch with no reconnect.
-  const ActivePresencesProvider._()
+  ActivePresencesProvider._()
     : super(
         from: null,
         argument: null,

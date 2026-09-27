@@ -14,7 +14,7 @@ part of 'voice.dart';
 /// to the server over the gateway via `updateVoiceState`.
 
 @ProviderFor(VoiceController)
-const voiceControllerProvider = VoiceControllerProvider._();
+final voiceControllerProvider = VoiceControllerProvider._();
 
 /// Orchestrates voice channel join/leave and media toggles, the Dart port of
 /// the reference `client_voice.gd` + the voice slice of its `AppState`. Owns a
@@ -26,7 +26,7 @@ final class VoiceControllerProvider
   /// the reference `client_voice.gd` + the voice slice of its `AppState`. Owns a
   /// single [VoiceSession] (the LiveKit transport) and pushes runtime self-state
   /// to the server over the gateway via `updateVoiceState`.
-  const VoiceControllerProvider._()
+  VoiceControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -64,8 +64,7 @@ abstract class _$VoiceController extends $Notifier<VoiceConnection> {
   VoiceConnection build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<VoiceConnection, VoiceConnection>;
     final element =
         ref.element
@@ -75,6 +74,6 @@ abstract class _$VoiceController extends $Notifier<VoiceConnection> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

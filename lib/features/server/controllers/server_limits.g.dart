@@ -21,7 +21,7 @@ part of 'server_limits.dart';
 /// unconditionally before this existed.
 
 @ProviderFor(ServerLimitsController)
-const serverLimitsControllerProvider = ServerLimitsControllerProvider._();
+final serverLimitsControllerProvider = ServerLimitsControllerProvider._();
 
 /// The connected server's upload limits, refreshed on connect.
 ///
@@ -47,7 +47,7 @@ final class ServerLimitsControllerProvider
   /// (or loosens) them a round-trip later. A failed fetch is not an error state —
   /// it just leaves the fallback in place, which is what the client did
   /// unconditionally before this existed.
-  const ServerLimitsControllerProvider._()
+  ServerLimitsControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -93,8 +93,7 @@ abstract class _$ServerLimitsController extends $Notifier<AccordServerLimits> {
   AccordServerLimits build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AccordServerLimits, AccordServerLimits>;
     final element =
         ref.element
@@ -104,6 +103,6 @@ abstract class _$ServerLimitsController extends $Notifier<AccordServerLimits> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

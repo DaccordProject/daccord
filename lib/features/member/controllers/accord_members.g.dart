@@ -14,7 +14,7 @@ part of 'accord_members.dart';
 /// `null` means "not loaded yet".
 
 @ProviderFor(AccordMembersController)
-const accordMembersControllerProvider = AccordMembersControllerFamily._();
+final accordMembersControllerProvider = AccordMembersControllerFamily._();
 
 /// A space's members, keyed by space ID and indexed by user ID for O(1) author
 /// resolution. Self-loads via `members.list` the first time it's watched (once
@@ -27,7 +27,7 @@ final class AccordMembersControllerProvider
   /// resolution. Self-loads via `members.list` the first time it's watched (once
   /// logged in) and is kept in sync by member join/update/leave gateway events.
   /// `null` means "not loaded yet".
-  const AccordMembersControllerProvider._({
+  AccordMembersControllerProvider._({
     required AccordMembersControllerFamily super.from,
     required (String, String) super.argument,
   }) : super(
@@ -89,7 +89,7 @@ final class AccordMembersControllerFamily extends $Family
           Map<String, AccordMember>?,
           (String, String)
         > {
-  const AccordMembersControllerFamily._()
+  AccordMembersControllerFamily._()
     : super(
         retry: null,
         name: r'accordMembersControllerProvider',
@@ -127,8 +127,7 @@ abstract class _$AccordMembersController
   Map<String, AccordMember>? build(String serverKey, String spaceId);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args.$1, _$args.$2);
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<Map<String, AccordMember>?, Map<String, AccordMember>?>;
@@ -143,6 +142,6 @@ abstract class _$AccordMembersController
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args.$1, _$args.$2));
   }
 }

@@ -14,7 +14,7 @@ part of 'spaces.dart';
 /// `GuildsController`.
 
 @ProviderFor(SpacesController)
-const spacesControllerProvider = SpacesControllerProvider._();
+final spacesControllerProvider = SpacesControllerProvider._();
 
 /// Holds the current user's space list — the left rail. Populated on gateway
 /// ready (via `users.listSpaces()`) and kept in sync by space
@@ -26,7 +26,7 @@ final class SpacesControllerProvider
   /// ready (via `users.listSpaces()`) and kept in sync by space
   /// create/update/delete gateway events. The Accord analogue of Bonfire's
   /// `GuildsController`.
-  const SpacesControllerProvider._()
+  SpacesControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -64,8 +64,7 @@ abstract class _$SpacesController extends $Notifier<List<AccordSpace>?> {
   List<AccordSpace>? build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<List<AccordSpace>?, List<AccordSpace>?>;
     final element =
         ref.element
@@ -75,6 +74,6 @@ abstract class _$SpacesController extends $Notifier<List<AccordSpace>?> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }
