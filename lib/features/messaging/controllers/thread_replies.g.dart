@@ -15,7 +15,7 @@ part of 'thread_replies.dart';
 /// create/update/delete gateway events. `null` means "not loaded yet".
 
 @ProviderFor(ThreadRepliesController)
-const threadRepliesControllerProvider = ThreadRepliesControllerFamily._();
+final threadRepliesControllerProvider = ThreadRepliesControllerFamily._();
 
 /// A thread's replies (excluding the root message), keyed by
 /// (channelId, rootId), ordered oldest→newest as the server returns them.
@@ -29,7 +29,7 @@ final class ThreadRepliesControllerProvider
   /// Self-loads via `messages.listThread` the first time it's watched (once
   /// logged in) and is kept in sync by thread-scoped message
   /// create/update/delete gateway events. `null` means "not loaded yet".
-  const ThreadRepliesControllerProvider._({
+  ThreadRepliesControllerProvider._({
     required ThreadRepliesControllerFamily super.from,
     required (String, String, String) super.argument,
   }) : super(
@@ -92,7 +92,7 @@ final class ThreadRepliesControllerFamily extends $Family
           List<AccordMessage>?,
           (String, String, String)
         > {
-  const ThreadRepliesControllerFamily._()
+  ThreadRepliesControllerFamily._()
     : super(
         retry: null,
         name: r'threadRepliesControllerProvider',
@@ -136,8 +136,7 @@ abstract class _$ThreadRepliesController
   List<AccordMessage>? build(String serverKey, String channelId, String rootId);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args.$1, _$args.$2, _$args.$3);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<List<AccordMessage>?, List<AccordMessage>?>;
     final element =
         ref.element
@@ -147,6 +146,9 @@ abstract class _$ThreadRepliesController
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, _$args.$2, _$args.$3),
+    );
   }
 }

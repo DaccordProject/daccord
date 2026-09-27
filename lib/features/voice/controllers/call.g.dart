@@ -10,12 +10,12 @@ part of 'call.dart';
 // ignore_for_file: type=lint, type=warning
 
 @ProviderFor(callRingtone)
-const callRingtoneProvider = CallRingtoneProvider._();
+final callRingtoneProvider = CallRingtoneProvider._();
 
 final class CallRingtoneProvider
     extends $FunctionalProvider<CallRingtone, CallRingtone, CallRingtone>
     with $Provider<CallRingtone> {
-  const CallRingtoneProvider._()
+  CallRingtoneProvider._()
     : super(
         from: null,
         argument: null,
@@ -58,7 +58,7 @@ String _$callRingtoneHash() => r'ea4321143cf6dbd77936e59a484393163e432a1a';
 /// (accordserver #32).
 
 @ProviderFor(CallController)
-const callControllerProvider = CallControllerProvider._();
+final callControllerProvider = CallControllerProvider._();
 
 /// Orchestrates DM voice/video calls: placing an outgoing call (join voice +
 /// `call/ring`), reacting to the `call.*` gateway events, and accepting or
@@ -74,7 +74,7 @@ final class CallControllerProvider
   /// [VoiceController]; this controller layers the ring/accept/decline signaling
   /// on top, mirroring how the server models a DM call as "voice join + signaling"
   /// (accordserver #32).
-  const CallControllerProvider._()
+  CallControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -114,8 +114,7 @@ abstract class _$CallController extends $Notifier<CallState> {
   CallState build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<CallState, CallState>;
     final element =
         ref.element
@@ -125,6 +124,6 @@ abstract class _$CallController extends $Notifier<CallState> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

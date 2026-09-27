@@ -17,7 +17,7 @@ part of 'accord_users.dart';
 /// the result, after which watchers rebuild with the resolved name/avatar.
 
 @ProviderFor(AccordUsersController)
-const accordUsersControllerProvider = AccordUsersControllerFamily._();
+final accordUsersControllerProvider = AccordUsersControllerFamily._();
 
 /// Per-server user cache for users not covered by a space's loaded member page.
 ///
@@ -35,7 +35,7 @@ final class AccordUsersControllerProvider
   /// ID. This controller backfills them: [ensure] lazily fetches a user via
   /// `users.fetch` (deduped against in-flight and already-cached IDs) and stores
   /// the result, after which watchers rebuild with the resolved name/avatar.
-  const AccordUsersControllerProvider._({
+  AccordUsersControllerProvider._({
     required AccordUsersControllerFamily super.from,
     required String super.argument,
   }) : super(
@@ -99,7 +99,7 @@ final class AccordUsersControllerFamily extends $Family
           Map<String, AccordUser>,
           String
         > {
-  const AccordUsersControllerFamily._()
+  AccordUsersControllerFamily._()
     : super(
         retry: null,
         name: r'accordUsersControllerProvider',
@@ -139,8 +139,7 @@ abstract class _$AccordUsersController
   Map<String, AccordUser> build(String serverKey);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args);
+  WhenComplete runBuild() {
     final ref =
         this.ref as $Ref<Map<String, AccordUser>, Map<String, AccordUser>>;
     final element =
@@ -151,6 +150,6 @@ abstract class _$AccordUsersController
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

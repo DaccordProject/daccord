@@ -18,7 +18,7 @@ part of 'withdrawn_attachments.dart';
 /// disk. Bounded — the last [maxRemembered] withdrawals.
 
 @ProviderFor(WithdrawnAttachmentsController)
-const withdrawnAttachmentsControllerProvider =
+final withdrawnAttachmentsControllerProvider =
     WithdrawnAttachmentsControllerFamily._();
 
 /// Attachments the server has withdrawn from messages on one connection —
@@ -39,7 +39,7 @@ final class WithdrawnAttachmentsControllerProvider
   /// the attachment they're showing disappears, and [withdraw] evicts the
   /// withdrawn URLs from the image cache so a rebuild can't repaint them from
   /// disk. Bounded — the last [maxRemembered] withdrawals.
-  const WithdrawnAttachmentsControllerProvider._({
+  WithdrawnAttachmentsControllerProvider._({
     required WithdrawnAttachmentsControllerFamily super.from,
     required String super.argument,
   }) : super(
@@ -105,7 +105,7 @@ final class WithdrawnAttachmentsControllerFamily extends $Family
           Set<String>,
           String
         > {
-  const WithdrawnAttachmentsControllerFamily._()
+  WithdrawnAttachmentsControllerFamily._()
     : super(
         retry: null,
         name: r'withdrawnAttachmentsControllerProvider',
@@ -146,8 +146,7 @@ abstract class _$WithdrawnAttachmentsController extends $Notifier<Set<String>> {
   Set<String> build(String serverKey);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<Set<String>, Set<String>>;
     final element =
         ref.element
@@ -157,6 +156,6 @@ abstract class _$WithdrawnAttachmentsController extends $Notifier<Set<String>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

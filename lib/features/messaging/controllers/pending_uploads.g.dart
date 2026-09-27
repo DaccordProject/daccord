@@ -32,7 +32,7 @@ part of 'pending_uploads.dart';
 /// are never called.
 
 @ProviderFor(PendingUploadsController)
-const pendingUploadsControllerProvider = PendingUploadsControllerFamily._();
+final pendingUploadsControllerProvider = PendingUploadsControllerFamily._();
 
 /// Tracks this account's AutoMod-held uploads on one connection so the sender
 /// sees *where* an attachment is rather than a message that silently lost it.
@@ -81,7 +81,7 @@ final class PendingUploadsControllerProvider
   /// Reasons are fetched only here — for this account's own uploads, which are
   /// the only ones the uploader stream ever names. The moderator queue routes
   /// are never called.
-  const PendingUploadsControllerProvider._({
+  PendingUploadsControllerProvider._({
     required PendingUploadsControllerFamily super.from,
     required String super.argument,
   }) : super(
@@ -161,7 +161,7 @@ final class PendingUploadsControllerFamily extends $Family
           PendingUploadsSnapshot,
           String
         > {
-  const PendingUploadsControllerFamily._()
+  PendingUploadsControllerFamily._()
     : super(
         retry: null,
         name: r'pendingUploadsControllerProvider',
@@ -231,8 +231,7 @@ abstract class _$PendingUploadsController
   PendingUploadsSnapshot build(String serverKey);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args);
+  WhenComplete runBuild() {
     final ref =
         this.ref as $Ref<PendingUploadsSnapshot, PendingUploadsSnapshot>;
     final element =
@@ -243,6 +242,6 @@ abstract class _$PendingUploadsController
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

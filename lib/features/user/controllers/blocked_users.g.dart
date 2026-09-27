@@ -21,7 +21,7 @@ part of 'blocked_users.dart';
 /// effect in the panes immediately rather than on the next fetch.
 
 @ProviderFor(BlockedUsersController)
-const blockedUsersControllerProvider = BlockedUsersControllerFamily._();
+final blockedUsersControllerProvider = BlockedUsersControllerFamily._();
 
 /// The accounts this connection has blocked, by user id.
 ///
@@ -47,7 +47,7 @@ final class BlockedUsersControllerProvider
   /// set on gateway READY and the relationship events re-run it. The local
   /// [block]/[unblock] mutators exist so the block a user just performed takes
   /// effect in the panes immediately rather than on the next fetch.
-  const BlockedUsersControllerProvider._({
+  BlockedUsersControllerProvider._({
     required BlockedUsersControllerFamily super.from,
     required String super.argument,
   }) : super(
@@ -116,7 +116,7 @@ final class BlockedUsersControllerFamily extends $Family
           Set<String>,
           String
         > {
-  const BlockedUsersControllerFamily._()
+  BlockedUsersControllerFamily._()
     : super(
         retry: null,
         name: r'blockedUsersControllerProvider',
@@ -163,8 +163,7 @@ abstract class _$BlockedUsersController extends $Notifier<Set<String>> {
   Set<String> build(String serverKey);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<Set<String>, Set<String>>;
     final element =
         ref.element
@@ -174,6 +173,6 @@ abstract class _$BlockedUsersController extends $Notifier<Set<String>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

@@ -24,7 +24,7 @@ part of 'update_controller.dart';
 /// service-worker reload.
 
 @ProviderFor(UpdateController)
-const updateControllerProvider = UpdateControllerProvider._();
+final updateControllerProvider = UpdateControllerProvider._();
 
 /// Checks the project's GitHub Releases for a newer build and exposes the
 /// result. Ports the reference client's `updater.gd`: a startup check plus an
@@ -56,7 +56,7 @@ final class UpdateControllerProvider
   /// is handed to the system installer. Platforms without an in-place path (or
   /// older releases) still fall back to a plain download link, and web prompts a
   /// service-worker reload.
-  const UpdateControllerProvider._()
+  UpdateControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -104,8 +104,7 @@ abstract class _$UpdateController extends $Notifier<UpdateState> {
   UpdateState build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<UpdateState, UpdateState>;
     final element =
         ref.element
@@ -115,6 +114,6 @@ abstract class _$UpdateController extends $Notifier<UpdateState> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

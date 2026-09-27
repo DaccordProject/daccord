@@ -16,7 +16,7 @@ part of 'open_tabs.dart';
 /// [AccordSettings]) so open tabs survive a restart.
 
 @ProviderFor(OpenTabsController)
-const openTabsControllerProvider = OpenTabsControllerProvider._();
+final openTabsControllerProvider = OpenTabsControllerProvider._();
 
 /// Owns the open-channel tab strip (the reference client's `main_window_tabs`).
 ///
@@ -32,7 +32,7 @@ final class OpenTabsControllerProvider
   /// closing/reordering mirror the reference's context-menu actions. The whole
   /// strip is persisted to the `accord-settings` Hive box (a separate key from
   /// [AccordSettings]) so open tabs survive a restart.
-  const OpenTabsControllerProvider._()
+  OpenTabsControllerProvider._()
     : super(
         from: null,
         argument: null,
@@ -73,8 +73,7 @@ abstract class _$OpenTabsController extends $Notifier<OpenTabsState> {
   OpenTabsState build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<OpenTabsState, OpenTabsState>;
     final element =
         ref.element
@@ -84,6 +83,6 @@ abstract class _$OpenTabsController extends $Notifier<OpenTabsState> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }
