@@ -21,10 +21,15 @@ import 'package:http/testing.dart';
 /// Shift+Enter in the composer inserts a newline on desktop instead of
 /// sending (#376).
 ///
-/// Windows and macOS keep the `send` action and handle Shift+Enter in Dart.
-/// Linux uses the `newline` action so GTK's input method sees Shift+Enter
-/// first. Plain Enter sends after GTK has delivered preceding text edits;
-/// keys typed during that short wait are replayed into the next draft.
+/// The field keeps `TextInputAction.send` so mobile keyboards show a Send key,
+/// but the desktop embedders ignore Shift and perform that action on any Enter.
+/// The composer therefore claims Shift+Enter itself, and leaves plain Enter to
+/// the embedder, which sends.
+///
+/// Windows and macOS: the composer handles the chord in its key handler.
+/// Linux: the chord goes to GTK's input method first (it may be composing
+/// with no composing range visible to Dart), and the embedder's `send` action
+/// that follows becomes a newline.
 
 final _interceptingDesktops = TargetPlatformVariant({
   TargetPlatform.windows,
@@ -458,57 +463,6 @@ void main() {
       await _tick(tester);
       expect(field.controller!.text, 'a\nbc');
       expect(harness.sends, hasLength(1));
-      client.expectNoRestart(tester);
-    },
-    skip: kIsWeb,
-    variant: _linux,
-  );
-
-  testWidgets(
-    'Linux: Backspace and paste during the send wait are not lost',
-    (tester) async {
-      // These were swallowed by the barrier's initial text-only buffer:
-      // `Return a BackSpace` left `a`, and `Return Ctrl+V` lost the paste.
-      final (harness, field) = await _pumpWithText(
-        tester,
-        const TextEditingValue(
-          text: 'hi',
-          selection: TextSelection.collapsed(offset: 2),
-        ),
-      );
-      final client = _Embedder.capture(tester);
-      final barrier = _Barrier.hold(tester);
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        const MethodChannel('pasteboard'),
-        (_) async => null,
-      );
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        (call) async =>
-            call.method == 'Clipboard.getData' ? {'text': 'pasted'} : null,
-      );
-      addTearDown(() {
-        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-          const MethodChannel('pasteboard'),
-          null,
-        );
-        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-          SystemChannels.platform,
-          null,
-        );
-      });
-
-      expect(await tester.sendKeyEvent(LogicalKeyboardKey.enter), isTrue);
-      expect(await tester.sendKeyEvent(LogicalKeyboardKey.keyA), isTrue);
-      expect(await tester.sendKeyEvent(LogicalKeyboardKey.backspace), isTrue);
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-      expect(await tester.sendKeyEvent(LogicalKeyboardKey.keyV), isTrue);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-      await barrier.release(tester);
-      await _tick(tester);
-
-      expect(harness.sentContents, ['hi']);
-      expect(field.controller!.text, 'pasted');
       client.expectNoRestart(tester);
     },
     skip: kIsWeb,

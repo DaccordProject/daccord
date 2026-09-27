@@ -11,16 +11,6 @@ part of 'message_pane.dart';
 @visibleForTesting
 const composerNativeInputBarrierChannel = 'daccord/composer/input_barrier';
 
-enum _BufferedComposerCommand { backspace, delete, paste, selectAll }
-
-class _BufferedComposerInput {
-  const _BufferedComposerInput.text(this.text) : command = null;
-  const _BufferedComposerInput.command(this.command) : text = null;
-
-  final String? text;
-  final _BufferedComposerCommand? command;
-}
-
 class _Composer extends ConsumerStatefulWidget {
   const _Composer({
     required this.channelId,
@@ -224,12 +214,12 @@ class _ComposerState extends ConsumerState<_Composer> {
     _send();
   }
 
-  /// Linux: a plain-Enter send is waiting for GTK's earlier edits or replaying
-  /// keys that arrived during that wait.
+  /// Linux: a plain-Enter send is waiting for [_sendAfterNativeEdits]'s
+  /// barrier.
   bool _awaitingNativeEdits = false;
 
-  /// Edits made while [_awaitingNativeEdits], replayed after the send in order.
-  final List<_BufferedComposerInput> _inputWhileAwaiting = [];
+  /// Text typed while [_awaitingNativeEdits], replayed after the send.
+  final StringBuffer _typedWhileAwaiting = StringBuffer();
 
   /// Linux plain Enter: sends only once GTK has delivered every edit for keys
   /// typed before the Enter (review of #384, r4102862858).
@@ -242,10 +232,11 @@ class _ComposerState extends ConsumerState<_Composer> {
   ///
   /// Keys pressed in that window (about a millisecond) are claimed and
   /// buffered by [_bufferWhileAwaiting]. If they reached GTK, it would apply
-  /// them to the draft being sent, and the late update would bring that draft
-  /// back after the clear. [_send] reads and clears the draft synchronously;
-  /// buffered edits are then replayed into the cleared field in order. The
-  /// text-input connection is never restarted.
+  /// them to the draft being sent, and the late update would bring that
+  /// draft back after the clear. [_send] then reads and clears the draft
+  /// synchronously, and the buffered text is inserted into the cleared field.
+  /// That field edit reaches GTK before any later key does. The text-input
+  /// connection is never restarted.
   Future<void> _sendAfterNativeEdits() async {
     _awaitingNativeEdits = true;
     try {
@@ -257,108 +248,32 @@ class _ComposerState extends ConsumerState<_Composer> {
       // No reply only costs the ordering guarantee; don't leave Enter dead.
     }
     if (!mounted) return;
-    _send();
-    // Keep claiming keys while an asynchronous paste is replayed. New inputs
-    // join the same queue and are applied after it.
-    while (mounted && _inputWhileAwaiting.isNotEmpty) {
-      final input = _inputWhileAwaiting.removeAt(0);
-      final text = input.text;
-      if (text != null) {
-        _insertAtCursor(text);
-        _onChanged(_controller.text);
-        continue;
-      }
-      switch (input.command) {
-        case _BufferedComposerCommand.backspace:
-          _deleteBufferedCharacter(forward: false);
-        case _BufferedComposerCommand.delete:
-          _deleteBufferedCharacter(forward: true);
-        case _BufferedComposerCommand.paste:
-          final before = _controller.text;
-          await _handlePaste();
-          if (mounted && _controller.text != before) {
-            _onChanged(_controller.text);
-          }
-        case _BufferedComposerCommand.selectAll:
-          _controller.selection = TextSelection(
-            baseOffset: 0,
-            extentOffset: _controller.text.length,
-          );
-        case null:
-          break;
-      }
-    }
     _awaitingNativeEdits = false;
+    final typed = _typedWhileAwaiting.toString();
+    _typedWhileAwaiting.clear();
+    _send();
+    if (typed.isNotEmpty) {
+      _insertAtCursor(typed);
+      _onChanged(_controller.text);
+    }
   }
 
   /// Keeps the text of a key claimed while [_awaitingNativeEdits].
   ///
   /// Shift+Enter keeps its newline. Plain Enter is dropped because the draft
-  /// is already being sent. Common editing keys must also be replayed: dropping
-  /// Backspace or Ctrl+V here loses a key typed right after Enter.
+  /// is already being sent. Shortcuts and non-printing keys are dropped too.
   void _bufferWhileAwaiting(KeyEvent event, HardwareKeyboard mods) {
-    if (mods.isControlPressed || mods.isMetaPressed) {
-      if (!mods.isAltPressed && event.logicalKey == LogicalKeyboardKey.keyV) {
-        _inputWhileAwaiting.add(
-          const _BufferedComposerInput.command(_BufferedComposerCommand.paste),
-        );
-      } else if (!mods.isAltPressed &&
-          event.logicalKey == LogicalKeyboardKey.keyA) {
-        _inputWhileAwaiting.add(
-          const _BufferedComposerInput.command(
-            _BufferedComposerCommand.selectAll,
-          ),
-        );
-      }
+    if (mods.isControlPressed || mods.isMetaPressed || mods.isAltPressed) {
       return;
     }
-    if (mods.isAltPressed) return;
     if (_isEnterKey(event)) {
-      if (mods.isShiftPressed) {
-        _inputWhileAwaiting.add(const _BufferedComposerInput.text('\n'));
-      }
-      return;
-    }
-    if (event.logicalKey == LogicalKeyboardKey.backspace) {
-      _inputWhileAwaiting.add(
-        const _BufferedComposerInput.command(
-          _BufferedComposerCommand.backspace,
-        ),
-      );
-      return;
-    }
-    if (event.logicalKey == LogicalKeyboardKey.delete) {
-      _inputWhileAwaiting.add(
-        const _BufferedComposerInput.command(_BufferedComposerCommand.delete),
-      );
+      if (mods.isShiftPressed) _typedWhileAwaiting.write('\n');
       return;
     }
     final character = event.character;
     if (character == null || character.isEmpty) return;
     if (character.runes.any((r) => r < 0x20 || r == 0x7f)) return;
-    _inputWhileAwaiting.add(_BufferedComposerInput.text(character));
-  }
-
-  void _deleteBufferedCharacter({required bool forward}) {
-    final value = _controller.value;
-    final selection = value.selection;
-    if (!selection.isValid) return;
-    var start = selection.start;
-    var end = selection.end;
-    if (selection.isCollapsed) {
-      if (forward) {
-        if (end == value.text.length) return;
-        end += value.text.substring(end).characters.first.length;
-      } else {
-        if (start == 0) return;
-        start -= value.text.substring(0, start).characters.last.length;
-      }
-    }
-    _controller.value = TextEditingValue(
-      text: value.text.replaceRange(start, end, ''),
-      selection: TextSelection.collapsed(offset: start),
-    );
-    _onChanged(_controller.text);
+    _typedWhileAwaiting.write(character);
   }
 
   /// Inserts a line break at the caret, replacing any selection, and runs the
