@@ -1,5 +1,11 @@
+import 'dart:async';
+
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
+import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/messaging/controllers/reaction_journal.dart';
 import 'package:bonfire/features/messaging/controllers/pending_uploads.dart';
+import 'package:bonfire/features/messaging/controllers/history_request.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/shared/controllers/load_failed.dart';
@@ -12,6 +18,23 @@ import 'package:flutter/widgets.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'accord_messages.g.dart';
+
+/// An emoji whose aggregate must be settled from the reactor listing, with the
+/// reaction changes the history fetch saw for it.
+/// A reactor listing in flight: the snapshot generation it may settle, and
+/// the reaction changes received since it started.
+final class _ReactorRefresh {
+  _ReactorRefresh(this.generation, this.ops);
+  final int generation;
+  final List<ReactionOp> ops;
+}
+
+typedef _PendingRefresh = ({
+  String messageId,
+  String key,
+  Map<String, dynamic> emoji,
+  List<ReactionOp> ops,
+});
 
 /// Channels that currently have a live message controller. The gateway handler
 /// consults this so it only mutates caches the UI has actually opened, rather
@@ -50,6 +73,12 @@ LoadFailedProvider messagesLoadFailedProvider(
 class AccordMessagesController extends _$AccordMessagesController {
   @override
   List<AccordMessage>? build(String serverKey, String channelId) {
+    _history.reset();
+    _resetReactorRefreshes();
+    isLoadingOlder = false;
+    hasMoreOlder = true;
+    ref.onDispose(_history.reset);
+    ref.onDispose(_resetReactorRefreshes);
     final key = (serverKey: serverKey, channelId: channelId);
     activeMessageChannels.add(key);
     ref.onDispose(() => activeMessageChannels.remove(key));
@@ -75,25 +104,40 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// older history to fetch. UI hides its "load older" affordance when set.
   bool hasMoreOlder = true;
 
+  final _history = HistoryRequests();
+
+  bool _owns(HistoryRequest request, AccordClient client) =>
+      ref.mounted &&
+      _history.owns(request) &&
+      ref.isCurrentAccordClient(serverKey, client);
+
   Future<void> _load(AccordClient client, String channelId) async {
-    final result = await client.messages.list(
-      channelId,
-      query: {'limit': _pageSize},
-    );
-    // Every write to the load-failed flag below happens after this `await`:
-    // `build` calls `_load` synchronously, and Riverpod forbids a provider
-    // mutating another during initialization.
-    if (!ref.mounted) return;
-    if (!ref.isCurrentAccordClient(serverKey, client)) return;
-    final list = result.listOrLog<AccordMessage>('messages for $channelId');
-    if (list == null) {
-      _setLoadFailed(true);
-      return;
+    if (!ref.mounted || !ref.isCurrentAccordClient(serverKey, client)) return;
+    final request = _history.begin();
+    isLoadingOlder = false;
+    try {
+      final result = await client.messages.list(
+        channelId,
+        query: {'limit': _pageSize},
+      );
+      // build starts this synchronously: writes to other providers must follow
+      // the await, and only the current request may publish any result.
+      if (!_owns(request, client)) return;
+      final list = result.listOrLog<AccordMessage>('messages for $channelId');
+      if (list == null) {
+        _setLoadFailed(true);
+        return;
+      }
+      hasMoreOlder = list.length >= _pageSize;
+      final rows = _history.reconcile(list.reversed, state ?? const []);
+      final pending = _replayReactions(rows);
+      _snapshotGeneration++;
+      state = rows;
+      _setLoadFailed(false);
+      _refreshReactors(client, pending);
+    } finally {
+      if (_owns(request, client)) _history.finish(request);
     }
-    // The REST list returns newest-first; store oldest-first for display.
-    state = list.reversed.toList();
-    if (list.length < _pageSize) hasMoreOlder = false;
-    _setLoadFailed(false);
   }
 
   void _setLoadFailed(bool value) => ref
@@ -105,10 +149,15 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// event replay, so anything that happened while disconnected is missing
   /// from the cache until refetched.
   Future<void> reload(AccordClient client) {
-    // Reset the pagination guard so that if loadOlder was in flight its
-    // eventual state-write is superseded by the reload result.
-    isLoadingOlder = false;
-    hasMoreOlder = true;
+    // A reload supersedes an in-flight [loadOlder], whose cleanup will then no
+    // longer run. Clear its spinner now, and notify: the older-history header
+    // watches only this list, so a bare flag change (and a reload that then
+    // fails without publishing a list) would leave the spinner up.
+    if (isLoadingOlder) {
+      isLoadingOlder = false;
+      final s = state;
+      if (s != null) state = [...s];
+    }
     return _load(client, channelId);
   }
 
@@ -118,9 +167,11 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// messages loaded (0 means "no more"). Mirrors the reference client's
   /// scroll-up pagination via the `before` cursor.
   Future<int> loadOlder(AccordClient client) async {
-    if (isLoadingOlder || !hasMoreOlder) return 0;
+    if (!ref.mounted || !ref.isCurrentAccordClient(serverKey, client)) return 0;
+    if (_history.isLoading || !hasMoreOlder) return 0;
     final current = state;
     if (current == null || current.isEmpty) return 0;
+    final request = _history.begin();
     isLoadingOlder = true;
     // Bump state so widgets watching the list rebuild and can show a spinner.
     state = [...current];
@@ -130,7 +181,7 @@ class AccordMessagesController extends _$AccordMessagesController {
         channelId,
         query: {'limit': _pageSize, 'before': oldestId},
       );
-      if (!ref.mounted) return 0;
+      if (!_owns(request, client)) return 0;
       final page = result.listOrLog<AccordMessage>(
         'older messages for $channelId',
       );
@@ -138,17 +189,21 @@ class AccordMessagesController extends _$AccordMessagesController {
       if (page.length < _pageSize) hasMoreOlder = false;
       if (page.isEmpty) return 0;
       // REST returns newest-first within the page; prepend oldest-first.
-      final older = page.reversed.toList();
+      final older = _history.reconcile(page.reversed, const []);
       final newest = state ?? current;
       // Dedupe in case an overlapping message snuck in (e.g. live insert).
       final knownIds = newest.map((m) => m.id).toSet();
-      final fresh = older.where((m) => !knownIds.contains(m.id)).toList();
+      final fresh = older.where((m) => knownIds.add(m.id)).toList();
+      final pending = _replayReactions(fresh);
       state = [...fresh, ...newest];
+      _refreshReactors(client, pending);
       return fresh.length;
     } finally {
-      isLoadingOlder = false;
-      // Bump state again so the spinner-watching widget rebuilds.
-      if (ref.mounted) {
+      // Cleanup belongs to the request too: an obsolete page must not clear
+      // a newer page's spinner or notify its listeners.
+      if (_owns(request, client)) {
+        _history.finish(request);
+        isLoadingOlder = false;
         final s = state;
         if (s != null) state = [...s];
       }
@@ -231,6 +286,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     final message = current.firstWhereOrNull((m) => m.id == messageId);
     if (message == null || message.pinned == pinned) return;
     message.pinned = pinned;
+    _history.patch(messageId, (m) => m.pinned = pinned);
     state = [...current];
   }
 
@@ -281,6 +337,9 @@ class AccordMessagesController extends _$AccordMessagesController {
     if (!result.ok) {
       debugPrint('Failed to bulk-delete in $channelId: ${result.error}');
       return false;
+    }
+    for (final id in messageIds) {
+      _history.remove(id);
     }
     final current = state;
     if (current != null) {
@@ -345,15 +404,18 @@ class AccordMessagesController extends _$AccordMessagesController {
   void addMessage(AccordMessage message) {
     final current = state ?? const <AccordMessage>[];
     if (current.any((m) => m.id == message.id)) return;
+    _history.add(message);
     state = [...current, message];
   }
 
   void updateMessage(AccordMessage message) {
+    _history.update(message);
     final next = state?.replaceById(message, (m) => m.id);
     if (next != null) state = next;
   }
 
   void removeMessage(String messageId) {
+    _history.remove(messageId);
     final current = state;
     if (current == null) return;
     state = current.removeById(messageId, (m) => m.id);
@@ -477,13 +539,25 @@ class AccordMessagesController extends _$AccordMessagesController {
     required bool added,
     required bool isOwn,
     String? emojiId,
+    String? userId,
   }) {
+    final key = _emojiKey(emojiName, emojiId);
+    // Journal before the cache checks: a message missing from the cache may
+    // be in the snapshot being fetched.
+    _journalReaction(
+      messageId,
+      ReactionDelta(
+        key: key,
+        emoji: {'id': emojiId, 'name': key},
+        actor: isOwn ? selfReactor : userId,
+        added: added,
+      ),
+    );
     final current = state;
     if (current == null) return;
     final message = current.firstWhereOrNull((m) => m.id == messageId);
     if (message == null) return;
 
-    final key = _emojiKey(emojiName, emojiId);
     final reactions = [...(message.reactions ?? const <AccordReaction>[])];
     final index = reactions.indexWhere((r) => _emojiName(r) == key);
 
@@ -520,23 +594,197 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// Removes a single emoji's reactions from [messageId] (gateway
   /// `reaction.clear_emoji`).
   void clearReactionEmoji(String messageId, String emojiName) {
+    final key = _emojiKey(emojiName, null);
+    _journalReaction(messageId, ReactionClear(key));
     final current = state;
     if (current == null) return;
     final message = current.firstWhereOrNull((m) => m.id == messageId);
     if (message?.reactions == null) return;
     message!.reactions = message.reactions!
-        .where((r) => _emojiName(r) != _emojiKey(emojiName, null))
+        .where((r) => _emojiName(r) != key)
         .toList();
     state = [...current];
   }
 
   /// Removes all reactions from [messageId] (gateway `reaction.clear`).
   void clearReactions(String messageId) {
+    _journalReaction(messageId, const ReactionClear());
     final current = state;
     if (current == null) return;
     final message = current.firstWhereOrNull((m) => m.id == messageId);
     if (message == null) return;
     message.reactions = <AccordReaction>[];
+    state = [...current];
+  }
+
+  // ── Reaction reconciliation ───────────────────────────────────────────────
+  // A reaction event that arrives while a history page or a reactor listing
+  // is in flight is recorded per user and replayed onto the fetched copy, so
+  // server reactions the event did not touch survive and the event is never
+  // counted twice. See reaction_journal.dart.
+
+  /// The reactor listing in flight per (message, emoji). Only this one may
+  /// settle that emoji.
+  final _reactorRefreshes = <(String, String), _ReactorRefresh>{};
+  int _reactorSession = 0;
+
+  /// Advanced each time a newest-page snapshot is published. A reactor listing
+  /// settles only the snapshot it was started for. A newer snapshot already
+  /// includes every change the older listing was started for, and replacing
+  /// it with that listing (which may finish later) would bring back an old
+  /// count.
+  int _snapshotGeneration = 0;
+
+  /// Reactor listings larger than this are truncated and cannot be trusted as
+  /// a full set; the server count then stands.
+  static const _reactorLimit = 100;
+
+  void _resetReactorRefreshes() {
+    _reactorSession++;
+    _reactorRefreshes.clear();
+  }
+
+  void _journalReaction(String messageId, ReactionOp op) {
+    _history.recordReaction(messageId, op);
+    for (final entry in _reactorRefreshes.entries) {
+      final (id, key) = entry.key;
+      if (id == messageId && op.touches(key)) entry.value.ops.add(op);
+    }
+  }
+
+  /// Replays the reaction changes journaled during the fetch onto [rows].
+  /// Returns the emojis whose other-user changes need the reactor listing.
+  /// Each carries the fetch's changes for it, to replay onto the listing too.
+  List<_PendingRefresh> _replayReactions(List<AccordMessage> rows) {
+    final pending = <_PendingRefresh>[];
+    for (final row in rows) {
+      final ops = _history.reactionOps(row.id);
+      if (ops.isEmpty) continue;
+      for (final p in replayReactionOps(row, ops, _emojiName)) {
+        pending.add((
+          messageId: row.id,
+          key: p.key,
+          emoji: p.emoji,
+          ops: [...ops.where((op) => op.touches(p.key))],
+        ));
+      }
+    }
+    return pending;
+  }
+
+  void _refreshReactors(AccordClient client, List<_PendingRefresh> pending) {
+    for (final p in pending) {
+      unawaited(_refreshReactor(client, p.messageId, p.key, p.emoji, p.ops));
+    }
+  }
+
+  /// Settles one emoji's aggregate from the server's reactor list, with the
+  /// changes received since the request replayed per user on top.
+  Future<void> _refreshReactor(
+    AccordClient client,
+    String messageId,
+    String key,
+    Map<String, dynamic> emoji,
+    List<ReactionOp> earlier,
+  ) async {
+    final id = (messageId, key);
+    // One in flight for the same snapshot already journals every change since
+    // it started. One started for an older snapshot is replaced: its result
+    // can no longer be applied.
+    if (_reactorRefreshes[id]?.generation == _snapshotGeneration) return;
+    // The fetch's changes are replayed too. The listing is requested after
+    // they arrived, so replaying them per user is idempotent.
+    final refresh = _reactorRefreshes[id] = _ReactorRefresh(
+      _snapshotGeneration,
+      [...earlier],
+    );
+    final ops = refresh.ops;
+    final session = _reactorSession;
+    try {
+      final emojiId = emoji['id']?.toString();
+      final token = emojiId != null && emojiId.isNotEmpty
+          ? '$key:$emojiId'
+          : resolveEmojiGlyph(key);
+      final result = await client.reactions.listUsers(
+        channelId,
+        messageId,
+        token,
+        query: {'limit': _reactorLimit},
+      );
+      if (!ref.mounted ||
+          session != _reactorSession ||
+          !ref.isCurrentAccordClient(serverKey, client)) {
+        return;
+      }
+      // A newer snapshot, or a newer listing for this emoji, has won.
+      if (!identical(_reactorRefreshes[id], refresh) ||
+          refresh.generation != _snapshotGeneration) {
+        return;
+      }
+      final data = result.data;
+      if (!result.ok || data is! List) {
+        debugPrint('Failed to list reactors for $messageId: ${result.error}');
+        return;
+      }
+      if (data.length >= _reactorLimit) return;
+      final reactors = <String>{
+        for (final item in data)
+          if (item is AccordUser ? item.id : item.toString() case final uid
+              when uid.isNotEmpty)
+            _isSelf(uid) ? selfReactor : uid,
+      };
+      _setReactors(
+        messageId,
+        key,
+        emoji,
+        replayOntoReactors(reactors, ops, key),
+      );
+    } finally {
+      if (session == _reactorSession &&
+          identical(_reactorRefreshes[id], refresh)) {
+        _reactorRefreshes.remove(id);
+      }
+    }
+  }
+
+  bool _isSelf(String userId) {
+    final auth = ref.read(accordAuthProvider);
+    return auth is AccordAuthLoggedIn &&
+        isSameUser(
+          userId,
+          auth.session.userId,
+          localDomain: auth.session.server.homeDomain,
+        );
+  }
+
+  void _setReactors(
+    String messageId,
+    String key,
+    Map<String, dynamic> emoji,
+    Set<String> reactors,
+  ) {
+    final current = state;
+    if (current == null) return;
+    final message = current.firstWhereOrNull((m) => m.id == messageId);
+    if (message == null) return;
+    final reactions = [...(message.reactions ?? const <AccordReaction>[])];
+    final index = reactions.indexWhere((r) => _emojiName(r) == key);
+    if (reactors.isEmpty) {
+      if (index < 0) return;
+      reactions.removeAt(index);
+    } else {
+      final settled = AccordReaction(
+        emoji: index < 0 ? Map.of(emoji) : reactions[index].emoji,
+        count: reactors.length,
+        includesMe: reactors.contains(selfReactor),
+      );
+      if (index < 0) {
+        reactions.add(settled);
+      } else {
+        reactions[index] = settled;
+      }
+    }
+    message.reactions = reactions;
     state = [...current];
   }
 
