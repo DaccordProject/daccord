@@ -22,11 +22,8 @@ class _ChannelList extends ConsumerStatefulWidget {
 class _ChannelListState extends ConsumerState<_ChannelList> {
   /// What to render in place of the channel list while there is none.
   ///
-  /// A null channel list means one of three different things and they must not
-  /// all read as a spinner: the space list failed, this space's channel list
-  /// failed, the gateway is down, or we're genuinely still loading. The first
-  /// three get an explanation and a Retry (see `LoadFailed`); only the last one
-  /// spins.
+  /// A null channel list can mean loading, a failed request, or a successfully
+  /// loaded account with no spaces. Only the loading case should spin.
   Widget _emptyState(BuildContext context, {required String? spaceId}) {
     final serverKey = ref.watchActiveServerKey() ?? '';
 
@@ -56,18 +53,66 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
       );
     }
 
-    final status = ref.watch(
-      connectionsControllerProvider.select(
-        (connections) =>
-            connections.active?.status ?? ConnectionStatus.disconnected,
-      ),
+    final connection = ref.watch(
+      connectionsControllerProvider.select((connections) => connections.active),
     );
+    final status = connection?.status ?? ConnectionStatus.disconnected;
     if (status.isUnreachable) {
       return ServerUnreachable(
         onRetry: () {
           final auth = ref.read(accordAuthProvider);
           if (auth is AccordAuthLoggedIn) auth.client.ensureConnected();
         },
+      );
+    }
+    // Auth seeds an empty cache before READY. Wait for the authoritative space
+    // fetch before treating that cache as an account with no memberships.
+    if (spaceId == null &&
+        status == ConnectionStatus.ready &&
+        connection?.spacesReady == true &&
+        ref.watch(spacesControllerProvider)?.isEmpty == true) {
+      final isAdmin = ref.watchIsAdmin();
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.grid_view_outlined, size: 40),
+              const SizedBox(height: 12),
+              Text(
+                'No spaces yet',
+                style: Theme.of(context).textTheme.titleSmall,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'You haven’t joined any spaces on this server.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => showAddServerDialog(context),
+                child: const Text('Join with invite'),
+              ),
+              TextButton(
+                onPressed: () => showAccordDiscovery(context),
+                child: const Text('Explore public spaces'),
+              ),
+              if (isAdmin) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'You can manage this server without joining a space.',
+                  textAlign: TextAlign.center,
+                ),
+                TextButton(
+                  onPressed: () => context.push('/admin'),
+                  child: const Text('Server administration'),
+                ),
+              ],
+            ],
+          ),
+        ),
       );
     }
     return const LoadingView();
