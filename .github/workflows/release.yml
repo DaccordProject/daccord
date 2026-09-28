@@ -274,7 +274,9 @@ jobs:
             libgtk-3-dev liblzma-dev libsecret-1-dev \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             libunwind-dev libdw-dev \
-            libmpv-dev mpv
+            libmpv-dev mpv \
+            xvfb xdotool imagemagick libgl1-mesa-dri dbus gnome-keyring \
+            gstreamer1.0-plugins-base
 
       - name: Install NASM (Windows)
         if: matrix.platform == 'windows'
@@ -368,6 +370,20 @@ jobs:
         env:
           ANDROID_SIGNING_CERT_SHA256: ${{ secrets.ANDROID_SIGNING_CERT_SHA256 }}
         run: dist/verify-android-signing.sh "${{ matrix.artifact }}.apk"
+
+      - name: Check the window renders (Linux)
+        # Pixel check on the exact bundle being shipped, on both GTK compositor
+        # paths; v0.2.22 shipped a Flutter beta that left NVIDIA windows black.
+        if: matrix.platform == 'linux'
+        run: dist/verify-linux-render.sh build/linux/x64/release/bundle "$RUNNER_TEMP/render"
+
+      - name: Upload render screenshots (Linux)
+        if: matrix.platform == 'linux' && always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-render-screenshots
+          path: ${{ runner.temp }}/render/*.png
+          if-no-files-found: ignore
 
       - name: Package (Linux)
         if: matrix.platform == 'linux'

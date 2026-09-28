@@ -22,6 +22,10 @@ name: CI
 #                surface, against the same server image. Non-blocking; the
 #                most expensive suite (release build + two apps).
 #                See multi_instance/README.md.
+# - `linux-render`: blocking pixel check that the Linux release bundle paints
+#                its whole window on both GTK compositor paths — the only test
+#                that sees an engine/embedder rendering fault (v0.2.22).
+#                See dist/verify-linux-render.sh.
 # - `livekit-sfu`: manual/advisory two-process voice run against a real SFU;
 #                enable it from workflow_dispatch with the livekit_sfu input.
 # - `build`    : release builds for Web (JavaScript) / Android / Linux /
@@ -546,6 +550,65 @@ jobs:
             exit 1
           fi
           exit $status
+
+  linux-render:
+    name: Linux render smoke
+    # Blocking: widget and integration tests inspect Flutter's layer tree and
+    # passed on v0.2.22 while its Flutter beta left the window black on NVIDIA.
+    # This launches the real release bundle under xvfb and checks the pixels,
+    # including the non-blit compositor path NVIDIA drivers take. GitHub-hosted
+    # for the same reason as ui-e2e.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Cache pub + native deps
+        uses: actions/cache@v6
+        with:
+          key: pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('pubspec.lock') }}
+          path: ${{ github.workspace }}/.pub-cache
+          restore-keys: |
+            pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-
+
+      - name: Install Linux build and render-check dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libsecret-1-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libunwind-dev libdw-dev \
+            libmpv-dev mpv \
+            xvfb xdotool imagemagick libgl1-mesa-dri dbus gnome-keyring \
+            gstreamer1.0-plugins-base
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build the app
+        run: flutter build linux --release
+
+      - name: Check the window renders
+        run: dist/verify-linux-render.sh build/linux/x64/release/bundle "$RUNNER_TEMP/render"
+
+      - name: Upload render screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-render-screenshots
+          path: ${{ runner.temp }}/render/*.png
+          if-no-files-found: ignore
 
   livekit-sfu:
     name: Real LiveKit SFU (two clients, opt-in)
