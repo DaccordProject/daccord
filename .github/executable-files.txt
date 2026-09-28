@@ -11,3 +11,4 @@ scripts/setup.sh
 scripts/start.sh
 store-media/ios-generator/capture-inner.sh
 store-media/ios-generator/render.sh
+dist/verify-linux-render.sh
