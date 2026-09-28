@@ -5,13 +5,19 @@
 /// metadata. Every path and resource limit is validated before any entry is
 /// written, and the staging directory is removed again on any failure.
 ///
+/// Extraction runs on a worker isolate and inflates with `dart:io`'s native
+/// zlib: a desktop bundle is tens of megabytes, and `archive`'s pure-Dart
+/// inflater (which reads every back-reference back from the output file) on the
+/// UI isolate froze the app for minutes after "Restart and install".
+///
 /// `dart:io` only — reachable solely through the native half of
 /// `update_installer.dart`'s conditional export (via `update_installer_io.dart`).
 library;
 
 import 'dart:io';
+import 'dart:isolate';
 
-import 'package:archive/archive_io.dart';
+import 'package:archive/archive_io.dart' hide ZLibDecoder;
 import 'package:path/path.dart' as p;
 
 /// Thrown when an in-place install can't complete; carries a user-facing message.
@@ -50,6 +56,19 @@ Future<Directory> extractArchive(
   Directory dest,
   UpdateArchiveLimits limits,
 ) async {
+  final archivePath = archiveFile.path;
+  final destPath = dest.path;
+  await Isolate.run(() => _extractArchive(archivePath, destPath, limits));
+  return dest;
+}
+
+Future<void> _extractArchive(
+  String archivePath,
+  String destPath,
+  UpdateArchiveLimits limits,
+) async {
+  final archiveFile = File(archivePath);
+  final dest = Directory(destPath);
   if (archiveFile.lengthSync() > limits.maxCompressedBytes) {
     throw UpdateInstallException('The update archive is too large.');
   }
@@ -85,7 +104,6 @@ Future<Directory> extractArchive(
     final root = dest.resolveSymbolicLinksSync();
     final entries = _validateEntries(archive, root, limits);
     _extractEntries(entries, root, limits);
-    return dest;
   } on UpdateInstallException {
     if (destinationPrepared) deleteEntity(dest.path);
     rethrow;
@@ -115,7 +133,8 @@ void _inflateGzip(File source, File destination, UpdateArchiveLimits limits) {
     _ByteBudget(limits.maxExpandedBytes),
   );
   try {
-    GZipDecoder().decodeStream(input, limited);
+    _inflate(input, gzip.decoder, limited);
+    limited.flush();
   } on UpdateInstallException {
     rethrow;
   } catch (_) {
@@ -242,6 +261,7 @@ void _preflightTar(File source, UpdateArchiveLimits limits) {
       if (entries > limits.maxEntries) {
         throw UpdateInstallException('The update archive has too many files.');
       }
+      if (_isRootDirectory(file.filename, isDirectory: !file.isFile)) continue;
       _normalizeEntryName(file.filename);
       expandedBytes += file.fileSize;
       if (expandedBytes > limits.maxExpandedBytes) {
@@ -277,6 +297,8 @@ List<_ValidatedArchiveEntry> _validateEntries(
         'The update archive expands beyond the safe limit.',
       );
     }
+    final isDirectory = !entry.isFile && !entry.isSymbolicLink;
+    if (_isRootDirectory(entry.name, isDirectory: isDirectory)) continue;
     final relativePath = _normalizeEntryName(entry.name);
     final outputPath = _containedPath(root, relativePath);
     final pathKey = Platform.isWindows ? outputPath.toLowerCase() : outputPath;
@@ -343,9 +365,10 @@ void _writeArchiveFile(
     final compression = entry.compressionType;
     final rawContent = entry.rawContent;
     entry.clear();
-    if (compression == ArchiveFile.STORE ||
-        compression == ArchiveFile.DEFLATE) {
+    if (compression == ArchiveFile.STORE) {
       entry.decompress(limited);
+    } else if (compression == ArchiveFile.DEFLATE && rawContent != null) {
+      _inflate(rawContent, ZLibDecoder(raw: true), limited);
     } else if (compression == 12 && rawContent != null) {
       BZip2Decoder().decodeStream(rawContent, limited);
     } else {
@@ -360,6 +383,30 @@ void _writeArchiveFile(
   } finally {
     output.closeSync();
   }
+}
+
+/// Streams compressed [input] through a native zlib [decoder] into [output].
+void _inflate(
+  InputStreamBase input,
+  ZLibDecoder decoder,
+  OutputStreamBase output,
+) {
+  final sink = decoder.startChunkedConversion(_OutputStreamSink(output));
+  const chunkSize = 64 * 1024;
+  while (!input.isEOS) {
+    final count = input.length > chunkSize ? chunkSize : input.length;
+    if (count <= 0) break;
+    sink.add(input.readBytes(count).toUint8List());
+  }
+  sink.close();
+}
+
+/// Whether [name] is the archive's own root directory — the `./` entry that
+/// `tar czf … .` (how the release workflow packs the Linux bundle) emits first.
+/// It carries nothing to extract, so it is skipped rather than rejected.
+bool _isRootDirectory(String name, {required bool isDirectory}) {
+  final raw = name.replaceAll('\\', '/');
+  return isDirectory && (raw == '.' || raw == './');
 }
 
 String _normalizeEntryName(String name) {
@@ -502,13 +549,6 @@ class _LimitedOutputStream extends OutputStreamBase {
     }
   }
 
-  List<int> subset(int start, [int? end]) {
-    final output = _output;
-    if (output is OutputFileStream) return output.subset(start, end);
-    if (output is OutputStream) return output.subset(start, end);
-    throw StateError('The bounded archive output cannot be read back.');
-  }
-
   @override
   void writeUint16(int value) {
     writeByte(value & 0xff);
@@ -526,4 +566,17 @@ class _LimitedOutputStream extends OutputStreamBase {
     writeUint32(value & 0xffffffff);
     writeUint32((value >> 32) & 0xffffffff);
   }
+}
+
+/// Adapts an [OutputStreamBase] to the [Sink] a chunked zlib conversion writes to.
+class _OutputStreamSink implements Sink<List<int>> {
+  _OutputStreamSink(this._output);
+
+  final OutputStreamBase _output;
+
+  @override
+  void add(List<int> data) => _output.writeBytes(data);
+
+  @override
+  void close() {}
 }

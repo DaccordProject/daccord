@@ -53,6 +53,13 @@ root-owned `/opt` that cannot succeed, and relaunches the old build with nothing
 shown to the user. Those clients can't be fixed in code — withholding the suffix
 they key on is what routes them to the `.deb` download instead.
 
+The `.tgz` is packed with `tar czf … .`, so its first entry is the archive root
+`./`. Clients v0.2.14–v0.2.22 reject that entry as an unsafe path, after
+inflating the bundle on the UI thread for several minutes. On those versions,
+"Restart and install" freezes the app and then fails, so their Linux tarball users
+must download the next release manually. Later clients skip the root entry and
+extract on a worker isolate with native zlib.
+
 Code signing / notarization (#90) and an iOS distribution path (#89) are tracked
 separately and are **not** part of this cutover.
 

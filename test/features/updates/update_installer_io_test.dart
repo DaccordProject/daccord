@@ -106,6 +106,53 @@ void main() {
       }
     });
 
+    test('extracts a release tarball rooted at ./', () async {
+      // `tar czf bundle.tgz .` — how release.yml packs the Linux bundle —
+      // emits the archive root itself as a leading `./` directory entry.
+      final archive = tarGzFixture('release.tgz', [
+        ArchiveFile('./', 0, null)..isFile = false,
+        ArchiveFile('./lib/', 0, null)..isFile = false,
+        ArchiveFile('./daccord', 3, utf8.encode('bin')),
+        ArchiveFile('./lib/libapp.so', 3, utf8.encode('app')),
+      ]);
+      final destination = Directory(p.join(temp.path, 'release-staged'));
+
+      await UpdateInstaller().extractArchiveForTesting(archive, destination);
+
+      expect(
+        File(p.join(destination.path, 'daccord')).readAsStringSync(),
+        'bin',
+      );
+      expect(
+        File(p.join(destination.path, 'lib', 'libapp.so')).readAsStringSync(),
+        'app',
+      );
+    });
+
+    test('inflates deflated zip entries', () async {
+      final content = utf8.encode('daccord ' * 4096);
+      final archive = zipFixture('deflated.zip', [
+        ArchiveFile('bundle/app', content.length, content),
+      ]);
+      final destination = Directory(p.join(temp.path, 'deflated-staged'));
+
+      await UpdateInstaller().extractArchiveForTesting(archive, destination);
+
+      expect(
+        File(p.join(destination.path, 'bundle', 'app')).readAsBytesSync(),
+        content,
+      );
+    });
+
+    test('still rejects a file entry named for the archive root', () async {
+      await expectRejected(
+        UpdateInstaller(),
+        tarGzFixture('root-file.tgz', [
+          ArchiveFile('.', 3, utf8.encode('bad')),
+        ]),
+      );
+    });
+
     test('rejects parent traversal and absolute archive paths', () async {
       final installer = UpdateInstaller();
       final fixtures = [
