@@ -1,3 +1,5 @@
+import 'package:bonfire/shared/utils/server_timestamp.dart';
+
 const _weekdays = [
   'Monday',
   'Tuesday',
@@ -115,7 +117,7 @@ String conversationTimeString(DateTime local, {DateTime? now}) {
 /// `AccordMessage.timestamp`), converted to local time. Empty when [iso]
 /// doesn't parse.
 String messageTimeFromIso(String iso, {DateTime? now}) {
-  final dt = DateTime.tryParse(iso);
+  final dt = parseServerTimestamp(iso);
   if (dt == null) return '';
   return messageTimeString(dt.toLocal(), now: now);
 }
@@ -123,7 +125,7 @@ String messageTimeFromIso(String iso, {DateTime? now}) {
 /// [messageClockString] for a raw ISO-8601 [iso] timestamp, converted to local
 /// time. Empty when [iso] doesn't parse.
 String messageClockFromIso(String iso) {
-  final dt = DateTime.tryParse(iso);
+  final dt = parseServerTimestamp(iso);
   if (dt == null) return '';
   return messageClockString(dt.toLocal());
 }
@@ -141,7 +143,7 @@ String messageTimestampString(DateTime local) {
 /// [messageTimestampString] for a raw ISO-8601 [iso] timestamp, converted to
 /// local time. Empty when [iso] doesn't parse.
 String messageTimestampFromIso(String iso) {
-  final dt = DateTime.tryParse(iso);
+  final dt = parseServerTimestamp(iso);
   if (dt == null) return '';
   return messageTimestampString(dt.toLocal());
 }

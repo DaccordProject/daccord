@@ -154,6 +154,24 @@ void main() {
     expect(find.text(conversationTimeString(sentAt)), findsOneWidget);
   });
 
+  testWidgets('zone-less UTC preview time displays in device local time', (
+    tester,
+  ) async {
+    final instant = DateTime.utc(2026, 9, 28, 16, 15);
+    final message = _message('u2', 'UTC preview', instant)
+      ..timestamp = '2026-09-28 16:15:00';
+    container
+        .read(dmChannelsControllerProvider('').notifier)
+        .setPreview('dm1', message);
+
+    await openDialog(tester);
+
+    final local = instant.toLocal();
+    expect(find.text('UTC preview'), findsOneWidget);
+    expect(find.text(conversationTimeString(local)), findsOneWidget);
+    expect(find.byTooltip(messageTimestampString(local)), findsOneWidget);
+  });
+
   testWidgets('a preview without a time shows no time label', (tester) async {
     await openDialog(tester);
 

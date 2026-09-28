@@ -2,6 +2,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/shared/utils/list_ext.dart';
+import 'package:bonfire/shared/utils/server_timestamp.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'dm_channels.g.dart';
@@ -255,7 +256,7 @@ class _DmPreview {
   _DmPreview.of(AccordMessage message)
     : this(
         _messagePreview(message),
-        DateTime.tryParse(message.timestamp)?.toLocal(),
+        parseServerTimestamp(message.timestamp)?.toLocal(),
         message.authorId,
       );
 

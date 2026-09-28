@@ -1,6 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/messaging/utils/send_cooldown.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/server_timestamp.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
@@ -511,15 +512,15 @@ String resolveForumPostTitle(AccordMessage post) {
 /// Parses an ISO timestamp to a comparable instant, or epoch for unparseable
 /// values (so they sort last under a descending order).
 DateTime _instant(String iso) =>
-    DateTime.tryParse(iso)?.toUtc() ??
+    parseServerTimestamp(iso) ??
     DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
 
 /// A post's last-activity instant: its newest reply, falling back to creation.
 DateTime _lastActivity(AccordMessage post) {
   final last = post.lastReplyAt;
   if (last is String && last.isNotEmpty) {
-    final dt = DateTime.tryParse(last);
-    if (dt != null) return dt.toUtc();
+    final dt = parseServerTimestamp(last);
+    if (dt != null) return dt;
   }
   return _instant(post.timestamp);
 }
@@ -532,4 +533,3 @@ String? _lastReplyText(AccordMessage post) {
   final when = messageTimeFromIso(last);
   return when.isEmpty ? null : 'last reply $when';
 }
-

@@ -1,6 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
+import 'package:bonfire/shared/utils/server_timestamp.dart';
 import 'package:bonfire/shared/utils/ban_dialog.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -672,7 +673,7 @@ class _MembershipInfo extends StatelessWidget {
   }
 
   String _date(String iso) {
-    final dt = DateTime.tryParse(iso);
+    final dt = parseServerTimestamp(iso);
     if (dt == null) return iso;
     final local = dt.toLocal();
     return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';

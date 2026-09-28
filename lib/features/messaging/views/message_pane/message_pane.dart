@@ -67,6 +67,7 @@ import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/platform.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/restore_failed_send.dart';
+import 'package:bonfire/shared/utils/server_timestamp.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:collection/collection.dart';
@@ -817,8 +818,8 @@ bool _isGrouped({
   if (previous == null) return false;
   if (previous.authorId != current.authorId) return false;
   if (current.replyTo != null) return false;
-  final t0 = DateTime.tryParse(previous.timestamp);
-  final t1 = DateTime.tryParse(current.timestamp);
+  final t0 = parseServerTimestamp(previous.timestamp);
+  final t1 = parseServerTimestamp(current.timestamp);
   if (t0 == null || t1 == null) return false;
   return t1.difference(t0).abs() < _messageGroupWindow;
 }

@@ -1,7 +1,42 @@
 import 'package:bonfire/features/spaces/utils/message_time.dart';
+import 'package:bonfire/shared/utils/server_timestamp.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('server timestamps', () {
+    test(
+      'zone-less database time is UTC, including the SQL space separator',
+      () {
+        final instant = DateTime.utc(2026, 9, 28, 16, 15);
+        expect(parseServerTimestamp('2026-09-28 16:15:00'), instant);
+        expect(parseServerTimestamp('2026-09-28T16:15:00'), instant);
+        expect(
+          messageClockFromIso('2026-09-28 16:15:00'),
+          messageClockString(instant.toLocal()),
+        );
+        expect(
+          messageTimestampFromIso('2026-09-28 16:15:00'),
+          messageTimestampString(instant.toLocal()),
+        );
+      },
+    );
+
+    test('explicit UTC and numeric offsets preserve their instant', () {
+      final instant = DateTime.utc(2026, 9, 28, 16, 15);
+      expect(parseServerTimestamp('2026-09-28T16:15:00Z'), instant);
+      expect(parseServerTimestamp('2026-09-28T18:15:00+02:00'), instant);
+      expect(
+        messageClockFromIso('2026-09-28T18:15:00+02:00'),
+        messageClockString(instant.toLocal()),
+      );
+    });
+
+    test('invalid timestamps remain empty', () {
+      expect(parseServerTimestamp('not a date'), isNull);
+      expect(messageTimeFromIso('not a date'), isEmpty);
+    });
+  });
+
   group('messageClockString', () {
     test('pads single-digit hour and minute', () {
       final dt = DateTime(2026, 6, 13, 9, 5);
