@@ -2,8 +2,8 @@
 
 Helper scripts for building and running the Daccord Flutter client.
 
-They use `fvm flutter` when [fvm](https://fvm.app) is installed (the repo pins a
-channel in `.fvmrc`), and fall back to a plain `flutter`/`dart` on `PATH`.
+They use `fvm flutter` when [fvm](https://fvm.app) is installed (the repo pins the
+exact Flutter release CI builds with in `.fvmrc`), and fall back to a plain `flutter`/`dart` on `PATH`.
 
 | Script | What it does |
 |--------|--------------|

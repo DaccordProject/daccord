@@ -67,10 +67,14 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  # Channel used by the *build* job below. The *analyze* job now matrix-tests
-  # both beta and stable (see strategy.matrix.channel), so it ignores this.
-  # Keep in sync with .fvmrc and release.yml.
+  # Channel and exact release used by the *build* jobs below. The *analyze* job
+  # matrix-tests this pinned beta and the latest stable (see
+  # strategy.matrix.channel). Pinned because an unpinned beta shipped a Linux
+  # engine that painted only a quarter of the window (3.49.0-0.1.pre, v0.2.22);
+  # bump it deliberately after smoke-testing a desktop build.
+  # Keep in sync with .fvmrc, release.yml, ios-ipa.yml and ios-simulator.yml.
   FLUTTER_CHANNEL: beta
+  FLUTTER_VERSION: 3.48.0-0.5.pre
   # Workspace-local pub cache so actions/cache can persist it (incl. the
   # flutter_webrtc git checkout + its downloaded libwebrtc binary).
   PUB_CACHE: ${{ github.workspace }}/.pub-cache
@@ -157,6 +161,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ matrix.channel }}
+          flutter-version: ${{ matrix.channel == 'beta' && env.FLUTTER_VERSION || '' }}
           cache: true
 
       - name: Install dependencies
@@ -242,6 +247,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
       - name: Install dependencies
@@ -286,6 +292,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
       - name: Install dependencies
@@ -319,6 +326,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
       - name: Install dependencies
@@ -376,6 +384,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
       - name: Install dependencies
@@ -444,6 +453,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
       - name: Install dependencies
@@ -505,6 +515,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
       - name: Install dependencies
@@ -582,6 +593,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
       - name: Install dependencies
@@ -701,6 +713,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
       - name: Install dependencies

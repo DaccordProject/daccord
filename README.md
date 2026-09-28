@@ -206,7 +206,7 @@ Accord uses similar-but-distinct vocabulary from Discord:
 
 ## 🛠️ Building from source
 
-You'll need the [Flutter SDK](https://docs.flutter.dev/get-started/install) installed. The helper scripts in [`scripts/`](scripts/README.md) wrap the common flows and prefer [fvm](https://fvm.app) when it's available:
+You'll need the [Flutter SDK](https://docs.flutter.dev/get-started/install) installed; CI and releases use the exact beta pinned in [`.fvmrc`](.fvmrc). The helper scripts in [`scripts/`](scripts/README.md) wrap the common flows and prefer [fvm](https://fvm.app) when it's available:
 
 ```bash
 scripts/setup.sh                 # deps + one-shot codegen (also installs Linux desktop build deps)

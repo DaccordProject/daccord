@@ -151,6 +151,7 @@ flutter build ios     --release --no-tree-shake-icons --no-codesign -v
 
 CI lives in `.github/workflows/` and is Daccord-native (no OpenBonfire infra):
 - `ci.yml` — blocking jobs cover root codegen/analyze/tests, vendored `accordkit`, the full `markdown_viewer` suite, and LiveKit's Android native unit tests. Broader server/UI scenarios remain advisory. The `build` job is a Web (JavaScript)/Android/Linux/Windows matrix.
+- Every workflow builds with the exact Flutter beta in `FLUTTER_VERSION`, mirrored in `.fvmrc`; analyze also runs the latest stable. Bump the pin deliberately after smoke-testing a desktop build — an unpinned beta once shipped a broken Linux renderer.
 - CI also evaluates the Mac upload lane against Fastlane's directory validator (`bundle exec ruby fastlane/test/mac_upload_metadata_test.rb`); upload-only lanes must scope metadata and screenshots to their platform folders.
 - CI's `build_artifacts` input defaults to false for reusable calls and true for direct manual runs. Manual store recovery runs the test gates before its selected store build. Both Linux build matrices require `libsecret-1-dev` for secure storage.
 - `release.yml` — tag-driven (`v*`); validates the tag matches `pubspec.yaml` version, gates on `ci.yml`, builds all platforms, publishes a GitHub Release.

@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
-# Prefer fvm (the repo pins a Flutter channel in .fvmrc) when it's installed,
+# Prefer fvm (the repo pins CI's exact Flutter release in .fvmrc) when it's installed,
 # otherwise fall back to a plain `flutter` on PATH.
 if command -v fvm >/dev/null 2>&1 && [ -f "$REPO_ROOT/.fvmrc" ]; then
   FLUTTER="fvm flutter"
