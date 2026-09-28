@@ -39,6 +39,8 @@ extension AccordClientWidgetRef on WidgetRef {
 
   String? watchHomeDomain() =>
       watch(accordAuthProvider.select(_homeDomainFromState));
+  String? readHomeDomain() =>
+      read(accordAuthProvider.select(_homeDomainFromState));
 
   bool watchIsAdmin() => watch(accordAuthProvider.select(_isAdminFromState));
   bool readIsAdmin() => read(accordAuthProvider.select(_isAdminFromState));

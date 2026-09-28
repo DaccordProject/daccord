@@ -1,22 +1,64 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/shared/utils/list_ext.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'dm_channels.g.dart';
 
-/// Builds the `createDm` request body for a 1:1 DM with [recipientId].
+/// Trim an id, lowercase its domain, and localize our own domain's users.
+/// The local part remains case-sensitive; accounts on other domains stay distinct.
+String normalizeDmParticipantId(String id, {String? homeDomain}) {
+  final trimmed = id.trim();
+  final local = localPart(trimmed);
+  final domain = domainOf(trimmed);
+  if (domain == null) return trimmed;
+  final lowered = domain.toLowerCase();
+  final home = homeDomain?.trim().toLowerCase();
+  if (home != null && home.isNotEmpty && lowered == home) return local;
+  return '$local@$lowered';
+}
+
+/// Builds the `createDm` request body for a 1:1 DM with [recipientId], which is
+/// normalized (see [normalizeDmParticipantId]) against [homeDomain] first.
 ///
 /// A **qualified** id (`<snowflake>@<domain>`) uses the single `recipient_id`
 /// field so the server takes its cross-server DM path (deterministic home +
-/// replica mirror). A bare id uses the `recipients` list, an unchanged
-/// same-server DM. The server accepts either field, so this only steers which
-/// path it picks.
-Map<String, dynamic> dmCreateBody(String recipientId) => isRemoteId(recipientId)
-    ? <String, dynamic>{'recipient_id': recipientId}
-    : <String, dynamic>{
-        'recipients': [recipientId],
-      };
+/// replica mirror). A bare id — including one qualified with our own domain —
+/// uses the `recipients` list, an unchanged same-server DM. The server accepts
+/// either field, so this only steers which path it picks.
+Map<String, dynamic> dmCreateBody(String recipientId, {String? homeDomain}) {
+  final id = normalizeDmParticipantId(recipientId, homeDomain: homeDomain);
+  return isRemoteId(id)
+      ? <String, dynamic>{'recipient_id': id}
+      : <String, dynamic>{
+          'recipients': [id],
+        };
+}
+
+/// Identity key for a 1:1 DM: the normalized id of its single other
+/// participant, or `null` when [channel] is a group, carries no recipients, or
+/// does not resolve to exactly one account besides [selfId].
+///
+/// `null` means "do not deduplicate": an unhydrated channel must never collapse
+/// into an unrelated conversation.
+String? dmParticipantKey(
+  AccordChannel channel, {
+  String? selfId,
+  String? homeDomain,
+}) {
+  if (channel.type != 'dm') return null;
+  final recipients = channel.recipients;
+  if (recipients == null || recipients.isEmpty) return null;
+  final self = selfId == null
+      ? null
+      : normalizeDmParticipantId(selfId, homeDomain: homeDomain);
+  final others = <String>{
+    for (final user in recipients)
+      normalizeDmParticipantId(user.id, homeDomain: homeDomain),
+  }..removeWhere((id) => id.isEmpty || id == self);
+  return others.length == 1 ? others.first : null;
+}
 
 /// Whether [value] is a usable remote DM handle: a qualified id with a non-empty
 /// local part and a home domain (`<id>@<domain>`). Bare (local) ids are rejected
@@ -69,12 +111,60 @@ class DmChannelsController extends _$DmChannelsController {
   @override
   List<AccordChannel>? build(String serverKey) => null;
 
+  /// The signed-in account on [serverKey], used to tell "the other participant"
+  /// from ourselves and to strip our own domain off qualified ids. Both are null
+  /// before the connection registers, which only costs deduplication.
+  ({String? selfId, String? homeDomain}) get _identity {
+    final session = ref
+        .read(connectionsControllerProvider)
+        .connectionFor(serverKey)
+        ?.session;
+    return (selfId: session?.userId, homeDomain: session?.server.homeDomain);
+  }
+
   /// Replaces the cache with a freshly-fetched list.
   void setChannels(List<AccordChannel> channels) {
     final ids = channels.map((channel) => channel.id).toSet();
     _previews.removeWhere((id, _) => !ids.contains(id));
     state = List.unmodifiable(channels);
   }
+
+  /// The cached 1:1 DM with [recipientId], or `null` when the list has not been
+  /// loaded or holds no conversation with them.
+  ///
+  /// Matching is on the normalized participant id, so the DM reached from a
+  /// member row holding `123` and the one holding `123@<our domain>` resolve to
+  /// the same channel instead of creating a second one (#379).
+  AccordChannel? findDirectMessage(String recipientId) {
+    final current = state;
+    if (current == null) return null;
+    final identity = _identity;
+    if (identity.selfId == null) return null;
+    final wanted = normalizeDmParticipantId(
+      recipientId,
+      homeDomain: identity.homeDomain,
+    );
+    if (wanted.isEmpty) return null;
+    AccordChannel? existing;
+    for (final channel in current) {
+      if (_keyFor(channel, identity) != wanted) continue;
+      // Prefer history over an empty legacy duplicate, without hiding either.
+      if (existing == null ||
+          (existing.lastMessageId == null && channel.lastMessageId != null)) {
+        existing = channel;
+      }
+    }
+    return existing;
+  }
+
+  String? _keyFor(
+    AccordChannel channel,
+    ({String? selfId, String? homeDomain}) identity,
+  ) => dmParticipantKey(
+    channel,
+    selfId: identity.selfId,
+    homeDomain: identity.homeDomain,
+  );
 
   /// Last-message text shown under a DM conversation. Attachment-only messages
   /// use a human-readable fallback rather than leaving a blank row.

@@ -13,6 +13,7 @@ import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/theme/app_theme.dart';
+import 'package:bonfire/shared/components/app_lifecycle_ticker_mode.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,7 +37,7 @@ class _Settings extends SettingsController {
 
 void main() {
   testWidgets(
-    'history load and app resume advance the visible channel read position',
+    'inactive messages render live but are only marked read after resume',
     (tester) async {
       final acks = <String>[];
       final history = Completer<http.Response>();
@@ -85,11 +86,13 @@ void main() {
           container: container,
           child: MaterialApp(
             theme: buildAppTheme(AppThemePreset.dark),
-            home: const Scaffold(
-              body: MessagePane(
-                channel: null,
-                channelId: 'channel',
-                spaceId: null,
+            home: const AppLifecycleTickerMode(
+              child: Scaffold(
+                body: MessagePane(
+                  channel: null,
+                  channelId: 'channel',
+                  spaceId: null,
+                ),
               ),
             ),
           ),
@@ -131,7 +134,12 @@ void main() {
               content: 'While away',
             ),
           );
+      expect(tester.binding.hasScheduledFrame, isTrue);
       await tester.pump();
+      expect(
+        find.textContaining('While away', findRichText: true),
+        findsOneWidget,
+      );
       expect(acks, ['10', '20']);
       expect(
         container.read(readStateControllerProvider(key)).isUnread('channel'),
