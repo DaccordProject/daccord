@@ -67,6 +67,13 @@ class SoundManager {
 
   AppLifecycleListener? _lifecycle;
 
+  /// Set once a player can't be created — e.g. Linux without GStreamer's
+  /// `playbin` (gstreamer1.0-plugins-base), where the audioplayers_linux fork
+  /// rejects `create` instead of aborting the app. Every later sound then
+  /// no-ops rather than failing again on each chime.
+  bool _unavailable = false;
+  bool get unavailable => _unavailable;
+
   /// Whether the app currently has focus. The generic `message_received` sound
   /// only plays while unfocused (mentions always play).
   bool focused = true;
@@ -91,9 +98,9 @@ class SoundManager {
     if (silent || _initialized) return;
     _initialized = true;
     for (final player in _pool) {
-      player.setReleaseMode(ReleaseMode.stop);
+      unawaited(_probe(() => player.setReleaseMode(ReleaseMode.stop)));
     }
-    _ringPlayer.setReleaseMode(ReleaseMode.loop);
+    unawaited(_probe(() => _ringPlayer.setReleaseMode(ReleaseMode.loop)));
     _applyAudioContext();
     _lifecycle = AppLifecycleListener(
       onStateChange: (state) => focused = state == AppLifecycleState.resumed,
@@ -203,7 +210,7 @@ class SoundManager {
   /// where a one-shot would break the call's audio session
   /// ([allowsOneShotInCall]).
   Future<void> play(String name) async {
-    if (silent || !enabled || volume <= 0.0) return;
+    if (silent || _unavailable || !enabled || volume <= 0.0) return;
     if (_voiceSessionActive &&
         !allowsOneShotInCall(platform: defaultTargetPlatform, isWeb: kIsWeb)) {
       return;
@@ -213,8 +220,34 @@ class SoundManager {
 
     final player = _pool[_next];
     _next = (_next + 1) % _poolSize;
-    await player.setVolume(volume.clamp(0.0, 1.0).toDouble());
-    await player.play(AssetSource(asset));
+    await _quietly(() async {
+      await player.setVolume(volume.clamp(0.0, 1.0).toDouble());
+      await player.play(AssetSource(asset));
+    });
+  }
+
+  /// The first call on a player waits for the platform to create it, so a
+  /// failure here means there is no audio backend: stop trying from then on.
+  Future<void> _probe(Future<void> Function() op) async {
+    try {
+      await op();
+    } catch (e) {
+      if (!_unavailable) {
+        debugPrint('SoundManager: no audio backend, sounds disabled: $e');
+      }
+      _unavailable = true;
+    }
+  }
+
+  /// Runs a player call, logging a failure instead of letting it escape: most
+  /// call sites fire sounds without awaiting them, so a thrown error would
+  /// surface as an unhandled async error on every chime.
+  Future<void> _quietly(Future<void> Function() op) async {
+    try {
+      await op();
+    } catch (e) {
+      if (!_unavailable) debugPrint('SoundManager: playback failed: $e');
+    }
   }
 
   /// Pure decision half of [playForMessage]: returns the SFX name to play, or
@@ -283,19 +316,23 @@ class SoundManager {
   /// Starts looping the incoming-call ringtone until [stopRingtone]. No-ops if
   /// already ringing, disabled, or muted.
   Future<void> startRingtone({bool outgoing = false}) async {
-    if (silent || _ringing || !enabled || volume <= 0.0) return;
+    if (silent || _unavailable || _ringing || !enabled || volume <= 0.0) {
+      return;
+    }
     _ringing = true;
-    await _ringPlayer.setVolume(volume.clamp(0.0, 1.0).toDouble());
-    await _ringPlayer.play(
-      AssetSource(outgoing ? 'sfx/ring_outgoing.wav' : 'sfx/ringtone.wav'),
-    );
+    await _quietly(() async {
+      await _ringPlayer.setVolume(volume.clamp(0.0, 1.0).toDouble());
+      await _ringPlayer.play(
+        AssetSource(outgoing ? 'sfx/ring_outgoing.wav' : 'sfx/ringtone.wav'),
+      );
+    });
   }
 
   /// Stops the call ringtone loop.
   Future<void> stopRingtone() async {
     if (!_ringing) return;
     _ringing = false;
-    await _ringPlayer.stop();
+    await _quietly(_ringPlayer.stop);
   }
 
   void dispose() {

@@ -35,6 +35,8 @@ Choose the right file for your platform:
 2. Run the `daccord` executable.
 3. On some distributions you may need to mark it as executable first: right-click the file, open Properties, and enable "Allow executing file as program".
 
+Sound effects use GStreamer's base plugins (`gstreamer1.0-plugins-base` on Debian/Ubuntu). The `.deb` pulls them in; without them the portable build still runs, just without sounds.
+
 The `.deb` registers `daccord://` links with the desktop. The portable archive
 does not alter desktop associations; links can still be pasted into the app.
 

@@ -580,8 +580,7 @@ jobs:
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             libunwind-dev libdw-dev \
             libmpv-dev mpv \
-            xvfb xdotool imagemagick libgl1-mesa-dri dbus gnome-keyring \
-            gstreamer1.0-plugins-base
+            xvfb xdotool imagemagick libgl1-mesa-dri dbus gnome-keyring
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2

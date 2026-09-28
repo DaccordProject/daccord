@@ -33,6 +33,7 @@ The Accord server backend is [`accordserver`](https://github.com/DaccordProject/
 - **Local storage:** `hive_ce` — boxes opened in `setupHive()`: `auth`, `last-location`, `added-accounts`, `space-cache`, `window-state`, `pending-uploads` (per-connection AutoMod-held upload IDs), plus the per-profile `accord-session` and `accord-settings`.
 - **Networking:** `accordkit` (vendored in-tree at `packages/accordkit`, maintained here). **The firebridge → accordkit swap is complete** — `packages/firebridge` and `firebridge_extensions` no longer exist and nothing in `lib/` imports them (a few doc comments still mention "firebridge" to describe what a controller replaced). Do not try to re-add firebridge.
 - **Voice/video/screen share:** `livekit_client` (a local fork at `packages/livekit_client`, see #68) over WebRTC; credentials fetched via accordkit's `client.voice`. See `lib/features/voice/`.
+- **Sound effects:** `audioplayers`, with `audioplayers_linux` as a local fork at `packages/audioplayers_linux` whose `create` returns an error instead of aborting the app when GStreamer lacks `playbin` (`gstreamer1.0-plugins-base`); `SoundManager` then falls silent. See its `FORK.md`.
 - **Media:** `media_kit` (a local fork at `packages/media_kit`; `media_kit_video` and `video_player_media_kit` stay pinned git forks) / `cached_network_image` / `file_picker` — re-point CDN URLs at the Accord server. The fork defers closing libmpv's wakeup `NativeCallable` until after `mpv_terminate_destroy`; closing it early aborted the process whenever a video attachment was disposed (upstream PR #1424).
 - **Riverpod generation is required after changing annotated providers:** run
   `dart run build_runner build -d` once, or keep
@@ -59,6 +60,7 @@ packages/
   accordkit/       # Accord protocol SDK (REST + gateway + models) — networking layer, maintained here
   livekit_client/  # local fork of livekit_client 2.8.0 (#68 native-release fix) — voice transport
   media_kit/       # local fork of media_kit 1.1.11 (player-dispose SIGABRT fix) — video decode
+  audioplayers_linux/ # local fork of audioplayers_linux 4.2.1 (no-GStreamer abort fix) — SFX
   markdown_viewer/ # custom markdown rendering — protocol-agnostic, KEEP
 tool/
   store_capture/   # on-demand App Store screenshot harness: a web entry point that

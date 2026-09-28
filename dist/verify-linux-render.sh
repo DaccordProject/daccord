@@ -16,9 +16,10 @@
 #
 # Usage: dist/verify-linux-render.sh <bundle-dir> [screenshot-dir]
 # Needs: Xvfb and Mesa, xdotool, ImageMagick (import/convert), dbus
-# (dbus-run-session), gnome-keyring and gstreamer1.0-plugins-base — the app
-# aborts at startup without a session bus, a Secret Service or GStreamer's
-# playbin.
+# (dbus-run-session) and gnome-keyring — the app aborts at startup without a
+# session bus or a Secret Service. GStreamer's playbin
+# (gstreamer1.0-plugins-base) is deliberately not required: without it the app
+# must still start, just silently (packages/audioplayers_linux/FORK.md).
 set -euo pipefail
 
 if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then

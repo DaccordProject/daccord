@@ -1,6 +1,7 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -187,6 +188,65 @@ void main() {
       expect(SoundManager.audioContextFor(TargetPlatform.linux), isNull);
       expect(SoundManager.audioContextFor(TargetPlatform.macOS), isNull);
       expect(SoundManager.audioContextFor(TargetPlatform.windows), isNull);
+    });
+  });
+
+  group('SoundManager without an audio backend', () {
+    // How the audioplayers_linux fork answers `create` when GStreamer can't
+    // build a player (no `playbin`). Unforked, that was a C++ throw that
+    // aborted the whole app at startup.
+    const players = MethodChannel('xyz.luan/audioplayers');
+    const channels = [
+      players,
+      MethodChannel('xyz.luan/audioplayers.global'),
+      MethodChannel('xyz.luan/audioplayers.global/events'),
+    ];
+    final calls = <String>[];
+
+    setUp(() {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      for (final channel in channels) {
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          if (channel != players) return 1;
+          calls.add(call.method);
+          if (call.method == 'create') {
+            throw PlatformException(
+              code: 'LinuxAudioError',
+              message: 'Not all elements could be created.',
+            );
+          }
+          return null;
+        });
+      }
+      SoundManager.silent = false;
+    });
+
+    tearDown(() {
+      SoundManager.silent = true;
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      for (final channel in channels) {
+        messenger.setMockMethodCallHandler(channel, null);
+      }
+    });
+
+    test('a player that cannot be created silences sounds', () async {
+      soundManager
+        ..enabled = true
+        ..volume = 1.0
+        ..init();
+      await pumpEventQueue();
+      expect(calls, contains('create'));
+      expect(soundManager.unavailable, isTrue);
+
+      // Later chimes no-op without errors or further platform calls.
+      calls.clear();
+      await expectLater(soundManager.play('message_received'), completes);
+      await expectLater(soundManager.startRingtone(), completes);
+      await expectLater(soundManager.stopRingtone(), completes);
+      expect(calls, isEmpty);
     });
   });
 }

@@ -145,6 +145,16 @@ dependency_overrides:
   # until after mpv_terminate_destroy has joined the mpv core thread. This is
   # upstream PR #1424, which is unmerged; drop the fork once it lands and the
   # pinned ref moves past it.
+  # Local fork of audioplayers_linux 4.2.1 carrying one patch: its `create`
+  # handler ran outside the try/catch that guards every other method, so when
+  # GStreamer couldn't build a player (no `playbin` without
+  # gstreamer1.0-plugins-base) the C++ throw reached std::terminate and aborted
+  # the app at startup. The fork answers `create` with a PlatformException
+  # instead, and SoundManager falls silent. Still unfixed upstream (4.3.0/main);
+  # drop the fork once it is.
+  audioplayers_linux:
+    path: packages/audioplayers_linux
+
   media_kit:
     path: packages/media_kit
   media_kit_video:

@@ -50,7 +50,8 @@ Section: net
 Priority: optional
 Architecture: $ARCH
 Installed-Size: $INSTALLED_SIZE
-Depends: libgtk-3-0, libstdc++6, libsecret-1-0, libmpv2 | libmpv1
+Depends: libgtk-3-0, libstdc++6, libsecret-1-0, libmpv2 | libmpv1, libgstreamer1.0-0, libgstreamer-plugins-base1.0-0
+Recommends: gstreamer1.0-plugins-base
 Maintainer: The Daccord Project <noreply@daccord-projects.dev>
 Homepage: https://github.com/DaccordProject/daccord
 Description: Daccord desktop client
