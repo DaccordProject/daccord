@@ -4,12 +4,3 @@
 # To override one release, add `# Release version: x.y.z` and the user-facing
 # text below it. The script rejects missing or stale version markers before any
 # store upload.
-# Release version: 0.2.22
-
-• Direct messages now reuse the right conversation and keep updating while the
-  app is in the background.
-• The direct-message list is easier to scan, and message history no longer
-  jumps back when older requests finish late.
-• Fixed Shift+Enter newlines and Enter-to-send in the desktop composer.
-• Empty spaces now show clear join or admin actions instead of a spinner.
-• Improved markdown readability and contrast.
