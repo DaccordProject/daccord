@@ -43,6 +43,11 @@ does not alter desktop associations; links can still be pasted into the app.
 > the `.deb` above by hand once; from v0.2.7 onward the in-app updater handles it
 > for you.
 
+> **Portable build on v0.2.14–v0.2.22?** In those builds "Restart and install"
+> froze the app for several minutes and then failed. Quit Daccord and extract
+> the latest `daccord-linux-x86_64.tgz` over your install folder once; later
+> releases update themselves in seconds.
+
 ## Windows
 
 **Installer:** Download and run `daccord-windows-x86_64-setup.exe`. It installs daccord to Program Files, adds a Start Menu shortcut, and registers the `daccord://` URL scheme so invite links open automatically. A per-user install (no admin rights required) is also supported.

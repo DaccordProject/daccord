@@ -608,13 +608,20 @@ jobs:
           # Prepended to the auto-generated notes. The in-app Updates page renders
           # this body (AppRelease.notes), so it's the one channel that reaches
           # users stranded on a build whose self-updater can't apply anything.
-          # Drop this notice once ≤ v0.2.6 installs have aged out.
+          # Drop each notice once the builds it names have aged out.
           body: |
             > **Linux `.deb` users on v0.2.6 or earlier:** update once by hand —
             > download `daccord-linux-x86_64.deb` below and install it
             > (`sudo dpkg -i daccord-linux-x86_64.deb`). Self-update could not
             > replace a system install in those builds and failed silently; from
             > v0.2.7 onward it updates the package for you (with an admin prompt).
+
+            > **Linux portable (`.tgz`) users on v0.2.14–v0.2.22:** update once by
+            > hand — quit Daccord, download `daccord-linux-x86_64.tgz` below and
+            > extract it over your install folder
+            > (`tar xzf daccord-linux-x86_64.tgz -C <folder containing daccord>`).
+            > In those builds "Restart and install" froze the app for minutes and
+            > then failed; later releases install in seconds.
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
