@@ -4,3 +4,9 @@
 # To override one release, add `# Release version: x.y.z` and the user-facing
 # text below it. The script rejects missing or stale version markers before any
 # store upload.
+# Release version: 0.2.23
+
+• Fixes a rendering problem in 0.2.22 that could leave most of the window
+  blank on Linux.
+• Installing an update on Linux no longer freezes the app and now takes
+  seconds.
