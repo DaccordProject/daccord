@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 
 /// A centered "server unreachable" placeholder, shown in panes (channel list,
 /// member roster, …) that are still waiting on data from a server whose gateway
-/// has dropped. Replaces the otherwise-endless loading spinner so a downed
-/// server reads as an error rather than a permanent load.
+/// has dropped, so a downed server reads as an error rather than a permanent
+/// load.
 class ServerUnreachable extends StatelessWidget {
   const ServerUnreachable({
     super.key,

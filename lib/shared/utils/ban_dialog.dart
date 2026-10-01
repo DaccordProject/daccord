@@ -34,9 +34,6 @@ const _windows = <(String, int)>[
 /// Shows the ban confirmation for [memberName], including the "delete message
 /// history" picker, and resolves to the chosen [BanRequest] — or `null` if the
 /// moderator cancelled.
-///
-/// Replaces the plain [showConfirmDialog] the ban actions used, which could
-/// only ever ban and leave every message behind.
 Future<BanRequest?> showBanDialog(
   BuildContext context, {
   required String memberName,

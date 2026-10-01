@@ -35,22 +35,11 @@ DrawerSwipeAction drawerSwipeAction({
 /// Opens a [Scaffold]'s drawers from a horizontal swipe started *anywhere* over
 /// [child], not just in the narrow edge strip Flutter listens on by default.
 ///
-/// Flutter's own swipe-to-open lives in `DrawerController`, which paints a
-/// translucent drag target `Scaffold.drawerEdgeDragWidth` wide against the
-/// screen edge. That target sits in the `_ScaffoldSlot.drawer` slot, which is
-/// painted after the body and therefore hit-tested *before* it — so simply
-/// widening the strip to the whole screen makes it win the gesture arena
-/// against every horizontal scrollable underneath (the open-tab strip, the
-/// voice participant rails), leaving them dead.
-///
-/// This widget sits inside the body instead, as an ancestor of the content, so
-/// content recognizers join the arena first and claim the drags they care
-/// about. Only a horizontal drag that nothing inside wanted reaches us.
-///
-/// The edge strip is deliberately left in place: there the framework's gesture
-/// wins and drags the drawer under the finger, which is nicer than the snap
-/// this widget can offer from the middle of the screen (`ScaffoldState` exposes
-/// no way to drive the drawer's animation incrementally).
+/// Widening the framework's edge strip instead would not work: it is hit-tested
+/// before the body, so it would steal drags from every horizontal scrollable
+/// (tab strip, voice rails). Sitting inside the body lets content recognizers
+/// claim their drags first. The edge strip stays because it drags the drawer
+/// under the finger, which this widget can't (`ScaffoldState` only snaps).
 class DrawerSwipeArea extends StatefulWidget {
   const DrawerSwipeArea({
     super.key,

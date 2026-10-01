@@ -4,10 +4,7 @@ import 'package:flutter/material.dart';
 /// Shows a simple confirm/cancel [AlertDialog] and resolves to `true` when the
 /// user confirms, `false` when they cancel, or `null` when dismissed.
 ///
-/// Consolidates the near-identical confirmation dialogs that were copy-pasted
-/// across the admin tabs, space moderation views and DM/member popouts. Set
-/// [danger] to tint the confirm button with the theme's red for destructive
-/// actions.
+/// Set [danger] to tint the confirm button red for destructive actions.
 Future<bool?> showConfirmDialog(
   BuildContext context, {
   required String title,
