@@ -520,7 +520,8 @@ VoidCallback handleAccordEvents(
 
   final turnNotifications = ref.read(experienceTurnsProvider.notifier);
   return () {
-    turnNotifications.clearServer(serverKey);
+    // Riverpod disposal callbacks cannot synchronously mutate another provider.
+    scheduleMicrotask(() => turnNotifications.clearServer(serverKey));
     for (final sub in subs) {
       sub.cancel();
     }

@@ -33,6 +33,7 @@ class ExperienceTurns
   }
 
   void clearServer(String server) {
+    if (!ref.mounted) return;
     _revisions.removeWhere((key, _) => key.serverKey == server);
     state = Map.unmodifiable(
       {...state}..removeWhere((key, _) => key.serverKey == server),

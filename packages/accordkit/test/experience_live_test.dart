@@ -13,7 +13,7 @@ void main() {
       () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => server.close(force: true));
-    final frames = <Map>[];
+    final frames = <Map<String, dynamic>>[];
     final accepted = Completer<WebSocket>();
     server.listen((request) async {
       expect(request.uri.path,
@@ -21,7 +21,7 @@ void main() {
       expect(request.uri.query, isEmpty);
       final socket = await WebSocketTransformer.upgrade(request);
       socket.listen((message) {
-        final frame = jsonDecode(message as String) as Map;
+        final frame = jsonDecode(message as String) as Map<String, dynamic>;
         frames.add(frame);
         if (frames.length == 1) {
           socket.add(jsonEncode({
