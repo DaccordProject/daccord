@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:http/http.dart' as http;
+import '../e2ee/private_chat_encryption.dart';
 
 import '../gateway/gateway_connection.dart';
 import '../gateway/gateway_events.dart';
@@ -58,6 +60,8 @@ class AccordClient {
   late final SpacesApi spaces;
   late final ChannelsApi channels;
   late final MessagesApi messages;
+  PrivateChatEncryption? encryption;
+  StreamSubscription<Map<String, dynamic>>? _encryptionReady;
   late final MembersApi members;
   late final RolesApi roles;
   late final BansApi bans;
@@ -76,6 +80,8 @@ class AccordClient {
   late final AutomodApi automod;
 
   AccordClient({
+    EncryptionKeyStore? encryptionStore,
+    String? encryptionUserId,
     this.token = '',
     this.tokenType = 'Bot',
     List<String>? intents,
@@ -105,10 +111,15 @@ class AccordClient {
       sleep: sleep,
     );
 
-    users = UsersApi(rest);
+    users = UsersApi(rest,
+        onPrivateChannel: (id) => messages.requireEncryptionFor(id));
     spaces = SpacesApi(rest);
     channels = ChannelsApi(rest);
-    messages = MessagesApi(rest);
+    if (encryptionStore != null && encryptionUserId != null) {
+      encryption =
+          PrivateChatEncryption(rest, encryptionStore, encryptionUserId);
+    }
+    messages = MessagesApi(rest, encryption: encryption);
     members = MembersApi(rest);
     roles = RolesApi(rest);
     bans = BansApi(rest);
@@ -131,6 +142,14 @@ class AccordClient {
       sleep: sleep,
     );
     gateway.setup(config, token, tknType: tokenType, intentList: this.intents);
+    if (encryption != null) {
+      _encryptionReady = gateway.onReady.listen((ready) {
+        for (final raw in ready['dm_channels'] as List? ?? const []) {
+          if (raw is Map && raw['id'] is String)
+            messages.requireEncryptionFor(raw['id'] as String);
+        }
+      });
+    }
   }
 
   /// Opens the gateway connection.
@@ -165,6 +184,7 @@ class AccordClient {
 
   /// Releases the REST client and gateway.
   Future<void> dispose() async {
+    await _encryptionReady?.cancel();
     await gateway.dispose();
     rest.close();
   }
@@ -201,8 +221,12 @@ class AccordClient {
   Stream<Map<String, dynamic>> get onRoleUpdate => gateway.onRoleUpdate;
   Stream<Map<String, dynamic>> get onRoleDelete => gateway.onRoleDelete;
 
-  Stream<AccordMessage> get onMessageCreate => gateway.onMessageCreate;
-  Stream<AccordMessage> get onMessageUpdate => gateway.onMessageUpdate;
+  Stream<AccordMessage> get onMessageCreate => encryption == null
+      ? gateway.onMessageCreate
+      : gateway.onMessageCreate.asyncMap(encryption!.decrypt);
+  Stream<AccordMessage> get onMessageUpdate => encryption == null
+      ? gateway.onMessageUpdate
+      : gateway.onMessageUpdate.asyncMap(encryption!.decrypt);
   Stream<Map<String, dynamic>> get onMessageDelete => gateway.onMessageDelete;
   Stream<Map<String, dynamic>> get onMessageDeleteBulk =>
       gateway.onMessageDeleteBulk;

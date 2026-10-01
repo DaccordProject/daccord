@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:bonfire/features/messaging/controllers/withdrawn_attachments.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -16,18 +17,21 @@ Future<void> showImageLightbox(
   BuildContext context,
   String url, {
   String? attachmentId,
+  Uint8List? bytes,
 }) {
   return showDialog<void>(
     context: context,
     barrierColor: Colors.black87,
-    builder: (context) => _ImageLightbox(url: url, attachmentId: attachmentId),
+    builder: (context) =>
+        _ImageLightbox(url: url, attachmentId: attachmentId, bytes: bytes),
   );
 }
 
 class _ImageLightbox extends ConsumerStatefulWidget {
-  const _ImageLightbox({required this.url, this.attachmentId});
+  const _ImageLightbox({required this.url, this.attachmentId, this.bytes});
 
   final String url;
+  final Uint8List? bytes;
   final String? attachmentId;
 
   @override
@@ -70,16 +74,18 @@ class _ImageLightboxState extends ConsumerState<_ImageLightbox> {
               minScale: 0.5,
               maxScale: 5,
               child: Center(
-                child: CachedNetworkImage(
-                  imageUrl: url,
-                  fit: BoxFit.contain,
-                  placeholder: (_, _) => const LoadingView(),
-                  errorWidget: (_, _, _) => const Icon(
-                    Icons.broken_image_outlined,
-                    color: Colors.white54,
-                    size: 48,
-                  ),
-                ),
+                child: widget.bytes != null
+                    ? Image.memory(widget.bytes!, fit: BoxFit.contain)
+                    : CachedNetworkImage(
+                        imageUrl: url,
+                        fit: BoxFit.contain,
+                        placeholder: (_, _) => const LoadingView(),
+                        errorWidget: (_, _, _) => const Icon(
+                          Icons.broken_image_outlined,
+                          color: Colors.white54,
+                          size: 48,
+                        ),
+                      ),
               ),
             ),
           ),
@@ -88,11 +94,12 @@ class _ImageLightboxState extends ConsumerState<_ImageLightbox> {
             right: 0,
             child: Row(
               children: [
-                IconButton(
-                  tooltip: 'Open in browser',
-                  onPressed: () async => openExternalUrl(context, url),
-                  icon: const Icon(Icons.open_in_new, color: Colors.white),
-                ),
+                if (widget.bytes == null)
+                  IconButton(
+                    tooltip: 'Open in browser',
+                    onPressed: () async => openExternalUrl(context, url),
+                    icon: const Icon(Icons.open_in_new, color: Colors.white),
+                  ),
                 IconButton(
                   tooltip: 'Close',
                   onPressed: () => Navigator.of(context).maybePop(),

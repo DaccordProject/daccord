@@ -2,6 +2,8 @@ import '../utils/json_utils.dart';
 
 /// A file attachment on a message.
 class AccordAttachment {
+  /// Decrypted metadata; never included in serialized attachment records.
+  Map<String, dynamic>? encryption;
   String id;
   String filename;
   String? description;

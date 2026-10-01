@@ -31,6 +31,7 @@ import 'package:bonfire/shared/utils/download_attachment_web.dart'
     if (dart.library.io) 'package:bonfire/shared/utils/download_attachment_io.dart'
     as impl;
 import 'package:path/path.dart' as p;
+import 'dart:typed_data';
 
 /// How a [downloadAttachment] call ended.
 enum DownloadOutcome {
@@ -57,15 +58,15 @@ class DownloadResult {
   const DownloadResult._(this.outcome, {this.path, this.error});
 
   const DownloadResult.saved(String path)
-      : this._(DownloadOutcome.saved, path: path);
+    : this._(DownloadOutcome.saved, path: path);
 
   const DownloadResult.handedToBrowser()
-      : this._(DownloadOutcome.handedToBrowser);
+    : this._(DownloadOutcome.handedToBrowser);
 
   const DownloadResult.cancelled() : this._(DownloadOutcome.cancelled);
 
   const DownloadResult.failed(String error)
-      : this._(DownloadOutcome.failed, error: error);
+    : this._(DownloadOutcome.failed, error: error);
 
   final DownloadOutcome outcome;
 
@@ -85,6 +86,12 @@ class DownloadResult {
   bool get canReveal => outcome == DownloadOutcome.saved && path != null;
 }
 
+/// Saves authenticated decrypted bytes after the user requests a download.
+Future<DownloadResult> saveAttachmentBytes(
+  Uint8List bytes, {
+  required String filename,
+}) => impl.saveAttachmentBytes(bytes, filename: filename);
+
 /// Reports download progress as a 0..1 fraction, or `null` when the server
 /// sent no `Content-Length` and the total is therefore unknown.
 typedef DownloadProgressCallback = void Function(double? progress);
@@ -100,8 +107,7 @@ Future<DownloadResult> downloadAttachment(
   String url, {
   required String filename,
   DownloadProgressCallback? onProgress,
-}) =>
-    impl.downloadAttachment(url, filename: filename, onProgress: onProgress);
+}) => impl.downloadAttachment(url, filename: filename, onProgress: onProgress);
 
 /// Whether this platform can show a saved file in its file manager.
 bool get canRevealDownloads => impl.canRevealDownloads;

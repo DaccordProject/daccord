@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
 import '../../models/message.dart';
+import '../../e2ee/private_chat_encryption.dart';
+import '../accord_error.dart';
 import '../../models/message_upload.dart';
 import '../endpoint_base.dart';
 import '../multipart_form.dart';
@@ -9,21 +11,81 @@ import '../rest_result.dart';
 /// Message operations within a channel: list, create, edit, delete, pin,
 /// threads/forum posts, search, and the typing indicator.
 class MessagesApi extends EndpointBase {
-  MessagesApi(super.rest);
+  final PrivateChatEncryption? encryption;
+  final Set<String> _privateChannels = {};
+
+  /// Sticky policy from private-chat UI/API context; the server cannot downgrade it.
+  void requireEncryptionFor(String channelId) =>
+      _privateChannels.add(channelId);
+  MessagesApi(super.rest, {this.encryption});
+
+  Future<bool> _private(String channelId) async {
+    if (encryption == null) return false;
+    if (_privateChannels.contains(channelId) ||
+        encryption!.knowsPrivateChat(channelId)) return true;
+    final result = await rest.makeRequest('GET', '/channels/$channelId');
+    if (!result.ok || result.data is! Map) {
+      throw EncryptionException(result.error?.message ??
+          'Cannot determine chat encryption requirements.');
+    }
+    final private =
+        const ['dm', 'group_dm'].contains((result.data as Map)['type']);
+    if (private) requireEncryptionFor(channelId);
+    return private;
+  }
+
+  RestResult _failure(Object e) => RestResult.failure(
+      0,
+      AccordError(
+          code: 'encryption_failed',
+          message: e is EncryptionException
+              ? e.message
+              : 'Unable to encrypt this private message.'));
+  Future<RestResult> _decode(RestResult result, {bool array = false}) async {
+    if (array) {
+      result.deserializeArray(AccordMessage.fromJson);
+    } else {
+      result.deserialize(AccordMessage.fromJson);
+    }
+    if (encryption != null && result.ok) {
+      if (result.data is AccordMessage) {
+        result.data = await encryption!.decrypt(result.data as AccordMessage);
+      } else if (result.data is List) {
+        final items = (result.data as List).cast<AccordMessage>();
+        final keys = <String, Map<String, Map<String, dynamic>>>{};
+        final discoveryErrors = <String, Object>{};
+        for (final channel in items
+            .where((m) => m.isEncrypted)
+            .map((m) => m.channelId)
+            .toSet()) {
+          try {
+            keys[channel] =
+                await encryption!.participants(channel, requireReady: false);
+          } catch (e) {
+            discoveryErrors[channel] = e;
+          }
+        }
+        result.data = await Future.wait(items.map((m) => encryption!.decrypt(m,
+            participantKeys: keys[m.channelId],
+            discoveryError: discoveryErrors[m.channelId])));
+      }
+    }
+    return result;
+  }
 
   /// Lists messages in a channel. Supports `before`/`after`/`around`/`limit`.
   Future<RestResult> list(String channelId,
       {Map<String, dynamic> query = const {}}) async {
     final result = await rest
         .makeRequest('GET', '/channels/$channelId/messages', query: query);
-    return result.deserializeArray(AccordMessage.fromJson);
+    return _decode(result, array: true);
   }
 
   /// Fetches a single message by snowflake ID.
   Future<RestResult> fetch(String channelId, String messageId) async {
     final result = await rest.makeRequest(
         'GET', '/channels/$channelId/messages/$messageId');
-    return result.deserialize(AccordMessage.fromJson);
+    return _decode(result);
   }
 
   /// Creates a message. [data] needs at least `content` or `embeds`; a
@@ -34,13 +96,20 @@ class MessagesApi extends EndpointBase {
   /// as a failure whose [AccordError.retryAfter] says how long. Exactly one
   /// request is made per call.
   Future<RestResult> create(String channelId, Map<String, dynamic> data) async {
+    try {
+      if (await _private(channelId)) {
+        data = (await encryption!.encrypt(channelId, data)).data;
+      }
+    } catch (e) {
+      return _failure(e);
+    }
     final result = await rest.makeRequest(
       'POST',
       '/channels/$channelId/messages',
       body: data,
       retryOnRateLimit: false,
     );
-    return result.deserialize(AccordMessage.fromJson);
+    return _decode(result);
   }
 
   /// Creates a message with file attachments via multipart/form-data.
@@ -63,6 +132,16 @@ class MessagesApi extends EndpointBase {
     Map<String, dynamic> data,
     List<Map<String, dynamic>> files,
   ) async {
+    try {
+      if (await _private(channelId)) {
+        final encrypted =
+            await encryption!.encrypt(channelId, data, files: files);
+        data = encrypted.data;
+        files = encrypted.files;
+      }
+    } catch (e) {
+      return _failure(e);
+    }
     final form = MultipartForm();
     form.addJson('payload_json', data);
     for (var i = 0; i < files.length; i++) {
@@ -77,19 +156,12 @@ class MessagesApi extends EndpointBase {
     final result = await rest.makeMultipartRequest(
         'POST', '/channels/$channelId/messages/upload', form,
         retryOnRateLimit: false);
-    return _asUpload(result);
-  }
-
-  /// Wraps a multipart response's message in an [AccordMessageUpload],
-  /// carrying over the envelope's `pending_attachments` and HTTP status.
-  static RestResult _asUpload(RestResult result) {
-    final d = result.data;
-    if (result.ok && d is Map<String, dynamic>) {
+    await _decode(result);
+    if (result.data is AccordMessage) {
       result.data = AccordMessageUpload(
-        message: AccordMessage.fromJson(d),
-        pendingAttachmentIds: result.pendingAttachments,
-        statusCode: result.statusCode,
-      );
+          message: result.data as AccordMessage,
+          pendingAttachmentIds: result.pendingAttachments,
+          statusCode: result.statusCode);
     }
     return result;
   }
@@ -97,10 +169,31 @@ class MessagesApi extends EndpointBase {
   /// Edits an existing message.
   Future<RestResult> edit(
       String channelId, String messageId, Map<String, dynamic> data) async {
+    try {
+      if (await _private(channelId)) {
+        final original = await fetch(channelId, messageId);
+        if (!original.ok || original.data is! AccordMessage) return original;
+        final message = original.data as AccordMessage;
+        if (!message.isEncrypted && message.attachments.isNotEmpty) {
+          throw const EncryptionException(
+              'Re-upload legacy attachments to encrypt them before editing this message.');
+        }
+        if (message.encryptionError != null) {
+          throw EncryptionException(message.encryptionError!);
+        }
+        data = (await encryption!.encrypt(
+                channelId, {...data, 'reply_to': message.replyTo},
+                editId: messageId, previousPayload: message.privatePayload))
+            .data;
+        data.remove('reply_to');
+      }
+    } catch (e) {
+      return _failure(e);
+    }
     final result = await rest.makeRequest(
         'PATCH', '/channels/$channelId/messages/$messageId',
         body: data);
-    return result.deserialize(AccordMessage.fromJson);
+    return _decode(result);
   }
 
   /// Deletes a single message.
@@ -121,7 +214,7 @@ class MessagesApi extends EndpointBase {
   /// Lists all pinned messages in a channel.
   Future<RestResult> listPins(String channelId) async {
     final result = await rest.makeRequest('GET', '/channels/$channelId/pins');
-    return result.deserializeArray(AccordMessage.fromJson);
+    return _decode(result, array: true);
   }
 
   /// Pins a message (max 50 per channel).
@@ -140,7 +233,7 @@ class MessagesApi extends EndpointBase {
     final q = Map<String, dynamic>.from(query)..['query'] = queryStr;
     final result = await rest
         .makeRequest('GET', '/spaces/$spaceId/messages/search', query: q);
-    return result.deserializeArray(AccordMessage.fromJson);
+    return _decode(result, array: true);
   }
 
   /// Lists thread replies for a parent message.
@@ -160,7 +253,7 @@ class MessagesApi extends EndpointBase {
   Future<RestResult> listActiveThreads(String channelId) async {
     final result =
         await rest.makeRequest('GET', '/channels/$channelId/threads');
-    return result.deserializeArray(AccordMessage.fromJson);
+    return _decode(result, array: true);
   }
 
   /// Lists top-level posts in a forum channel.

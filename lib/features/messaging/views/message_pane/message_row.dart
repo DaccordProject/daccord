@@ -493,6 +493,15 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (widget.spaceId == null && message.type == 'default')
+                        Text(
+                          message.isEncrypted
+                              ? (message.encryptionError == null
+                                    ? 'End-to-end encrypted'
+                                    : 'Encryption could not be verified')
+                              : 'Unencrypted history',
+                          style: theme.textTheme.labelSmall,
+                        ),
                       if (message.replyTo != null)
                         _buildReplyPreview(message, colors),
                       if (!widget.grouped)
@@ -821,6 +830,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     String? cdnUrl,
     ThemeData theme,
   ) {
+    if (attachment.encryption != null) {
+      final client = ref.read(accordAuthProvider.notifier).client;
+      if (client != null && client.encryption != null)
+        return EncryptedAttachment(attachment: attachment, client: client);
+      return const Text('Encrypted attachment unavailable.');
+    }
     final url = _attachmentUrl(attachment, cdnUrl);
     switch (_previewOf(attachment)) {
       case AttachmentPreview.image:

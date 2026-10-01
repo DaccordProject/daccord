@@ -181,6 +181,7 @@ dependency_overrides:
       path: flutter_keyboard_visibility_web
 
 dev_dependencies:
+  cryptography: ^2.9.0
   flutter_test:
     sdk: flutter
   image: ^4.3.0

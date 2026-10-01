@@ -11,6 +11,9 @@ library;
 
 import 'package:bonfire/shared/utils/download_attachment.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:typed_data';
+import 'dart:js_interop';
+import 'package:web/web.dart' as web;
 
 /// A browser page has no file manager to open.
 bool get canRevealDownloads => false;
@@ -46,3 +49,28 @@ Future<DownloadResult> downloadAttachment(
 }
 
 Future<bool> revealDownloadedFile(String path) async => false;
+
+Future<DownloadResult> saveAttachmentBytes(
+  Uint8List bytes, {
+  required String filename,
+}) async {
+  final blob = web.Blob([bytes.toJS].toJS);
+  final url = web.URL.createObjectURL(blob);
+  try {
+    final anchor = web.HTMLAnchorElement()
+      ..href = url
+      ..download = sanitizeAttachmentFilename(filename);
+    web.document.body?.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    // Keep alive until the browser has started reading the blob.
+    Future<void>.delayed(
+      const Duration(seconds: 30),
+      () => web.URL.revokeObjectURL(url),
+    );
+    return const DownloadResult.handedToBrowser();
+  } catch (_) {
+    web.URL.revokeObjectURL(url);
+    return const DownloadResult.failed('Unable to save decrypted attachment.');
+  }
+}

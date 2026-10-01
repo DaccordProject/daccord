@@ -8,6 +8,8 @@ library;
 import 'package:bonfire/features/automod/views/block_attachment_dialog.dart';
 
 import 'dart:async';
+import 'package:bonfire/features/messaging/views/private_chat_security.dart';
+import 'package:bonfire/features/messaging/views/encrypted_attachment.dart';
 import 'dart:convert';
 
 import 'package:accordkit/accordkit.dart';
@@ -349,6 +351,8 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
       );
     }
 
+    if (spaceId == null) { ref.accordClient?.messages.requireEncryptionFor(channelId); }
+
     final serverKey = ref.watchActiveServerKey();
     if (serverKey != null) {
       ref.listen(
@@ -601,6 +605,24 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                             ),
                       ),
                       ...widget.headerActions,
+                      if (spaceId == null &&
+                          ref
+                                  .watch(accordAuthProvider.notifier)
+                                  .client
+                                  ?.encryption !=
+                              null)
+                        IconButton(
+                          tooltip: 'End-to-end encryption and identity backup',
+                          icon: const Icon(Icons.lock_outline, size: 18),
+                          onPressed: () => showPrivateChatSecurity(
+                            context,
+                            ref
+                                .read(accordAuthProvider.notifier)
+                                .client!
+                                .encryption!,
+                            channelId,
+                          ),
+                        ),
                       IconButton(
                         tooltip: 'Pinned messages',
                         onPressed: () => showPinnedMessages(

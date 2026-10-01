@@ -6,6 +6,12 @@ import 'reaction.dart';
 
 /// A message in a channel, thread, or DM.
 class AccordMessage {
+  /// Original authenticated ciphertext for serialization; cleartext stays in memory.
+  Map<String, dynamic>? encryptedWire;
+  Map<String, dynamic>? privatePayload;
+  String? encryptionError;
+  bool get isEncrypted =>
+      encryptedWire != null || content.startsWith('daccord-e2ee:1:');
   String id;
   String channelId;
   String? spaceId;
@@ -79,7 +85,7 @@ class AccordMessage {
       spaceId: asStringOrNull(d['space_id'] ?? d['guild_id']),
       content: asString(d['content']),
       type: asString(d['type'], 'default'),
-      timestamp: asString(d['timestamp']),
+      timestamp: asString(d['timestamp'] ?? d['created_at']),
       editedAt: d['edited_at'] ?? d['edited_timestamp'],
       tts: asBool(d['tts']),
       pinned: asBool(d['pinned']),
@@ -159,6 +165,7 @@ class AccordMessage {
   }
 
   Map<String, dynamic> toJson() {
+    if (encryptedWire != null) return Map<String, dynamic>.from(encryptedWire!);
     final d = <String, dynamic>{
       'id': id,
       'channel_id': channelId,

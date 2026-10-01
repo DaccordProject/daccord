@@ -1,0 +1,22 @@
+{
+  "note": "PUBLIC TEST KEYS ONLY. Never use these seeds in an account. Generated with AccordKit and cryptography 2.9.0.",
+  "identities": {
+    "alice": {
+      "exchange_key": "E75P6uryBMf9M1j8nAByGIHRdCeBKCJ+xnTzf3/pe20=",
+      "signing_key": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw="
+    },
+    "bob": {
+      "exchange_key": "MdSras7slhE3kXA3k25gcW+sVzr+lNnahKgCBEjfwRI=",
+      "signing_key": "E5j2LG0aRXxRumpLXz29L2n8qTIWIY3ImX5Ba9F9k8o="
+    }
+  },
+  "private_seeds": {
+    "alice": 7,
+    "bob": 8
+  },
+  "content": "daccord-e2ee:1:{\"payload\":[1,\"chat\",\"alice\",\"Id8S2eUwu5TGCxVL7eI5Og==\",null,null,\"pWTbwqT/Q//mPoUl7P4yJ2FV8Gwd3NHsFkbQYQPyrWo=\",\"zVcI3+p3HueAPqhDr7Sw51HVhf/T5fjyl/09+4hVLA4XRFlJNF4XV69JSTKnHQJJQfX9ZRlYYIsaUZh+ij2d7qUWSX5YLYZ5wqc4Oh2RC5ycJWKGpT7I58ckOcuGKM9OEdWhop+z71wxFuB8CnpWx1zn/jgIf54Qsn61gU72aXgCNl7mKHKWd0glCuZ+cBBFOR9sTot8fRmo4gB19cBuf8Suy7NOPg2cfWZG4p0QVozIFmsmbhd9I9nn9+4QByJmi7R7dT5GddJTXu2Xziwh\",[[\"alice\",\"E75P6uryBMf9M1j8nAByGIHRdCeBKCJ+xnTzf3/pe20=\",\"ljjshuhcaj3GmaQ4yS4STxys3LjpebBPROWAlB+dxJM+V94ADkfNDds/Sgv8Qi4QCrNg2hnGPmiZVFtd\"],[\"bob\",\"MdSras7slhE3kXA3k25gcW+sVzr+lNnahKgCBEjfwRI=\",\"gXymjsKRCCCQGBqB1g0hirQ4WgbQuziKYIraBJ2e3/4wklmaAAXNbyyAG6RKQRjB7qFS7GYTThdEBkXD\"]]],\"signature\":\"GAZ0vTQZMzo5WPszekT0gZ5CzzAt+LBehnfBXsQDxyhCVawNOy5sW9Rnt35SytC9X6Iynf5fNFDqi7x5uq5MAg==\"}",
+  "canonical_payload": "[1,\"chat\",\"alice\",\"Id8S2eUwu5TGCxVL7eI5Og==\",null,null,\"pWTbwqT/Q//mPoUl7P4yJ2FV8Gwd3NHsFkbQYQPyrWo=\",\"zVcI3+p3HueAPqhDr7Sw51HVhf/T5fjyl/09+4hVLA4XRFlJNF4XV69JSTKnHQJJQfX9ZRlYYIsaUZh+ij2d7qUWSX5YLYZ5wqc4Oh2RC5ycJWKGpT7I58ckOcuGKM9OEdWhop+z71wxFuB8CnpWx1zn/jgIf54Qsn61gU72aXgCNl7mKHKWd0glCuZ+cBBFOR9sTot8fRmo4gB19cBuf8Suy7NOPg2cfWZG4p0QVozIFmsmbhd9I9nn9+4QByJmi7R7dT5GddJTXu2Xziwh\",[[\"alice\",\"E75P6uryBMf9M1j8nAByGIHRdCeBKCJ+xnTzf3/pe20=\",\"ljjshuhcaj3GmaQ4yS4STxys3LjpebBPROWAlB+dxJM+V94ADkfNDds/Sgv8Qi4QCrNg2hnGPmiZVFtd\"],[\"bob\",\"MdSras7slhE3kXA3k25gcW+sVzr+lNnahKgCBEjfwRI=\",\"gXymjsKRCCCQGBqB1g0hirQ4WgbQuziKYIraBJ2e3/4wklmaAAXNbyyAG6RKQRjB7qFS7GYTThdEBkXD\"]]]",
+  "expected_content": "interoperable secret 🔐",
+  "encrypted_file": "xZwl2Rlncoj0qdJke5xPfe5Bzt2RsdWZY9ZO6wsSpZ3GpyR7J/Gf5PsuIeX4SErx",
+  "expected_file": "private file content"
+}
