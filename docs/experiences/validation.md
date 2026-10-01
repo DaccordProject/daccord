@@ -99,6 +99,13 @@ For an Android emulator, pass `--android-device emulator-5554` to the fixture
 helper, select `-d emulator-5554` and pass `--flavor github`. The helper uses
 ADB reverse to keep the fixture on device loopback, preserving the SDK's HTTPS
 requirement for remote servers, and removes its port mapping during cleanup.
+Use `flutter drive --profile --driver test_driver/experiences.dart
+--target integration_test/pong_session_test.dart` for the Android latency gate.
+Profile mode measures optimized application code without debug/JIT checks;
+emulator results establish the automated fixture gate, not physical-device
+performance. The test logs inputs in order and measures the first input too,
+without discarding slow samples. Lifecycle checks run before the latency
+assertion so a budget failure also reports whether revocation works.
 The helper substitutes the temporary server URL into the Dart define; the
 new test skips without that define so ordinary UI suites never use an
 unprovisioned directory. Physical iOS validation remains open by user request.
