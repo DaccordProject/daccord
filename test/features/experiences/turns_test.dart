@@ -23,9 +23,9 @@ AccordExperienceSession snapshot(
   'game': {},
 });
 void main() {
-  test(
+  testWidgets(
     'turn alerts isolate servers, reject stale events and preserve dismissals',
-    () {
+    (tester) async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
       final turns = container.read(experienceTurnsProvider.notifier);
@@ -44,7 +44,9 @@ void main() {
       expect(container.read(experienceTurnsProvider), isEmpty);
     },
   );
-  test('turn history and visible alerts have fixed bounds', () {
+  testWidgets('turn history and visible alerts have fixed bounds', (
+    tester,
+  ) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
     final turns = container.read(experienceTurnsProvider.notifier);
