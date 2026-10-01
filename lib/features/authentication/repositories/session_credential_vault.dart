@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Minimal credential-vault boundary used by session persistence.
@@ -11,7 +12,14 @@ abstract interface class SessionCredentialVault {
 /// protection, Linux Secret Service, or the package's WebCrypto backend.
 class PlatformSessionCredentialVault implements SessionCredentialVault {
   PlatformSessionCredentialVault({FlutterSecureStorage? storage})
-    : _storage = storage ?? const FlutterSecureStorage();
+    : _storage =
+          storage ??
+          const FlutterSecureStorage(
+            // Ad hoc Debug/Profile builds have no provisioned application ID.
+            // Use the encrypted login Keychain there; provisioned production
+            // builds retain the existing data-protection Keychain namespace.
+            mOptions: MacOsOptions(usesDataProtectionKeychain: kReleaseMode),
+          );
 
   static const _keyPrefix = 'daccord.session.v1.';
   final FlutterSecureStorage _storage;
