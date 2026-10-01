@@ -73,8 +73,12 @@ def run(args):
             healthy(server_url, server)
             print("Testing the real curated directory and community server", flush=True)
             command = args.command[1:] if args.command[0] == "--" else args.command
-            return subprocess.run(command, env=dict(os.environ, ACCORD_TEST_SERVER_URL=server_url,
-                                                     ACCORD_TEST_EXPERIENCES="1"), check=False).returncode
+            result = subprocess.run(command, env=dict(os.environ, ACCORD_TEST_SERVER_URL=server_url,
+                                                     ACCORD_TEST_EXPERIENCES="1"), check=False)
+            if result.returncode:
+                for name in ("master.log", "server.log"):
+                    print((directory / name).read_text()[-8000:], flush=True)
+            return result.returncode
         except Exception:
             for name in ("master.log", "server.log"):
                 path = directory / name

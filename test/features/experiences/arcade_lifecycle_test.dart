@@ -43,6 +43,11 @@ class _Connections extends ConnectionsController {
 
 Future<void> frameUntil(WidgetTester tester, bool Function() condition) async {
   for (var i = 0; i < 60; i++) {
+    // Browser Ed25519 verification completes through a real WebCrypto promise.
+    // Allow it to finish outside the widget test's fake timer zone.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
     await tester.pump(const Duration(milliseconds: 50));
     if (condition()) return;
   }

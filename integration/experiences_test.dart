@@ -196,13 +196,15 @@ Future<void> main() async {
       final live = await snapshots;
       expect(live.mode, 'real_time');
       expect(live.id, pong.id);
+      final disabled = await owner.client.experiences.configure(
+        space,
+        'pong',
+        enabled: false,
+      );
       expect(
-        (await owner.client.experiences.configure(
-          space,
-          'pong',
-          enabled: false,
-        )).ok,
+        disabled.ok,
         isTrue,
+        reason: '${disabled.statusCode}: ${disabled.error}',
       );
       final ended = await require(
         black.client.experiences.session(space, pong.id),
