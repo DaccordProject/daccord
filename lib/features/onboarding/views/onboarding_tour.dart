@@ -1,7 +1,6 @@
 import 'dart:async';
 
-import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/authentication/utils/wait_for_sign_in.dart';
 import 'package:bonfire/features/onboarding/controllers/onboarding_controller.dart';
 import 'package:bonfire/features/onboarding/models/onboarding_step.dart';
 import 'package:bonfire/features/onboarding/views/onboarding_help.dart';
@@ -50,7 +49,7 @@ Future<void> maybeShowOnboardingOnStartup(WidgetRef ref) async {
         break;
     }
 
-    if (!await _waitForSignIn(ref)) return;
+    if (!await waitForSignIn(ref)) return;
     // Let the home screen finish its first real layout (spaces load, the
     // default channel auto-opens) so the anchors resolve to their settled
     // positions rather than to an empty rail.
@@ -130,27 +129,6 @@ class OnboardingTourPage extends ConsumerWidget {
         onFinish: (_) => Navigator.of(context).maybePop(),
       ),
     );
-  }
-}
-
-/// Completes with true once the session is logged in (immediately when it
-/// already is), or false if that hasn't happened within [timeout]. Mirrors the
-/// release-notes hook's helper.
-Future<bool> _waitForSignIn(
-  WidgetRef ref, {
-  Duration timeout = const Duration(minutes: 5),
-}) async {
-  if (ref.read(accordAuthProvider) is AccordAuthLoggedIn) return true;
-  final completer = Completer<bool>();
-  final sub = ref.listenManual<AccordAuthState>(accordAuthProvider, (_, next) {
-    if (next is AccordAuthLoggedIn && !completer.isCompleted) {
-      completer.complete(true);
-    }
-  });
-  try {
-    return await completer.future.timeout(timeout, onTimeout: () => false);
-  } finally {
-    sub.close();
   }
 }
 

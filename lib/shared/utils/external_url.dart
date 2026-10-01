@@ -146,3 +146,13 @@ Future<ExternalUrlOpenResult> openExternalUrl(
 
 Future<bool> _launchExternalUrl(Uri uri) =>
     launchUrl(uri, mode: LaunchMode.externalApplication);
+
+/// Opens a first-party [url] in the platform browser without confirmation,
+/// swallowing failures (a missing handler on a headless desktop must not crash).
+Future<void> openTrustedUrl(String url) async {
+  try {
+    await _launchExternalUrl(Uri.parse(url));
+  } catch (e) {
+    debugPrint('Failed to open $url: $e');
+  }
+}

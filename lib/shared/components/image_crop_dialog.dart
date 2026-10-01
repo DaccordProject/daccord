@@ -1,27 +1,29 @@
 import 'dart:typed_data';
 
 import 'package:bonfire/shared/utils/cropped_image.dart';
-
 import 'package:bonfire/theme/theme.dart';
 import 'package:crop_your_image/crop_your_image.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
-/// Modal that lets the user pan (x/y) and zoom an image inside a fixed-aspect
-/// frame, then returns the cropped bytes (PNG). Mirrors the reposition+zoom
-/// flow Discord uses for server icons/banners and user avatars.
+/// Lets the user pick an image file, then pan and zoom it inside a fixed
+/// [aspectRatio] frame. Returns the cropped PNG bytes, or null if cancelled.
 ///
-/// The crop rect is fixed at [aspectRatio]; the user moves the image behind it.
-/// [circular] only changes the mask shape — the output is always rectangular
-/// (square when [aspectRatio] is 1), since icons/avatars are rounded at display
-/// time. Returns null if the user cancels.
-Future<Uint8List?> showImageCropDialog(
+/// [circular] only changes the mask shape — the output is always rectangular,
+/// since icons/avatars are rounded at display time.
+Future<Uint8List?> pickAndCropImage(
   BuildContext context, {
-  required Uint8List imageBytes,
   required double aspectRatio,
   bool circular = false,
   String title = 'Edit image',
   int? maxOutputDimension,
-}) {
+}) async {
+  final picked = await FilePicker.platform.pickFiles(
+    type: FileType.image,
+    withData: true,
+  );
+  final imageBytes = picked?.files.firstOrNull?.bytes;
+  if (imageBytes == null || !context.mounted) return null;
   return showDialog<Uint8List?>(
     context: context,
     barrierDismissible: false,
@@ -101,8 +103,9 @@ class _ImageCropDialogState extends State<_ImageCropDialog> {
                     radius: widget.circular ? 0 : 6,
                     cornerDotBuilder: (_, _) => const SizedBox.shrink(),
                     onStatusChanged: (status) {
-                      if (mounted)
+                      if (mounted) {
                         setState(() => _ready = status == CropStatus.ready);
+                      }
                     },
                     onCropped: (result) async {
                       if (!mounted) return;

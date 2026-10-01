@@ -1,7 +1,7 @@
 import 'package:bonfire/shared/app_info.dart';
+import 'package:bonfire/shared/utils/external_url.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// The issue tracker — "found a bug / need help" lands here.
 const String kDaccordIssuesUrl = 'https://github.com/$kGithubRepo/issues';
@@ -49,16 +49,6 @@ const List<OnboardingHelpLink> kOnboardingHelpLinks = <OnboardingHelpLink>[
   ),
 ];
 
-/// Opens [url] in the platform browser, swallowing failures (a missing handler
-/// on a headless/CI desktop must never take down the tour).
-Future<void> openOnboardingHelpUrl(String url) async {
-  try {
-    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-  } catch (e) {
-    debugPrint('Failed to open help link $url: $e');
-  }
-}
-
 /// The help/support sheet, reachable from every step of the walkthrough and from
 /// the Settings row.
 ///
@@ -85,7 +75,7 @@ Future<void> showOnboardingHelpDialog(BuildContext context) => showDialog<void>(
                 title: Text(link.label),
                 subtitle: Text(link.description),
                 trailing: const Icon(Icons.open_in_new, size: 16),
-                onTap: () => openOnboardingHelpUrl(link.url),
+                onTap: () => openTrustedUrl(link.url),
               ),
           ],
         ),

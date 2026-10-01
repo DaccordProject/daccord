@@ -25,7 +25,6 @@ import 'package:bonfire/features/spaces/views/accord_transfer_ownership.dart';
 import 'package:bonfire/shared/components/image_crop_dialog.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:collection/collection.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -181,15 +180,8 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
   }
 
   Future<void> _pickBanner() async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      withData: true,
-    );
-    final file = picked?.files.firstOrNull;
-    if (file?.bytes == null || !mounted) return;
-    final cropped = await showImageCropDialog(
+    final cropped = await pickAndCropImage(
       context,
-      imageBytes: file!.bytes!,
       aspectRatio: 16 / 9,
       title: 'Crop banner',
       maxOutputDimension: 1024,
@@ -218,15 +210,8 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
   }
 
   Future<void> _pickIcon() async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      withData: true,
-    );
-    final file = picked?.files.firstOrNull;
-    if (file?.bytes == null || !mounted) return;
-    final cropped = await showImageCropDialog(
+    final cropped = await pickAndCropImage(
       context,
-      imageBytes: file!.bytes!,
       aspectRatio: 1,
       circular: true,
       title: 'Crop icon',

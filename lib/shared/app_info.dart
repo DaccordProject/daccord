@@ -122,6 +122,9 @@ const String kDaccordWebsiteUrl = 'https://www.daccord.gg';
 const String kDaccordHelpUrl = '$kDaccordWebsiteUrl/help.html';
 const String kDaccordPrivacyPolicyUrl = '$kDaccordWebsiteUrl/privacy.html';
 
+/// Universal Link prefix; parsed by `ServerUri.parseDeepLink`.
+const String kUniversalLinkBase = '$kDaccordWebsiteUrl/open';
+
 /// GitHub REST endpoint for the latest published release of [kGithubRepo].
 const String kGithubLatestReleaseUrl =
     'https://api.github.com/repos/$kGithubRepo/releases/latest';
