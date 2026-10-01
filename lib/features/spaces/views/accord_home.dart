@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:bonfire/features/experiences/views/arcade.dart';
+import 'package:bonfire/features/experiences/views/space_arcade_entry.dart';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/client_access.dart';

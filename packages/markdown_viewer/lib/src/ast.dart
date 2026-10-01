@@ -34,6 +34,7 @@ class MarkdownElement extends MarkdownNode {
   final bool isBlock;
   final List<MarkdownNode> children;
   final Map<String, String> attributes;
+  bool get isRoot => type.isEmpty;
 
   @override
   final SiblingPosition position;

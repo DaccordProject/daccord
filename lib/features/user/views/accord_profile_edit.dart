@@ -11,7 +11,6 @@ import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/color_swatch_chip.dart';
-import 'package:bonfire/shared/components/dialog_title_bar.dart';
 import 'package:bonfire/shared/components/image_crop_dialog.dart';
 import 'package:bonfire/shared/components/ticker_aware_circle_avatar.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -116,7 +115,13 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
       // Only seed the shared user cache when editing the active server (the
       // cache belongs to it); a background server's user shouldn't leak in.
       if (_isActiveServer) {
-        ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).upsert(data);
+        ref
+            .read(
+              accordUsersControllerProvider(
+                ref.readActiveServerKey() ?? '',
+              ).notifier,
+            )
+            .upsert(data);
       }
     }
     setState(() => _loaded = true);
@@ -159,9 +164,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(
-        () => _error = result.errorOr('Failed to save profile'),
-      );
+      setState(() => _error = result.errorOr('Failed to save profile'));
       return;
     }
     final updated = result.data;
@@ -169,7 +172,13 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     // server — those caches belong to it. A per-server edit of a background
     // connection just persists server-side and takes effect when it's active.
     if (updated is AccordUser && _isActiveServer) {
-      ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).upsert(updated);
+      ref
+          .read(
+            accordUsersControllerProvider(
+              ref.readActiveServerKey() ?? '',
+            ).notifier,
+          )
+          .upsert(updated);
       // The member caches hold their own AccordUser per member; propagate the
       // change so message authors and the roster update, not just surfaces that
       // read the global user cache.
@@ -201,7 +210,9 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
         _loadedUser ??
         (_isActiveServer && session != null
             ? ref.watch(
-                accordUsersControllerProvider(ref.readActiveServerKey() ?? '').select((m) => m[session.userId]),
+                accordUsersControllerProvider(
+                  ref.readActiveServerKey() ?? '',
+                ).select((m) => m[session.userId]),
               )
             : null);
     final avatarUrl = me == null
@@ -223,11 +234,29 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              DialogTitleBar(
-                serverName == null
-                    ? 'Edit profile'
-                    : 'Edit profile · $serverName',
-                icon: Icons.person_outline,
+              Row(
+                children: [
+                  Icon(
+                    Icons.person_outline,
+                    size: 18,
+                    color: colors.dirtyWhite,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      serverName == null
+                          ? 'Edit profile'
+                          : 'Edit profile · $serverName',
+                      style: theme.textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const Icon(Icons.close, size: 18),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               if (!_loaded)

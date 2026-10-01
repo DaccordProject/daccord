@@ -10,11 +10,6 @@ import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Re-exported so the spaces feature's existing `arcade.dart` import keeps
-// resolving the sidebar entry.
-export 'package:bonfire/features/experiences/views/space_arcade_entry.dart'
-    show SpaceArcadeEntry;
-
 Object? _require(RestResult result) {
   if (!result.ok) {
     throw StateError(
