@@ -16,9 +16,6 @@ part 'global_unread.g.dart';
 class GlobalUnread {
   const GlobalUnread({this.hasUnread = false, this.mentionCount = 0});
 
-  /// Nothing unread anywhere — the badge should be cleared.
-  static const GlobalUnread none = GlobalUnread();
-
   /// True when at least one *visible* (non-muted) channel is unread, on any
   /// connection. Always true when [mentionCount] > 0.
   final bool hasUnread;
