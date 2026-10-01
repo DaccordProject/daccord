@@ -29,7 +29,7 @@ class AccordInvite {
   factory AccordInvite.fromJson(Map<String, dynamic> d) {
     final i = AccordInvite(
       code: asString(d['code']),
-      spaceId: asString(d['space_id'] ?? d['guild_id']),
+      spaceId: asString(d['space_id']),
       channelId: asString(d['channel_id']),
       maxUses: d['max_uses'],
       uses: asInt(d['uses']),

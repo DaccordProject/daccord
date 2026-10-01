@@ -50,7 +50,7 @@ class AccordMember {
 
   factory AccordMember.fromJson(Map<String, dynamic> d) {
     final m = AccordMember(
-      spaceId: asString(d['space_id'] ?? d['guild_id']),
+      spaceId: asString(d['space_id']),
       nickname: (d['nick'] ?? d['nickname']) as String?,
       avatar: d['avatar'],
       joinedAt: asString(d['joined_at']),

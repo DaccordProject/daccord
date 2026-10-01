@@ -103,10 +103,10 @@ void main() {
   });
 
   group('AccordChannel', () {
-    test('parses space_id from guild_id alias and overwrites', () {
+    test('parses space_id and overwrites', () {
       final c = AccordChannel.fromJson({
         'id': '1',
-        'guild_id': '7',
+        'space_id': '7',
         'rate_limit_per_user': 5,
         'permission_overwrites': [
           {'id': '3', 'type': 'member', 'allow': [], 'deny': []},
@@ -198,7 +198,7 @@ void main() {
     test('reads nested user and nick alias', () {
       final m = AccordMember.fromJson({
         'user': {'id': '2', 'username': 'x'},
-        'guild_id': '7',
+        'space_id': '7',
         'nick': 'Nicky',
         'roles': [1, 2],
         'communication_disabled_until': 'soon',
@@ -417,10 +417,10 @@ void main() {
   });
 
   group('AccordInvite', () {
-    test('inviter object and guild_id alias', () {
+    test('inviter object', () {
       final i = AccordInvite.fromJson({
         'code': 'abc',
-        'guild_id': '7',
+        'space_id': '7',
         'channel_id': '5',
         'inviter': {'id': '2'},
       });
@@ -433,7 +433,7 @@ void main() {
     test('leniently parses fields and derives a directly targeted user', () {
       final report = AccordReport.fromJson({
         'id': 12,
-        'guild_id': 7,
+        'space_id': 7,
         'reporter_id': 3,
         'target_type': 'member',
         'target_id': 9,

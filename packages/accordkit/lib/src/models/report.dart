@@ -47,7 +47,7 @@ class AccordReport {
 
     return AccordReport(
       id: asString(d['id']),
-      spaceId: asString(d['space_id'] ?? d['guild_id']),
+      spaceId: asString(d['space_id']),
       reporterId: asString(d['reporter_id']),
       targetType: asString(d['target_type']),
       targetId: asString(d['target_id']),
