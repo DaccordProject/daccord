@@ -167,7 +167,6 @@ dependency_overrides:
       path: ./media_kit_video
 
 dev_dependencies:
-  cryptography: ^2.9.0
   flutter_test:
     sdk: flutter
   image: ^4.3.0
