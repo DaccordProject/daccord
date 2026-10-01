@@ -17,7 +17,7 @@ validation remains an open release gate because no device is available.
 | Flutter Web application | Both JavaScript and WASM release compilations passed; all 7 Arcade widget/signature/alert tests also pass in Chromium in both Flutter modes; published Web artifacts remain JavaScript |
 | Desktop/mobile smoke builds | Web JavaScript, Android, Linux, Windows, macOS and unsigned iOS builds passed; Apple jobs use the release Xcode selection and a scoped AVFoundation header workaround |
 | Linux application | All 7 signed-package, canvas, input, alert and lifecycle host checks passed as a native Linux application, alongside app-shell, render, two-client and actual Pong checks |
-| Android emulation | Real Pong input, 250 ms budget and lifecycle checks pass on API 35 x64 in profile mode |
+| Android emulation | All 7 signed-package, chess canvas/input, turn-alert and lifecycle host checks pass; real Pong input, 250 ms budget and lifecycle checks also pass on API 35 x64 in profile mode |
 | iOS physical device | Open by user request; no device is available |
 | macOS application | All 7 Arcade host checks, a real secure-credential round trip and actual Pong checks pass on macOS 15.7.9 ARM64 |
 | Windows application | All 7 Arcade host checks and actual Pong checks pass on the Windows 2022 runner |
@@ -57,6 +57,25 @@ actual Flutter device (these use an isolated mock transport):
 flutter test integration_test/arcade_host_test.dart -d linux
 flutter test integration_test/arcade_host_test.dart -d <physical-device-id>
 ```
+
+The [Android profile host run](https://github.com/DaccordProject/accordmasterserver/actions/runs/36892237000/job/110470443466)
+passes all 7 host checks on API 35 x64 with a 720x1280 / 240 dpi viewport.
+These checks execute the real Flutter guest host with isolated mock transport;
+the real-server Pong run is recorded separately below. Exact sources were client
+`ad41289849573c2e8c53bb038b1bd333b0dad09e`, community server
+`a00751ba02aed7ded0246bc7b1e43f3362616b75` and master coordinator
+`ebfc0cddaf1ce8218559c1ed18ad35abcbc13868`.
+
+[Client PR #409](https://github.com/DaccordProject/daccord/pull/409) supplies
+explicit physical keyboard keys because Flutter's inference helper relies on
+debug names omitted by profile builds. Package and turn-state checks now use
+`testWidgets`, ensuring the integration driver records their failures. All
+assertions remain in place. The corrected source passes
+[full client CI](https://github.com/DaccordProject/daccord/actions/runs/36892144669).
+[Coordinator PR #6](https://github.com/DaccordProject/accordmasterserver/pull/6)
+adds a reproducible `android_suite=host` workflow dispatch alongside the default
+real-server Pong suite. Both PRs are merged; the complete host run, directory
+contract tests and Docker checks pass.
 
 A passing simulator or unsigned build must be recorded separately from a
 physical iOS run. Record commit, device/OS, build mode and measured startup,
