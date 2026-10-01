@@ -256,8 +256,8 @@ root tests cover package signatures, isolated turn alerts and responsive WASM
 frames; CI also gates native/browser runtime tests and reproducible packages.
 Run `flutter test test/features/experiences` after changing the trusted host.
 
-`experience-stack` is a blocking protocol gate: immutable community/master
-fixtures + `tools/experiences/run_fixture.py` + the actual client game API/host.
-Update both server pins after coordinated server changes have passed their own
-SQLite/PostgreSQL/Docker checks. Fixture checkouts belong in the ignored
-`.experience-fixture` directory. See `docs/experiences/validation.md` to reproduce.
+The coordinated master-server workflow runs immutable community/client fixtures
+with `tools/experiences/run_fixture.py` and the actual client game API/host.
+It runs in the private master repository so that source stays private. The
+client's runtime gate tests Dart VM, browser JavaScript and browser Dart WASM.
+See `docs/experiences/validation.md` to reproduce the full stack locally.

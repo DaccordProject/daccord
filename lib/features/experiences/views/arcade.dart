@@ -99,7 +99,10 @@ class _SpaceArcadeEntryState extends ConsumerState<SpaceArcadeEntry> {
             .length;
       }
     }
-    if (mounted && server == widget.serverKey && space == widget.spaceId) {
+    if (mounted &&
+        server == widget.serverKey &&
+        space == widget.spaceId &&
+        ref.read(accordAuthProvider.notifier).clientForKey(server) == client) {
       setState(() {
         _visible = visible;
         _waiting = waiting;
@@ -582,6 +585,7 @@ class _ExperienceSessionViewState extends ConsumerState<ExperienceSessionView>
     with WidgetsBindingObserver {
   late AccordExperienceSession _session;
   AccordClient? _client;
+  ModalRoute<dynamic>? _route;
   ExperienceModule? _module;
   List<ExperienceDrawing> _drawings = [];
   StreamSubscription<Map<String, dynamic>>? _events;
@@ -606,6 +610,7 @@ class _ExperienceSessionViewState extends ConsumerState<ExperienceSessionView>
   bool get _valid =>
       mounted &&
       _foreground &&
+      _route?.isCurrent == true &&
       _client != null &&
       ref.read(accordAuthProvider.notifier).clientForKey(widget.serverKey) ==
           _client &&
@@ -641,6 +646,18 @@ class _ExperienceSessionViewState extends ConsumerState<ExperienceSessionView>
       unawaited(_refresh());
     });
     unawaited(_refresh());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _route = ModalRoute.of(context);
+    if (_route?.isCurrent == true) {
+      unawaited(_refresh());
+    } else {
+      _generation++;
+      _invalidate(null);
+    }
   }
 
   DateTime? _approvalExpires;

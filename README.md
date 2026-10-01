@@ -409,8 +409,8 @@ inside `packages/experience_runtime`; CI gates both. Run
 `flutter test test/features/experiences` for signature, turn-alert and actual
 WASM-canvas checks. Physical-device gates remain listed in the validation file.
 
-CI also builds the coordinated community/master servers at immutable commits and
-runs `integration/experiences_test.dart` against signed reference releases on a
-temporary directory. The local fixture helper and exact evidence are documented
+The coordinated CI workflow in the private master-server repository builds
+immutable community/client revisions and runs `integration/experiences_test.dart`
+against signed reference releases on a temporary directory. The local fixture helper and exact evidence are documented
 in `docs/experiences/validation.md`. Rust is needed only to build these optional
 local server fixtures, not to build the Flutter client or bounded Dart host.

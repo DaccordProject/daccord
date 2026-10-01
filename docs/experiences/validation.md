@@ -12,8 +12,8 @@ checks remain release gates for the overall plugin-system issues.
 | Responsive/keyboard canvas | Actual chess WASM frame tested at mobile/desktop widths; spectator controls tested |
 | Curated master directory | Full tests, contract tests and Docker CI passed; master PR #2 merged |
 | Community server | Full SQLite/PostgreSQL suites, lint and Docker CI passed on the final implementation; PR #90 merged, issue #88 closed |
-| Directory to chess/live Pong | Signed fake directory + real HTTP/router/database + two authenticated WebSocket clients passed |
-| Flutter Web application | JavaScript release build passed; the app remains a JavaScript artifact even though guests are WASM modules |
+| Directory to chess/live Pong | Real master + community server + client SDK/signature/guest host test passed; server integration also covers authenticated sockets and reconnect |
+| Flutter Web application | Both JavaScript and WASM release compilations passed; published Web artifacts remain JavaScript |
 | Linux application | Pending |
 | Android device | Pending physical-device run |
 | iOS physical device | Requires a physical device and macOS signing environment |
@@ -29,10 +29,10 @@ suite or a build alone: their device, lifecycle and portability criteria still
 need recorded application runs. Operators keep experiences off by default until
 keys are provisioned and these gates are satisfied for their supported clients.
 
-The blocking Curated directory to multiplayer host CI job builds both server
-repositories at immutable commits, publishes the exact reference packages on a
-temporary master, then verifies the client SDK and WASM host against the actual
-community server. To reproduce with local builds:
+The Curated directory to multiplayer host workflow runs in the private master
+repository, whose token can read that source. It builds immutable community and
+client revisions, publishes the exact reference packages on a temporary master,
+then verifies the client SDK and WASM host against the actual community server. To reproduce with local builds:
 
 ```sh
 python3 tools/experiences/run_fixture.py \
