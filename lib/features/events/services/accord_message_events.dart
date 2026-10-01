@@ -195,7 +195,7 @@ void bindMessageEvents(
       if (notify) {
         final author = ref
             .read(accordUsersControllerProvider(serverKey).notifier)
-            .cached(message.authorId, client: client);
+            .cached(message.authorId);
         final name = accordUserName(
           author,
           fallback: isDirectMessage ? 'New message' : 'New mention',

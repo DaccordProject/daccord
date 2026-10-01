@@ -127,8 +127,8 @@ class AccordUsersController extends _$AccordUsersController {
     state = {..._cache};
   }
 
-  /// Returns a cached user from the same server as [client].
-  AccordUser? cached(String userId, {AccordClient? client}) => _cache[userId];
+  /// Returns a user from this server-qualified cache.
+  AccordUser? cached(String userId) => _cache[userId];
 }
 
 class _UserResolutionRequest {

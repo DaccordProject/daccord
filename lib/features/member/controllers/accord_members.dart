@@ -109,7 +109,7 @@ class AccordMembersController extends _$AccordMembersController {
     final missing = <String>[];
     for (final member in members.values) {
       if (member.user != null) continue;
-      final known = usersController.cached(member.userId, client: client);
+      final known = usersController.cached(member.userId);
       if (known != null) {
         member.user = known;
       } else if (member.userId.isNotEmpty) {

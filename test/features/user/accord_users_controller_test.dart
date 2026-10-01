@@ -171,8 +171,8 @@ void main() {
 
     expect(results[0]?.username, 'first');
     expect(results[1]?.username, 'second');
-    expect(firstUsers.cached('same', client: first)?.username, 'first');
-    expect(secondUsers.cached('same', client: second)?.username, 'second');
+    expect(firstUsers.cached('same')?.username, 'first');
+    expect(secondUsers.cached('same')?.username, 'second');
     expect(
       container.read(accordUsersControllerProvider('server-a'))['same']?.username,
       'first',
