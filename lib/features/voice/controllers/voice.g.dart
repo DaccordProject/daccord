@@ -8,24 +8,21 @@ part of 'voice.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Orchestrates voice channel join/leave and media toggles, the Dart port of
-/// the reference `client_voice.gd` + the voice slice of its `AppState`. Owns a
-/// single [VoiceSession] (the LiveKit transport) and pushes runtime self-state
-/// to the server over the gateway via `updateVoiceState`.
+/// Orchestrates voice channel join/leave and media toggles (reference:
+/// `client_voice.gd`). Owns a single [VoiceSession] (the LiveKit transport) and
+/// pushes runtime self-state to the server via `updateVoiceState`.
 
 @ProviderFor(VoiceController)
 final voiceControllerProvider = VoiceControllerProvider._();
 
-/// Orchestrates voice channel join/leave and media toggles, the Dart port of
-/// the reference `client_voice.gd` + the voice slice of its `AppState`. Owns a
-/// single [VoiceSession] (the LiveKit transport) and pushes runtime self-state
-/// to the server over the gateway via `updateVoiceState`.
+/// Orchestrates voice channel join/leave and media toggles (reference:
+/// `client_voice.gd`). Owns a single [VoiceSession] (the LiveKit transport) and
+/// pushes runtime self-state to the server via `updateVoiceState`.
 final class VoiceControllerProvider
     extends $NotifierProvider<VoiceController, VoiceConnection> {
-  /// Orchestrates voice channel join/leave and media toggles, the Dart port of
-  /// the reference `client_voice.gd` + the voice slice of its `AppState`. Owns a
-  /// single [VoiceSession] (the LiveKit transport) and pushes runtime self-state
-  /// to the server over the gateway via `updateVoiceState`.
+  /// Orchestrates voice channel join/leave and media toggles (reference:
+  /// `client_voice.gd`). Owns a single [VoiceSession] (the LiveKit transport) and
+  /// pushes runtime self-state to the server via `updateVoiceState`.
   VoiceControllerProvider._()
     : super(
         from: null,
@@ -53,12 +50,11 @@ final class VoiceControllerProvider
   }
 }
 
-String _$voiceControllerHash() => r'aadc0fe0eee0c092c704e23ee3ec5c99b3896588';
+String _$voiceControllerHash() => r'98e08c23023e0de28064ea5895c7e7aa9214f68d';
 
-/// Orchestrates voice channel join/leave and media toggles, the Dart port of
-/// the reference `client_voice.gd` + the voice slice of its `AppState`. Owns a
-/// single [VoiceSession] (the LiveKit transport) and pushes runtime self-state
-/// to the server over the gateway via `updateVoiceState`.
+/// Orchestrates voice channel join/leave and media toggles (reference:
+/// `client_voice.gd`). Owns a single [VoiceSession] (the LiveKit transport) and
+/// pushes runtime self-state to the server via `updateVoiceState`.
 
 abstract class _$VoiceController extends $Notifier<VoiceConnection> {
   VoiceConnection build();

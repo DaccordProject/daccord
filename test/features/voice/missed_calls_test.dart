@@ -77,11 +77,9 @@ void main() {
     });
 
     test('records a miss keyed by channel', () {
-      ctl().record(
-          channelId: 'dm1', callerId: 'u2', serverKey: 'u1@s', video: true);
+      ctl().record(channelId: 'dm1', callerId: 'u2', video: true);
       final entry = missed()['dm1']!;
       expect(entry.callerId, 'u2');
-      expect(entry.serverKey, 'u1@s');
       expect(entry.video, isTrue);
       expect(entry.count, 1);
       expect(entry.label, 'Missed call');
@@ -129,7 +127,6 @@ void main() {
       expect(container.read(callControllerProvider).incoming, isNull);
       final entry = missed()['dm1']!;
       expect(entry.callerId, 'u2');
-      expect(entry.serverKey, 'u1@s');
       expect(entry.video, isTrue);
       expect(entry.count, 1);
     });

@@ -12,8 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:livekit_client/livekit_client.dart';
 
 /// Opens the Voice & Video settings page (input/output devices, volumes,
-/// sensitivity + live mic test, camera). Ports the reference client's
-/// `app_settings` Voice & Video page reached from the voice bar's gear.
+/// sensitivity + live mic test, camera).
 Future<void> showVoiceSettings(BuildContext context) {
   return Navigator.of(
     context,

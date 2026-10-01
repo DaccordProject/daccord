@@ -8,39 +8,21 @@ part of 'taskbar_badge.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Mirrors [globalUnreadProvider] onto the OS taskbar/dock icon.
-///
-/// Deliberately a "service" with no state of its own: it exists so unread state
-/// reaches the platform *live*, including while the window is minimised or
-/// backgrounded, which is the whole point — a transient local notification is
-/// otherwise the only signal that something arrived.
-///
-/// Kept alive by a `ref.watch` in `MainWindow`, matching
-/// `BackgroundConnectionController` / the MCP server controller.
+/// Mirrors [globalUnreadProvider] onto the OS taskbar/dock icon, live —
+/// including while the window is minimised or backgrounded. Kept alive by a
+/// `ref.watch` in `MainWindow`.
 
 @ProviderFor(TaskbarBadgeController)
 final taskbarBadgeControllerProvider = TaskbarBadgeControllerProvider._();
 
-/// Mirrors [globalUnreadProvider] onto the OS taskbar/dock icon.
-///
-/// Deliberately a "service" with no state of its own: it exists so unread state
-/// reaches the platform *live*, including while the window is minimised or
-/// backgrounded, which is the whole point — a transient local notification is
-/// otherwise the only signal that something arrived.
-///
-/// Kept alive by a `ref.watch` in `MainWindow`, matching
-/// `BackgroundConnectionController` / the MCP server controller.
+/// Mirrors [globalUnreadProvider] onto the OS taskbar/dock icon, live —
+/// including while the window is minimised or backgrounded. Kept alive by a
+/// `ref.watch` in `MainWindow`.
 final class TaskbarBadgeControllerProvider
     extends $NotifierProvider<TaskbarBadgeController, void> {
-  /// Mirrors [globalUnreadProvider] onto the OS taskbar/dock icon.
-  ///
-  /// Deliberately a "service" with no state of its own: it exists so unread state
-  /// reaches the platform *live*, including while the window is minimised or
-  /// backgrounded, which is the whole point — a transient local notification is
-  /// otherwise the only signal that something arrived.
-  ///
-  /// Kept alive by a `ref.watch` in `MainWindow`, matching
-  /// `BackgroundConnectionController` / the MCP server controller.
+  /// Mirrors [globalUnreadProvider] onto the OS taskbar/dock icon, live —
+  /// including while the window is minimised or backgrounded. Kept alive by a
+  /// `ref.watch` in `MainWindow`.
   TaskbarBadgeControllerProvider._()
     : super(
         from: null,
@@ -71,15 +53,9 @@ final class TaskbarBadgeControllerProvider
 String _$taskbarBadgeControllerHash() =>
     r'6901e28292b6e7444a649e73f4886aba99efe4e5';
 
-/// Mirrors [globalUnreadProvider] onto the OS taskbar/dock icon.
-///
-/// Deliberately a "service" with no state of its own: it exists so unread state
-/// reaches the platform *live*, including while the window is minimised or
-/// backgrounded, which is the whole point — a transient local notification is
-/// otherwise the only signal that something arrived.
-///
-/// Kept alive by a `ref.watch` in `MainWindow`, matching
-/// `BackgroundConnectionController` / the MCP server controller.
+/// Mirrors [globalUnreadProvider] onto the OS taskbar/dock icon, live —
+/// including while the window is minimised or backgrounded. Kept alive by a
+/// `ref.watch` in `MainWindow`.
 
 abstract class _$TaskbarBadgeController extends $Notifier<void> {
   void build();

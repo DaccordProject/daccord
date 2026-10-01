@@ -7,15 +7,13 @@ import 'package:flutter/widgets.dart';
 // environment there, which is the right answer for this check anyway.
 import 'package:universal_io/io.dart' show Platform;
 
-/// Plays short UI sound effects (message sent/received, mentions). The Dart
-/// analogue of the reference client's `SoundManager` autoload
-/// (`../daccord/scripts/autoload/sound_manager.gd`), scoped to the non-voice
-/// SFX — voice join/leave/mute/deafen are deferred with the rest of voice.
+/// Plays short UI sound effects (messages, mentions, voice join/leave/mute/
+/// deafen) and the call ringtone. Reference:
+/// `../daccord/scripts/autoload/sound_manager.gd`.
 ///
 /// A global singleton ([soundManager]) rather than a Riverpod provider: it has
-/// no observable state, and the call sites (event handler, composer) just fire
-/// one-shot plays. Enablement/volume are mirrored from `AccordSettings` by
-/// `MainWindow`.
+/// no observable state, and call sites just fire one-shot plays.
+/// Enablement/volume are mirrored from `AccordSettings` by `MainWindow`.
 class SoundManager {
   SoundManager._();
 
@@ -27,8 +25,7 @@ class SoundManager {
     'member_join': 'sfx/message_received.wav',
     'voice_join': 'sfx/voice_join.wav',
     'voice_leave': 'sfx/voice_leave.wav',
-    // Peers entering/leaving our channel reuse the join/leave chimes, matching
-    // the reference SoundManager's `peer_join`/`peer_leave` aliases.
+    // Peers entering/leaving our channel reuse the join/leave chimes.
     'peer_join': 'sfx/voice_join.wav',
     'peer_leave': 'sfx/voice_leave.wav',
     'mute': 'sfx/mute.wav',
@@ -42,17 +39,13 @@ class SoundManager {
   /// Silences every playback path, and stops any [AudioPlayer] from being
   /// constructed at all.
   ///
-  /// Defaults to true under `flutter test`, where `audioplayers` and the
-  /// `path_provider` it reaches for have no platform implementation: a chime
-  /// fired from code under test (a mute toggle, an incoming message) would
-  /// otherwise throw `MissingPluginException` from an un-awaited async gap and
-  /// fail whichever test happened to be running (#220). Settable so a test can
-  /// opt back in.
+  /// Defaults to true under `flutter test`, where `audioplayers` has no
+  /// platform implementation: a chime fired from code under test would throw
+  /// `MissingPluginException` from an un-awaited async gap and fail whichever
+  /// test happened to be running. Settable so a test can opt back in.
   static bool silent = Platform.environment.containsKey('FLUTTER_TEST');
 
-  /// Lazy so a silent manager never builds a player. `audioplayers` reaches the
-  /// platform on first use, not construction, but building four of them plus a
-  /// ringtone player in a test process is pointless either way.
+  /// Lazy so a silent manager never builds a player.
   late final List<AudioPlayer> _pool = List.generate(
     _poolSize,
     (_) => AudioPlayer(),
@@ -65,14 +58,11 @@ class SoundManager {
   late final AudioPlayer _ringPlayer = AudioPlayer();
   bool _ringing = false;
 
-  AppLifecycleListener? _lifecycle;
-
   /// Set once a player can't be created — e.g. Linux without GStreamer's
   /// `playbin` (gstreamer1.0-plugins-base), where the audioplayers_linux fork
   /// rejects `create` instead of aborting the app. Every later sound then
   /// no-ops rather than failing again on each chime.
   bool _unavailable = false;
-  bool get unavailable => _unavailable;
 
   /// Whether the app currently has focus. The generic `message_received` sound
   /// only plays while unfocused (mentions always play).
@@ -87,12 +77,7 @@ class SoundManager {
   /// Whether a LiveKit voice session is live. `VoiceController` raises this
   /// before the media session connects and clears it after it disconnects; see
   /// [allowsOneShotInCall] for what it gates.
-  bool _voiceSessionActive = false;
-  bool get voiceSessionActive => _voiceSessionActive;
-
-  void setVoiceSessionActive(bool active) {
-    _voiceSessionActive = active;
-  }
+  bool voiceSessionActive = false;
 
   void init() {
     if (silent || _initialized) return;
@@ -102,7 +87,8 @@ class SoundManager {
     }
     unawaited(_probe(() => _ringPlayer.setReleaseMode(ReleaseMode.loop)));
     _applyAudioContext();
-    _lifecycle = AppLifecycleListener(
+    // Lives for the app's lifetime; the binding keeps it registered.
+    AppLifecycleListener(
       onStateChange: (state) => focused = state == AppLifecycleState.resumed,
     );
   }
@@ -192,7 +178,7 @@ class SoundManager {
   /// `AudioContext.activateAudioSession(active: false)`). That is the very
   /// session WebRTC's `RTCAudioSession` is driving the call through, and
   /// deactivating it underneath WebRTC stops capture and playback — the
-  /// "connected, permission granted, no audio either way" call (#323). No
+  /// "connected, permission granted, no audio either way" call. No
   /// `AudioContext` avoids that call, so in-call chimes are skipped on iOS.
   /// The looping ringtone is unaffected: a loop resumes on completion, so the
   /// session is only ever re-*activated*, and `stopRingtone` doesn't touch it.
@@ -211,7 +197,7 @@ class SoundManager {
   /// ([allowsOneShotInCall]).
   Future<void> play(String name) async {
     if (silent || _unavailable || !enabled || volume <= 0.0) return;
-    if (_voiceSessionActive &&
+    if (voiceSessionActive &&
         !allowsOneShotInCall(platform: defaultTargetPlatform, isWeb: kIsWeb)) {
       return;
     }
@@ -250,9 +236,8 @@ class SoundManager {
     }
   }
 
-  /// Pure decision half of [playForMessage]: returns the SFX name to play, or
-  /// null for silence — without touching audio. Extracted so the chime policy
-  /// (mirroring the reference's `play_for_message`) can be unit-tested.
+  /// Pure decision half of [playForMessage]: the SFX name to play, or null for
+  /// silence.
   ///
   /// [isMention] folds together direct, role, and `@everyone` mentions;
   /// [isVisibleChannel] is true when the message lands in the channel the user
@@ -276,8 +261,7 @@ class SoundManager {
     return null;
   }
 
-  /// Decides which SFX (if any) to play for an incoming message, then performs
-  /// playback. The decision is delegated to the pure [soundForMessage].
+  /// Plays the SFX (if any) [soundForMessage] picks for an incoming message.
   void playForMessage({
     required bool isMention,
     required bool isVisibleChannel,
@@ -294,11 +278,10 @@ class SoundManager {
     if (name != null) play(name);
   }
 
-  /// Chimes when a *peer* enters or leaves the voice channel we're sitting in.
-  /// Mirrors the reference `play_for_voice_state`: silent for our own state
-  /// changes and whenever we aren't connected to voice. [joinedChannel] is the
-  /// peer's new channel, [leftChannel] their previous one, [myVoiceChannel] the
-  /// channel we're currently in (null when not in voice).
+  /// Chimes when a *peer* enters or leaves the voice channel we're sitting in;
+  /// silent for our own state changes and whenever we aren't in voice.
+  /// [joinedChannel] is the peer's new channel, [leftChannel] their previous
+  /// one, [myVoiceChannel] the channel we're in (null when not in voice).
   void playForVoiceState({
     required bool isSelf,
     required String? joinedChannel,
@@ -333,15 +316,6 @@ class SoundManager {
     if (!_ringing) return;
     _ringing = false;
     await _quietly(_ringPlayer.stop);
-  }
-
-  void dispose() {
-    _lifecycle?.dispose();
-    if (silent) return;
-    _ringPlayer.dispose();
-    for (final player in _pool) {
-      player.dispose();
-    }
   }
 }
 

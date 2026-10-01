@@ -15,7 +15,6 @@ void main() {
   group('AfkTracker', () {
     test('starts active', () {
       expect(connectedTracker().isAfk, isFalse);
-      expect(connectedTracker().lastActivityAt, t0);
     });
 
     test('goes AFK once the idle threshold is reached', () {
@@ -69,7 +68,6 @@ void main() {
       final back = t0.add(const Duration(minutes: 11));
       expect(tracker.markActivity(back), isTrue);
       expect(tracker.isAfk, isFalse);
-      expect(tracker.lastActivityAt, back);
 
       // A second activity while already active isn't a state change.
       expect(
@@ -102,7 +100,13 @@ void main() {
       final tracker = connectedTracker();
       tracker.markActivity(t0.add(const Duration(minutes: 5)));
       tracker.markActivity(t0.add(const Duration(minutes: 1)));
-      expect(tracker.lastActivityAt, t0.add(const Duration(minutes: 5)));
+      // 13 minutes after the stale stamp, but only 9 since the latest.
+      tracker.tick(
+        now: t0.add(const Duration(minutes: 14)),
+        connected: true,
+        timeout: tenMinutes,
+      );
+      expect(tracker.isAfk, isFalse);
     });
 
     test('never goes AFK while disconnected, however long the idle', () {

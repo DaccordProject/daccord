@@ -15,9 +15,9 @@ part 'background_connection.g.dart';
 /// keep firing. The service holds no logic of its own — keeping the process
 /// unfrozen is the whole job.
 ///
-/// Mirrors the MCP server controller pattern: kept alive by a `ref.watch` in
-/// `MainWindow`, reacting to the persisted "Background connection" setting and
-/// the login state. A no-op on every platform but Android.
+/// Kept alive by a `ref.watch` in `MainWindow`, reacting to the persisted
+/// "Background connection" setting and the login state. A no-op on every
+/// platform but Android.
 @Riverpod(keepAlive: true)
 class BackgroundConnectionController extends _$BackgroundConnectionController {
   static const _channel = MethodChannel(
@@ -28,12 +28,9 @@ class BackgroundConnectionController extends _$BackgroundConnectionController {
 
   @override
   void build() {
-    // Store builds (the Play AAB, built with --flavor play + APP_STORE=true) ship
-    // without BackgroundConnectionService in their manifest, so never try to start
-    // it — that would crash on an undeclared service. Background delivery on Play
-    // awaits a server-side push system; the sideload build keeps this feature.
-    // Shared with the settings toggle so the two can never disagree about
-    // whether the feature exists on this build.
+    // Store builds (the Play AAB) ship without BackgroundConnectionService in
+    // their manifest, and starting an undeclared service would crash. Shared
+    // with the settings toggle so the two never disagree.
     if (!isBackgroundConnectionAvailable) return;
     final enabled = ref.watch(
       settingsControllerProvider.select((s) => s.backgroundConnection),

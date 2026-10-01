@@ -17,8 +17,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// The pre-join state: participants already in the channel plus a Join button.
 ///
 /// This is what opening a voice channel shows — selecting a channel never
-/// connects (#202), so the lobby is the only thing standing between a stray
-/// click and an audible join. [compact] lays it out as a fixed-height strip
+/// connects, so the lobby is the only thing standing between a stray click
+/// and an audible join. [compact] lays it out as a fixed-height strip
 /// above the chat panel for the narrow layout, where a centred column would
 /// either push the chat off-screen or be pushed off itself.
 class VoiceLobbyBody extends ConsumerWidget {
@@ -41,11 +41,15 @@ class VoiceLobbyBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
-    final states = ref.watch(
-      voiceStatesControllerProvider(ref.readActiveServerKey() ?? '').select(
-        (cache) => voiceStatesFor(cache, channelId),
-      ),
-    );
+    final states =
+        ref
+            .watch(
+              voiceStatesControllerProvider(
+                ref.readActiveServerKey() ?? '',
+              ).select((cache) => cache[channelId]),
+            )
+            ?.values ??
+        const [];
     final members = spaceId == null
         ? null
         : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId!));
@@ -87,12 +91,9 @@ class VoiceLobbyBody extends ConsumerWidget {
       );
     }
 
-    // A bare "No one is here yet" line over a Join button reads as an
-    // unfinished feature — voice/video/screen share is a headline feature and
-    // has to look like one at rest (#292). Both presentations show the same
-    // pre-join card: the channel it belongs to, who is already in it, the
-    // media state you would join with, and what joining actually does.
-    // [compact] only tightens it so the text chat below still has room.
+    // Both presentations show the same pre-join card: the channel, who is
+    // already in it, the media state you would join with, and what joining
+    // does. [compact] only tightens it so the text chat below still has room.
     final theme = Theme.of(context);
     final selfMute = ref.watch(
       voiceControllerProvider.select((v) => v.selfMute),
@@ -228,7 +229,7 @@ class VoiceLobbyBody extends ConsumerWidget {
     );
 
     // Compact: a fixed block above the chat panel, so joining never requires
-    // closing the chat first (#202).
+    // closing the chat first.
     if (compact) {
       return Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),

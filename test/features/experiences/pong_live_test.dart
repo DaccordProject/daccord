@@ -8,7 +8,7 @@ import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
-import 'package:bonfire/features/experiences/views/arcade.dart';
+import 'package:bonfire/features/experiences/views/experience_session_view.dart';
 import 'package:bonfire/features/experiences/views/experience_canvas.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';

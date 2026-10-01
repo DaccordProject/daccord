@@ -15,12 +15,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// Stacks [IncomingCallOverlay] above [child] — the app's entire route stack —
 /// so an incoming ring is answerable whatever is on screen.
 ///
-/// Mounted from `MaterialApp.builder` in `main.dart`. The banner used to live
-/// in the home screen's own [Stack], which put it *underneath* every route
-/// pushed above home — the Direct Messages dialog and the full-screen call view
-/// (pushed on the root navigator) both hid it while the ringtone kept playing,
-/// so a call arriving mid-DM or mid-call could be heard but not answered
-/// (#139). Hosting it here puts it above dialog routes and page routes alike.
+/// Mounted from `MaterialApp.builder` in `main.dart` so it sits above dialog
+/// and page routes alike; inside the home screen it would hide under any
+/// pushed route while the ringtone kept playing.
 Widget withIncomingCallOverlay(Widget? child) {
   return Stack(
     children: [

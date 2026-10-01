@@ -51,8 +51,9 @@ class _ExperienceCanvasState extends State<ExperienceCanvas> {
     'black king',
   ];
   KeyEventResult _key(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent || widget.onCell == null)
+    if (event is! KeyDownEvent || widget.onCell == null) {
       return KeyEventResult.ignored;
+    }
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.arrowRight) {
       _focused = (_focused + 1).clamp(0, 63);

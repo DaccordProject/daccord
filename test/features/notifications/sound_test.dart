@@ -1,6 +1,5 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:bonfire/features/notifications/services/sound.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -96,17 +95,10 @@ void main() {
     test('init is a no-op while silent', () {
       expect(soundManager.init, returnsNormally);
     });
-
-    test('dispose is a no-op while silent', () {
-      // Guards against forcing the late `_pool`/`_ringPlayer` fields into
-      // existence just to tear them down — that construction reaches the
-      // platform the same as `play` does.
-      expect(soundManager.dispose, returnsNormally);
-    });
   });
 
   group('SoundManager during a voice call (#323)', () {
-    tearDown(() => soundManager.setVoiceSessionActive(false));
+    tearDown(() => soundManager.voiceSessionActive = false);
 
     test('one-shot chimes are held back only on iOS', () {
       // iOS: audioplayers deactivates the shared AVAudioSession when a one-shot
@@ -140,20 +132,12 @@ void main() {
       );
     });
 
-    test('setVoiceSessionActive is plain, readable state', () {
-      expect(soundManager.voiceSessionActive, isFalse);
-      soundManager.setVoiceSessionActive(true);
-      expect(soundManager.voiceSessionActive, isTrue);
-      soundManager.setVoiceSessionActive(false);
-      expect(soundManager.voiceSessionActive, isFalse);
-    });
-
     test(
       'play and the ringtone stay no-ops while silent, in-call too',
       () async {
         soundManager.enabled = true;
         soundManager.volume = 1.0;
-        soundManager.setVoiceSessionActive(true);
+        soundManager.voiceSessionActive = true;
         await expectLater(soundManager.play('mute'), completes);
         await expectLater(
           soundManager.startRingtone(outgoing: true),
@@ -239,7 +223,6 @@ void main() {
         ..init();
       await pumpEventQueue();
       expect(calls, contains('create'));
-      expect(soundManager.unavailable, isTrue);
 
       // Later chimes no-op without errors or further platform calls.
       calls.clear();

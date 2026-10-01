@@ -9,23 +9,25 @@ part of 'voice_states.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// Per-server cache of who is in which voice channel, keyed `channel_id →
-/// {user_id → state}`. User moves scan channels and copy only affected buckets.
+/// {user_id → state}`. Updates copy only the affected buckets, so widgets
+/// `select` `cache[channelId]` to rebuild only when their channel changes.
 ///
-/// Seeded from the gateway READY payload's voice states and from
-/// `channels.fetchVoiceStates`, then kept in sync by `voice.state_update`
-/// events (all wired in `accord_event_handler.dart`). A `voice.state_update`
-/// with a null `channelId` means the user left voice entirely.
+/// Seeded from the gateway READY payload (`accord_ready_sync.dart`) and from
+/// `voice.getStatus` after a join, then kept in sync by `voice.state_update`
+/// events. A `voice.state_update` with a null `channelId` means the user left
+/// voice entirely.
 
 @ProviderFor(VoiceStatesController)
 final voiceStatesControllerProvider = VoiceStatesControllerFamily._();
 
 /// Per-server cache of who is in which voice channel, keyed `channel_id →
-/// {user_id → state}`. User moves scan channels and copy only affected buckets.
+/// {user_id → state}`. Updates copy only the affected buckets, so widgets
+/// `select` `cache[channelId]` to rebuild only when their channel changes.
 ///
-/// Seeded from the gateway READY payload's voice states and from
-/// `channels.fetchVoiceStates`, then kept in sync by `voice.state_update`
-/// events (all wired in `accord_event_handler.dart`). A `voice.state_update`
-/// with a null `channelId` means the user left voice entirely.
+/// Seeded from the gateway READY payload (`accord_ready_sync.dart`) and from
+/// `voice.getStatus` after a join, then kept in sync by `voice.state_update`
+/// events. A `voice.state_update` with a null `channelId` means the user left
+/// voice entirely.
 final class VoiceStatesControllerProvider
     extends
         $NotifierProvider<
@@ -33,12 +35,13 @@ final class VoiceStatesControllerProvider
           Map<String, Map<String, AccordVoiceState>>
         > {
   /// Per-server cache of who is in which voice channel, keyed `channel_id →
-  /// {user_id → state}`. User moves scan channels and copy only affected buckets.
+  /// {user_id → state}`. Updates copy only the affected buckets, so widgets
+  /// `select` `cache[channelId]` to rebuild only when their channel changes.
   ///
-  /// Seeded from the gateway READY payload's voice states and from
-  /// `channels.fetchVoiceStates`, then kept in sync by `voice.state_update`
-  /// events (all wired in `accord_event_handler.dart`). A `voice.state_update`
-  /// with a null `channelId` means the user left voice entirely.
+  /// Seeded from the gateway READY payload (`accord_ready_sync.dart`) and from
+  /// `voice.getStatus` after a join, then kept in sync by `voice.state_update`
+  /// events. A `voice.state_update` with a null `channelId` means the user left
+  /// voice entirely.
   VoiceStatesControllerProvider._({
     required VoiceStatesControllerFamily super.from,
     required String super.argument,
@@ -85,15 +88,16 @@ final class VoiceStatesControllerProvider
 }
 
 String _$voiceStatesControllerHash() =>
-    r'6c7f0dac2cb0a090a49395dcb93f4553fbf55591';
+    r'7daa1df2647e83c15e12a87430dd15c48392b3b6';
 
 /// Per-server cache of who is in which voice channel, keyed `channel_id →
-/// {user_id → state}`. User moves scan channels and copy only affected buckets.
+/// {user_id → state}`. Updates copy only the affected buckets, so widgets
+/// `select` `cache[channelId]` to rebuild only when their channel changes.
 ///
-/// Seeded from the gateway READY payload's voice states and from
-/// `channels.fetchVoiceStates`, then kept in sync by `voice.state_update`
-/// events (all wired in `accord_event_handler.dart`). A `voice.state_update`
-/// with a null `channelId` means the user left voice entirely.
+/// Seeded from the gateway READY payload (`accord_ready_sync.dart`) and from
+/// `voice.getStatus` after a join, then kept in sync by `voice.state_update`
+/// events. A `voice.state_update` with a null `channelId` means the user left
+/// voice entirely.
 
 final class VoiceStatesControllerFamily extends $Family
     with
@@ -114,12 +118,13 @@ final class VoiceStatesControllerFamily extends $Family
       );
 
   /// Per-server cache of who is in which voice channel, keyed `channel_id →
-  /// {user_id → state}`. User moves scan channels and copy only affected buckets.
+  /// {user_id → state}`. Updates copy only the affected buckets, so widgets
+  /// `select` `cache[channelId]` to rebuild only when their channel changes.
   ///
-  /// Seeded from the gateway READY payload's voice states and from
-  /// `channels.fetchVoiceStates`, then kept in sync by `voice.state_update`
-  /// events (all wired in `accord_event_handler.dart`). A `voice.state_update`
-  /// with a null `channelId` means the user left voice entirely.
+  /// Seeded from the gateway READY payload (`accord_ready_sync.dart`) and from
+  /// `voice.getStatus` after a join, then kept in sync by `voice.state_update`
+  /// events. A `voice.state_update` with a null `channelId` means the user left
+  /// voice entirely.
 
   VoiceStatesControllerProvider call(String serverKey) =>
       VoiceStatesControllerProvider._(argument: serverKey, from: this);
@@ -129,12 +134,13 @@ final class VoiceStatesControllerFamily extends $Family
 }
 
 /// Per-server cache of who is in which voice channel, keyed `channel_id →
-/// {user_id → state}`. User moves scan channels and copy only affected buckets.
+/// {user_id → state}`. Updates copy only the affected buckets, so widgets
+/// `select` `cache[channelId]` to rebuild only when their channel changes.
 ///
-/// Seeded from the gateway READY payload's voice states and from
-/// `channels.fetchVoiceStates`, then kept in sync by `voice.state_update`
-/// events (all wired in `accord_event_handler.dart`). A `voice.state_update`
-/// with a null `channelId` means the user left voice entirely.
+/// Seeded from the gateway READY payload (`accord_ready_sync.dart`) and from
+/// `voice.getStatus` after a join, then kept in sync by `voice.state_update`
+/// events. A `voice.state_update` with a null `channelId` means the user left
+/// voice entirely.
 
 abstract class _$VoiceStatesController
     extends $Notifier<Map<String, Map<String, AccordVoiceState>>> {

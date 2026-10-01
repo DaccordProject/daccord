@@ -17,13 +17,11 @@ part of 'missed_calls.dart';
 /// answered the prompt, so re-surfacing it as an unread badge would be noise.
 ///
 /// **Session-only.** The entries live in memory and are gone after a restart:
-/// the record is an attention cue rather than a call log, Accord has no
-/// call-history API to reconcile against, and persisting would mean adding a new
-/// Hive box in `setupHive()`.
+/// the record is an attention cue rather than a call log, and Accord has no
+/// call-history API to reconcile against.
 ///
-/// Keyed by channel id alone; ids are per-server snowflakes, so the (unlikely)
-/// case of two servers minting the same DM channel id could collide. [MissedCall
-/// .serverKey] carries the origin connection for callers that care.
+/// Keyed by channel id alone; ids are per-server snowflakes, so two servers
+/// minting the same DM channel id could (unlikely) collide.
 
 @ProviderFor(MissedCallsController)
 final missedCallsControllerProvider = MissedCallsControllerProvider._();
@@ -37,13 +35,11 @@ final missedCallsControllerProvider = MissedCallsControllerProvider._();
 /// answered the prompt, so re-surfacing it as an unread badge would be noise.
 ///
 /// **Session-only.** The entries live in memory and are gone after a restart:
-/// the record is an attention cue rather than a call log, Accord has no
-/// call-history API to reconcile against, and persisting would mean adding a new
-/// Hive box in `setupHive()`.
+/// the record is an attention cue rather than a call log, and Accord has no
+/// call-history API to reconcile against.
 ///
-/// Keyed by channel id alone; ids are per-server snowflakes, so the (unlikely)
-/// case of two servers minting the same DM channel id could collide. [MissedCall
-/// .serverKey] carries the origin connection for callers that care.
+/// Keyed by channel id alone; ids are per-server snowflakes, so two servers
+/// minting the same DM channel id could (unlikely) collide.
 final class MissedCallsControllerProvider
     extends $NotifierProvider<MissedCallsController, Map<String, MissedCall>> {
   /// Unanswered incoming DM calls, keyed by channel id.
@@ -55,13 +51,11 @@ final class MissedCallsControllerProvider
   /// answered the prompt, so re-surfacing it as an unread badge would be noise.
   ///
   /// **Session-only.** The entries live in memory and are gone after a restart:
-  /// the record is an attention cue rather than a call log, Accord has no
-  /// call-history API to reconcile against, and persisting would mean adding a new
-  /// Hive box in `setupHive()`.
+  /// the record is an attention cue rather than a call log, and Accord has no
+  /// call-history API to reconcile against.
   ///
-  /// Keyed by channel id alone; ids are per-server snowflakes, so the (unlikely)
-  /// case of two servers minting the same DM channel id could collide. [MissedCall
-  /// .serverKey] carries the origin connection for callers that care.
+  /// Keyed by channel id alone; ids are per-server snowflakes, so two servers
+  /// minting the same DM channel id could (unlikely) collide.
   MissedCallsControllerProvider._()
     : super(
         from: null,
@@ -90,7 +84,7 @@ final class MissedCallsControllerProvider
 }
 
 String _$missedCallsControllerHash() =>
-    r'1e8891209093d91fd9d6281718296a633dbf0336';
+    r'b7f121c6d62b7b7e2c66e864d77d0b0d7c78b688';
 
 /// Unanswered incoming DM calls, keyed by channel id.
 ///
@@ -101,13 +95,11 @@ String _$missedCallsControllerHash() =>
 /// answered the prompt, so re-surfacing it as an unread badge would be noise.
 ///
 /// **Session-only.** The entries live in memory and are gone after a restart:
-/// the record is an attention cue rather than a call log, Accord has no
-/// call-history API to reconcile against, and persisting would mean adding a new
-/// Hive box in `setupHive()`.
+/// the record is an attention cue rather than a call log, and Accord has no
+/// call-history API to reconcile against.
 ///
-/// Keyed by channel id alone; ids are per-server snowflakes, so the (unlikely)
-/// case of two servers minting the same DM channel id could collide. [MissedCall
-/// .serverKey] carries the origin connection for callers that care.
+/// Keyed by channel id alone; ids are per-server snowflakes, so two servers
+/// minting the same DM channel id could (unlikely) collide.
 
 abstract class _$MissedCallsController
     extends $Notifier<Map<String, MissedCall>> {

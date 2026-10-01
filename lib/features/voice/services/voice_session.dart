@@ -16,10 +16,7 @@ enum VoiceSessionState {
 }
 
 /// Thin wrapper around a LiveKit [Room] that exposes the control surface the
-/// [VoiceController] needs. The Dart port of the reference `livekit_adapter.gd`
-/// — but the `livekit_client` SDK already handles mic capture, audio playback,
-/// device selection, and speaking detection, so the manual Godot audio pipeline
-/// collapses into a handful of SDK calls here.
+/// [VoiceController] needs (reference: `livekit_adapter.gd`).
 ///
 /// Participant identity equals the Accord user ID (the server sets it), so the
 /// UI can match LiveKit participants to voice states directly.
@@ -31,46 +28,32 @@ class VoiceSession {
   bool _deafened = false;
   bool _intentionalDisconnect = false;
 
-  /// Why the microphone is *not* live after the last [connect] (or the last
-  /// [setMicEnabled] `true`): the OS denied microphone access, no capture
-  /// device, or the publish itself failed. Null when the mic was published or
-  /// simply wasn't requested (joined muted). The controller reads this right
-  /// after `connect` to keep the UI honest — muted, with the reason — rather
-  /// than showing a live mic that isn't (#325).
   String? _micError;
 
-  /// How long to wait for the local participant to exist after `Room.connect`
-  /// before giving up on the initial mic publish. Only ever waited on in the
-  /// rare case the join-response listener hasn't finished when `connect`
-  /// returns.
+  /// How long [_awaitLocalParticipant] waits before giving up on the initial
+  /// mic publish.
   static const _localParticipantTimeout = Duration(seconds: 10);
 
-  /// Output (remote-audio) gain as a 0–2 multiplier; applied to every remote
-  /// audio track. The reference dropped to -80 dB for deafen; here LiveKit has
-  /// no per-track volume so we lean on the WebRTC track volume.
+  /// Output (remote-audio) gain as a 0–2 multiplier, applied to every remote
+  /// audio track via the WebRTC track volume.
   double _outputGain = 1;
 
   /// Input (microphone) gain as a 0–2 multiplier; best-effort — not every
   /// platform honours setting volume on a capture track.
   double _inputGain = 1;
 
-  /// Continuously-polled local mic level (0–1), read from the local audio
-  /// track's WebRTC `media-source` stats. Unlike [Participant.audioLevel] —
-  /// which LiveKit only updates from throttled server active-speaker reports —
-  /// this is computed locally and updates every poll, so the meter reacts
-  /// immediately to quiet input.
+  /// Local mic level (0–1) polled from the track's WebRTC `media-source`
+  /// stats. [Participant.audioLevel] only updates from throttled server
+  /// active-speaker reports, so the meter would lag on quiet input.
   double _localInputLevel = 0;
   Timer? _levelTimer;
   bool _pollingLevel = false;
 
-  /// Fires on high-frequency room churn (active-speaker / audio-level reports).
-  /// The controller uses this only to refresh the speaking set, so it must stay
-  /// cheap — it can fire many times per second while anyone is talking.
+  /// Fires on high-frequency room churn (active-speaker / audio-level reports),
+  /// many times per second while anyone talks, so handlers must stay cheap.
   VoidCallback? onChanged;
 
-  /// Fires only when the renderable track/participant set actually changes
-  /// (track sub/unsub, local publish/unpublish, participant join/leave). The
-  /// controller bumps its grid-rebuild `tick` from here, so the expensive video
+  /// Fires only when the renderable track/participant set changes, so the video
   /// grid rebuilds on structural changes rather than on every speaker report.
   VoidCallback? onTracksChanged;
 
@@ -78,18 +61,17 @@ class VoiceSession {
   void Function(VoiceSessionState state)? onStateChanged;
 
   /// Fires when the room disconnects. [intentional] is true for a local
-  /// leave/teardown, false for a dropped connection (the controller may then
-  /// attempt a credential refresh + reconnect, like the reference).
+  /// leave/teardown, false for a dropped connection.
   void Function({required bool intentional})? onDisconnected;
 
   Room? get room => _room;
   VoiceSessionState get state => _state;
   String? get lastError => _lastError;
 
-  /// See [_micError].
+  /// Why the microphone is *not* live after the last [connect] (or the last
+  /// [setMicEnabled] `true`): access denied, no capture device, or a failed
+  /// publish. Null when the mic was published or wasn't requested.
   String? get micError => _micError;
-
-  LocalParticipant? get localParticipant => _room?.localParticipant;
 
   /// Our published camera track (null when the camera is off).
   VideoTrack? get localCameraTrack =>
@@ -142,25 +124,20 @@ class VoiceSession {
     };
   }
 
-  /// Our local microphone audio level (0–1), polled continuously from the local
-  /// track's WebRTC stats. Drives the mic-activity meter so the user can see
-  /// their own input being picked up. Zero while silent/muted.
+  /// Our local microphone level (0–1) for the mic-activity meter; zero while
+  /// silent or muted.
   double get localAudioLevel => _localInputLevel;
 
-  /// Whether the local mic is currently over LiveKit's own speaking threshold
-  /// (server active-speaker report). The meter prefers a locally-computed
-  /// threshold comparison for responsiveness; this is the fallback.
+  /// Whether LiveKit's server active-speaker report counts us as speaking.
   bool get localIsSpeaking => _room?.localParticipant?.isSpeaking ?? false;
 
   /// Connects to [url] with [token], reusing the single long-lived [Room].
   ///
-  /// Crucially this does **not** recreate the [Room] per call: a fresh `Room`
-  /// each connect (then disposing the old one) leaves the previous native
-  /// WebRTC `PeerConnection` + mic capture half-released, so the next publish
-  /// throws `TrackPublishException` / `No active stream to cancel` — exactly the
-  /// channel-swap breakage. Instead we keep one `Room` for the session's life,
-  /// soft-disconnect it before reconnecting, and only fully dispose in
-  /// [dispose]. The initial mute/deafen are applied once connected.
+  /// Never recreate the [Room] per call: disposing the old one leaves its
+  /// native WebRTC `PeerConnection` + mic capture half-released, so the next
+  /// publish throws `TrackPublishException` / `No active stream to cancel`.
+  /// The Room is soft-disconnected between connects and only released in
+  /// [dispose].
   Future<void> connect(
     String url,
     String token, {
@@ -179,11 +156,8 @@ class VoiceSession {
     final captureDeviceId = normalizeDeviceId(audioInputDeviceId);
     final room = _ensureRoom();
 
-    // Channel swap / reconnect: release the prior connection's media and drop
-    // the socket first, but keep the *same* Room object. `_intentionalDisconnect`
-    // stays set across the reconnect so the RoomDisconnectedEvent this triggers
-    // is treated as intentional (no auto-reconnect) — it's reset only once the
-    // new connection is up.
+    // `_intentionalDisconnect` stays set until the new connection is up, so the
+    // RoomDisconnectedEvent this triggers doesn't auto-reconnect.
     _intentionalDisconnect = true;
     if (room.connectionState != ConnectionState.disconnected) {
       _stopLevelPolling();
@@ -199,16 +173,9 @@ class VoiceSession {
     _lastError = null;
     _micError = null;
 
-    // Capture the microphone *before* joining the room. On mobile this is what
-    // raises the OS microphone prompt — flutter_webrtc's `getUserMedia` calls
-    // `AVCaptureDevice requestAccessForMediaType:` on iOS and requests
-    // RECORD_AUDIO on Android — so the user is asked up front, at join, rather
-    // than at whichever later toggle happens to be the first real capture. It
-    // also makes a denied/failed capture a *reported* outcome ([micError])
-    // instead of a silently skipped publish: the old path was a null-aware
-    // `localParticipant?.setMicrophoneEnabled` inside an error-swallowing
-    // guard, and when that did nothing the first `mute` was a no-op and the
-    // `unmute` created the track — and prompted — for the first time (#325).
+    // Capture the mic before joining so the OS prompt appears at join and a
+    // denied capture surfaces as [micError] instead of a silently skipped
+    // publish.
     LocalAudioTrack? micTrack;
     if (!selfMute) {
       try {
@@ -227,7 +194,6 @@ class VoiceSession {
         token,
         connectOptions: voiceConnectOptions(relayOnly),
       );
-      // The new connection is live — genuine drops from here are unintentional.
       _intentionalDisconnect = false;
       if (micTrack != null) {
         // Ownership moves to the publication (or is released on failure).
@@ -250,14 +216,12 @@ class VoiceSession {
       debugPrint('LiveKit connect failed: $e');
       _setState(VoiceSessionState.failed);
       await _releaseTrack(micTrack);
-      // Soft cleanup — keep the Room so the next attempt can reuse it.
-      await _softDisconnect();
+      await disconnect();
     }
   }
 
-  /// Publishes the pre-captured microphone [track]. Unlike the other media
-  /// toggles this is *not* fire-and-forget: a failure is recorded in
-  /// [micError] (and the track released) so the controller can show it.
+  /// Publishes the pre-captured microphone [track]; a failure is recorded in
+  /// [micError] and the track released.
   Future<void> _publishMic(Room room, LocalAudioTrack track) async {
     try {
       final participant = await _awaitLocalParticipant(room);
@@ -269,11 +233,9 @@ class VoiceSession {
     }
   }
 
-  /// `Room.connect` resolves on the engine's join/ICE events, while the local
-  /// participant is created by an async listener on that same join response
-  /// and is only guaranteed once `RoomConnectedEvent` fires. Normally it exists
-  /// by the time `connect` returns; if not, wait for it rather than silently
-  /// skipping the publish.
+  /// `Room.connect` can resolve before the async join-response listener has
+  /// created the local participant, which is only guaranteed once
+  /// `RoomConnectedEvent` fires; wait for it rather than skip the publish.
   Future<LocalParticipant> _awaitLocalParticipant(Room room) async {
     final existing = room.localParticipant;
     if (existing != null) return existing;
@@ -302,9 +264,8 @@ class VoiceSession {
     });
   }
 
-  /// Lazily creates the one [Room] this session uses for its entire lifetime,
-  /// wiring the change/event listeners exactly once. Subsequent connects reuse
-  /// it; it's only torn down in [dispose].
+  /// Lazily creates the one [Room] this session uses for its lifetime, wiring
+  /// its listeners exactly once.
   Room _ensureRoom() {
     var room = _room;
     if (room != null) return room;
@@ -317,10 +278,9 @@ class VoiceSession {
     return room;
   }
 
-  /// Stops any local capture (screen-share, camera, mic) so the native devices
-  /// are released before we drop the socket. Each toggle is guarded — stopping
-  /// an already-gone track throws "No active stream to cancel" on some
-  /// platforms, which must not abort the disconnect.
+  /// Stops any local capture so the native devices are released before we drop
+  /// the socket. Each toggle is guarded: stopping an already-gone track throws
+  /// "No active stream to cancel" on some platforms.
   Future<void> _stopLocalMedia() async {
     final participant = _room?.localParticipant;
     if (participant == null) return;
@@ -335,8 +295,9 @@ class VoiceSession {
     );
   }
 
-  /// Drops the live connection but keeps the [Room] object alive for reuse.
-  Future<void> _softDisconnect() async {
+  /// Leaves the channel (local intent — no auto-reconnect) but keeps the
+  /// [Room] alive for reuse.
+  Future<void> disconnect() async {
     final room = _room;
     if (room == null) return;
     _intentionalDisconnect = true;
@@ -349,19 +310,11 @@ class VoiceSession {
     }
   }
 
-  /// Leaves the channel but keeps the reusable [Room] (local intent — no
-  /// auto-reconnect). The Room is only fully released in [dispose].
-  Future<void> disconnect() => _softDisconnect();
-
-  /// Mutes or unmutes the microphone. An unmute with no published mic (the
-  /// initial capture failed, or we joined muted) creates and publishes the
-  /// track — on mobile that is where the OS permission prompt appears if it
-  /// hasn't yet.
+  /// Mutes or unmutes the microphone. An unmute with no published mic creates
+  /// and publishes the track (raising the OS prompt on mobile if needed).
   ///
   /// Returns null once the mic is in the requested state, or the user-facing
-  /// reason an *unmute* failed (permission denied, no capture device) so the
-  /// controller can revert to muted and say why. Muting never fails: stopping a
-  /// track the OS already tore down is harmless.
+  /// reason an *unmute* failed. Muting never fails.
   Future<String?> setMicEnabled(bool enabled) async {
     final participant = _room?.localParticipant;
     if (participant == null) return null;
@@ -380,9 +333,8 @@ class VoiceSession {
     }
   }
 
-  /// Silences (or restores) every remote participant's audio locally. LiveKit
-  /// has no per-track volume, so we toggle the audio subscriptions — the
-  /// reference dropped remote playback to -80 dB for the same effect.
+  /// Silences (or restores) every remote participant's audio locally by
+  /// toggling the audio subscriptions.
   Future<void> setDeafened(bool deafened) async {
     _deafened = deafened;
     await _applyDeafen(deafened);
@@ -423,19 +375,15 @@ class VoiceSession {
 
   /// Enables (or disables) screen sharing. When enabling, [sourceId] selects a
   /// specific screen or window (from the desktop source picker); a null/empty
-  /// id falls back to the platform's own capture prompt (web `getDisplayMedia`,
-  /// mobile system capture). [width]/[height]/[fps]/[bitrate] shape both the
-  /// capture and the *published encoding* from the screen-share quality
-  /// settings; [motionPriority] decides what the encoder sacrifices first when
-  /// it runs short of CPU/bandwidth.
+  /// id falls back to the platform's own capture prompt. [width]/[height]/
+  /// [fps]/[bitrate] shape both the capture and the *published encoding*;
+  /// [motionPriority] decides what the encoder sacrifices first when it runs
+  /// short of CPU/bandwidth.
   ///
-  /// Capture options alone are not enough: LiveKit computes the send encoding
-  /// from `VideoPublishOptions`, and when we leave that unset it falls back to
-  /// its own screen-share presets, which are picked for slides — 720p caps at
-  /// 800 kbps @ 5 fps, 1080p at 2.5 Mbps @ 15 fps — no matter what we asked the
-  /// capturer for. That mismatch is why shared gameplay ran at a fraction of
-  /// the configured frame rate (issue #151), so we publish the track ourselves
-  /// with an explicit `screenShareEncoding`.
+  /// Capture options alone are not enough: without `VideoPublishOptions`,
+  /// LiveKit falls back to its slide-oriented screen-share presets (720p caps
+  /// at 800 kbps @ 5 fps, 1080p at 2.5 Mbps @ 15 fps), so we publish the track
+  /// ourselves with an explicit `screenShareEncoding`.
   Future<void> setScreenShareEnabled(
     bool enabled, {
     String? sourceId,
@@ -456,8 +404,6 @@ class VoiceSession {
       return;
     }
 
-    // No more hardcoded 15 fps fallback: an unspecified size/rate means the
-    // screen-share defaults (720p60), not a slideshow.
     final resolvedFps = fps ?? defaultScreenShareFps;
     final resolvedBitrate = bitrate ?? defaultScreenShareBitrate;
     final dimensions = (width != null && height != null)
@@ -550,14 +496,13 @@ class VoiceSession {
     }
   }
 
-  /// Switches the active microphone to [deviceId] (empty = system default).
-  /// Republishes the mic track so the new device takes effect mid-call.
+  /// Switches the active microphone to [deviceId] (empty = system default),
+  /// republishing the mic track so it takes effect mid-call.
   Future<void> setAudioInputDevice(String deviceId) async {
     final participant = _room?.localParticipant;
     if (participant == null) return;
     await _guardMedia('input device', () async {
       if (deviceId.isNotEmpty) await rtc.Helper.selectAudioInput(deviceId);
-      // Re-publish with the new capture device so it applies immediately.
       final wasEnabled = participant.isMicrophoneEnabled();
       await participant.setMicrophoneEnabled(false);
       await participant.setMicrophoneEnabled(
@@ -616,8 +561,6 @@ class VoiceSession {
     }
   }
 
-  /// Polls the local mic track's WebRTC stats so [localAudioLevel] tracks input
-  /// continuously, independent of the throttled server speaker reports.
   void _startLevelPolling() {
     _levelTimer?.cancel();
     _levelTimer = Timer.periodic(
@@ -667,10 +610,9 @@ class VoiceSession {
     await _guardMedia('volume', () => rtc.Helper.setVolume(gain, track));
   }
 
-  /// Runs a LiveKit media toggle, swallowing platform/plugin errors. Stopping a
-  /// camera/screen-share track can throw (e.g. "No active stream to cancel" when
-  /// the OS already tore the capture down); an uncaught error here would crash
-  /// the app, so we log and move on — the controller still updates its state.
+  /// Runs a LiveKit media toggle, logging platform/plugin errors (e.g. "No
+  /// active stream to cancel" when the OS already tore the capture down)
+  /// instead of letting them crash the app.
   Future<void> _guardMedia(String what, Future<void>? Function() op) async {
     try {
       await op();
@@ -707,18 +649,17 @@ class VoiceSession {
             }
           }
         }
-        _onTracksChanged();
+        onTracksChanged?.call();
       })
-      ..on<TrackUnsubscribedEvent>((_) => _onTracksChanged())
-      ..on<LocalTrackPublishedEvent>((_) => _onTracksChanged())
-      ..on<LocalTrackUnpublishedEvent>((_) => _onTracksChanged())
-      ..on<ParticipantConnectedEvent>((_) => _onTracksChanged())
-      ..on<ParticipantDisconnectedEvent>((_) => _onTracksChanged())
+      ..on<TrackUnsubscribedEvent>((_) => onTracksChanged?.call())
+      ..on<LocalTrackPublishedEvent>((_) => onTracksChanged?.call())
+      ..on<LocalTrackUnpublishedEvent>((_) => onTracksChanged?.call())
+      ..on<ParticipantConnectedEvent>((_) => onTracksChanged?.call())
+      ..on<ParticipantDisconnectedEvent>((_) => onTracksChanged?.call())
       ..on<RoomDisconnectedEvent>((e) {
-        final intentional = !isUnintentionalDisconnect(
-          intentional: _intentionalDisconnect,
-          clientInitiated: e.reason == DisconnectReason.clientInitiated,
-        );
+        final intentional =
+            _intentionalDisconnect ||
+            e.reason == DisconnectReason.clientInitiated;
         _setState(VoiceSessionState.disconnected);
         onDisconnected?.call(intentional: intentional);
       })
@@ -732,17 +673,14 @@ class VoiceSession {
 
   void _onRoomChanged() => onChanged?.call();
 
-  void _onTracksChanged() => onTracksChanged?.call();
-
   void _setState(VoiceSessionState next) {
-    if (!shouldEmitStateChange(_state, next)) return;
+    if (_state == next) return;
     _state = next;
     onStateChanged?.call(next);
   }
 
-  /// Fully releases the room and listeners. Called only from [dispose] — a
-  /// channel swap goes through [_softDisconnect] instead, which keeps the Room.
-  Future<void> _teardownRoom() async {
+  /// Releases the room and listeners for good.
+  Future<void> dispose() async {
     final room = _room;
     if (room == null) return;
     _intentionalDisconnect = true;
@@ -759,9 +697,6 @@ class VoiceSession {
       debugPrint('LiveKit teardown error: $e');
     }
   }
-
-  /// Releases the room and listeners for good.
-  Future<void> dispose() => _teardownRoom();
 }
 
 /// Keep the policy explicit on every initial connection and reconnect.
