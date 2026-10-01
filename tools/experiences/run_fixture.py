@@ -17,6 +17,13 @@ from urllib.request import Request, urlopen
 PUBLIC_KEY = "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c"
 
 
+def executable(name):
+    path = Path(name).resolve()
+    if os.name == "nt" and not path.suffix:
+        path = path.with_suffix(".exe")
+    return str(path)
+
+
 def free_port():
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
@@ -50,7 +57,7 @@ def run(args):
                               EXPERIENCE_SIGNING_KEY="01" * 32,
                               EXPERIENCE_SIGNING_KEY_ID="ci", RUST_LOG="warn")
             with (directory / "master.log").open("w") as log:
-                master = subprocess.Popen([str(Path(args.master_bin).resolve())], env=master_env, stdout=log, stderr=log)
+                master = subprocess.Popen([executable(args.master_bin)], env=master_env, stdout=log, stderr=log)
             processes.append(master)
             healthy(master_url, master)
             packages = Path(__file__).resolve().parent / "packages"
@@ -68,7 +75,7 @@ def run(args):
                               EXPERIENCES_ENABLED="true", EXPERIENCE_DIRECTORY_URL=master_url,
                               EXPERIENCE_TRUSTED_KEYS=json.dumps({"ci": PUBLIC_KEY}), RUST_LOG="warn")
             with (directory / "server.log").open("w") as log:
-                server = subprocess.Popen([str(Path(args.server_bin).resolve())], env=server_env, stdout=log, stderr=log)
+                server = subprocess.Popen([executable(args.server_bin)], env=server_env, stdout=log, stderr=log)
             processes.append(server)
             healthy(server_url, server)
             print("Testing the real curated directory and community server", flush=True)
