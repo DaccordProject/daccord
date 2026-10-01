@@ -45,8 +45,14 @@ void main() {
           );
           await tester.tap(find.bySemanticsLabel(RegExp('a1, white rook')));
           expect(chosen.last, 0);
-          await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.sendKeyEvent(
+            LogicalKeyboardKey.arrowRight,
+            physicalKey: PhysicalKeyboardKey.arrowRight,
+          );
+          await tester.sendKeyEvent(
+            LogicalKeyboardKey.enter,
+            physicalKey: PhysicalKeyboardKey.enter,
+          );
           expect(chosen.last, 1);
           await tester.pumpWidget(const SizedBox());
         }
@@ -71,7 +77,10 @@ void main() {
         find.bySemanticsLabel(RegExp('a1, white rook')),
       );
       expect(node.getSemanticsData().flagsCollection.isButton, isFalse);
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyEvent(
+        LogicalKeyboardKey.enter,
+        physicalKey: PhysicalKeyboardKey.enter,
+      );
       expect(tester.takeException(), isNull);
     } finally {
       semantics.dispose();
