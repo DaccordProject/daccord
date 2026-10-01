@@ -831,9 +831,10 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     ThemeData theme,
   ) {
     if (attachment.encryption != null) {
-      final client = ref.read(accordAuthProvider.notifier).client;
-      if (client != null && client.encryption != null)
+      final client = ref.accordClient;
+      if (client != null && client.encryption != null) {
         return EncryptedAttachment(attachment: attachment, client: client);
+      }
       return const Text('Encrypted attachment unavailable.');
     }
     final url = _attachmentUrl(attachment, cdnUrl);
