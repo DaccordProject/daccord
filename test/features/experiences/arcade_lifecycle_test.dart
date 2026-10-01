@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'reference_fixture.dart';
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
@@ -54,9 +54,7 @@ void main() {
   late Map<String, dynamic> snapshot;
   late AccordSession account;
   setUpAll(() async {
-    final payload = File(
-      'tools/experiences/packages/chess.json',
-    ).readAsBytesSync();
+    final payload = utf8.encode(referenceChessPackage);
     final algorithm = Ed25519();
     final key = await algorithm.newKeyPairFromSeed(List.filled(32, 1));
     final public = await key.extractPublicKey();

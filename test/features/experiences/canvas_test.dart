@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'reference_fixture.dart';
 import 'package:bonfire/features/experiences/views/experience_canvas.dart';
 import 'package:experience_runtime/experience_runtime.dart';
 import 'package:flutter/material.dart';
@@ -7,11 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final package =
-      jsonDecode(
-            File('tools/experiences/packages/chess.json').readAsStringSync(),
-          )
-          as Map;
+  final package = jsonDecode(referenceChessPackage) as Map;
   final frame =
       ExperienceModule.decode(base64Decode(package['module'] as String)).invoke(
         'render',

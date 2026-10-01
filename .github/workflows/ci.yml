@@ -250,8 +250,26 @@ jobs:
         working-directory: packages/experience_runtime
       - name: Reference packages are reproducible
         run: |
-          python3 tools/experiences/build_reference.py
-          git diff --exit-code -- tools/experiences/packages
+          python3 tools/experiences/build_reference.py --test-fixture test/features/experiences/reference_fixture.dart
+          git diff --exit-code -- tools/experiences/packages test/features/experiences/reference_fixture.dart
+
+  experience-widgets:
+    name: Arcade browser widgets (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [javascript, wasm]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - name: Verify the signed guest, rendering, input and lifecycle in Chromium
+        run: flutter test --platform chrome ${{ matrix.mode == 'wasm' && '--wasm' || '' }} test/features/experiences --reporter expanded
 
   markdown-viewer:
     name: Vendored markdown_viewer
@@ -722,12 +740,12 @@ jobs:
             path: build/web/
           - name: macOS
             platform: macos
-            os: macos-14
+            os: macos-15
             artifact: daccord-macos
             path: build/macos/Build/Products/Release/*.app/
           - name: iOS (unsigned)
             platform: ios
-            os: macos-14
+            os: macos-15
             artifact: daccord-ios-unsigned
             path: build/ios/iphoneos/*.app/
           - name: Android
@@ -801,6 +819,12 @@ jobs:
         if: matrix.platform == 'windows'
         run: choco install nasm -y
         shell: powershell
+
+      - name: Select latest stable Xcode (Apple builds)
+        if: matrix.platform == 'macos' || matrix.platform == 'ios'
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: latest-stable
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2

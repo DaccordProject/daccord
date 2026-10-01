@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'reference_fixture.dart';
 import 'package:bonfire/features/experiences/services/experience_package.dart';
 import 'package:crypto/crypto.dart';
 import 'package:cryptography/cryptography.dart';
@@ -9,9 +9,7 @@ void main() {
   test(
     'execution requires an exact signed payload, pinned scope and supported platform',
     () async {
-      final payload = await File(
-        'tools/experiences/packages/chess.json',
-      ).readAsBytes();
+      final payload = utf8.encode(referenceChessPackage);
       final algorithm = Ed25519();
       final key = await algorithm.newKeyPairFromSeed(List.filled(32, 1));
       final public = await key.extractPublicKey();
