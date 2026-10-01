@@ -68,6 +68,7 @@ class _EncryptedAttachmentState extends State<EncryptedAttachment> {
       if (!mounted ||
           client != widget.client ||
           attachment.id != widget.attachment.id ||
+          attachment.url != widget.attachment.url ||
           attachment.encryption?['key'] !=
               widget.attachment.encryption?['key']) {
         return;
@@ -84,7 +85,12 @@ class _EncryptedAttachmentState extends State<EncryptedAttachment> {
           widget.attachment.filename,
           widget.attachment.contentType,
         );
-        if (!mounted) {
+        if (!mounted ||
+            client != widget.client ||
+            attachment.id != widget.attachment.id ||
+            attachment.url != widget.attachment.url ||
+            attachment.encryption?['key'] !=
+                widget.attachment.encryption?['key']) {
           await source.dispose();
           return;
         }
