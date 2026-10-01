@@ -147,8 +147,14 @@ void main() {
         );
         final remoteSnapshots = remote.snapshots.asBroadcastStream();
         AccordExperienceSession? remoteSnapshot;
+        var keepPlaying = false;
         final remoteEvents = remoteSnapshots.listen((snapshot) {
           remoteSnapshot = snapshot;
+          if (keepPlaying && snapshot.state == 'running') {
+            remote.input(
+              ((snapshot.game['rects'][9] as int) - 68).clamp(0, 864),
+            );
+          }
         });
         addTearDown(remoteEvents.cancel);
         addTearDown(() => remote.close());
@@ -198,6 +204,9 @@ void main() {
           () => tester.widget<Slider>(find.byType(Slider)).onChanged != null,
           stage: 'enabling paddle input',
         );
+        final localPaddle = tester
+            .widget<Slider>(find.byType(Slider))
+            .onChanged!;
         final slider = tester.getRect(find.byType(Slider));
         await tester.tapAt(
           Offset(slider.left + slider.width * .85, slider.center.dy),
@@ -228,6 +237,19 @@ void main() {
           lessThanOrEqualTo(250),
           reason: 'The local reference-game input budget is 250 ms',
         );
+        // Keep the game in play through the disconnect grace periods. These
+        // controllers use the ordinary host slider and sequenced peer input;
+        // they never modify the authoritative ball, score or simulation clock.
+        keepPlaying = true;
+        final playTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
+          if (find.byType(ExperienceCanvas).evaluate().isNotEmpty &&
+              remoteSnapshot?.state == 'running') {
+            final target = ((remoteSnapshot!.game['rects'][9] as int) - 68)
+                .clamp(0, 864);
+            localPaddle(target.toDouble());
+          }
+        });
+        addTearDown(playTimer.cancel);
         final navigator = tester.state<NavigatorState>(find.byType(Navigator));
         final paused = remoteSnapshots
             .firstWhere((s) => s.game['paused'] == true)
@@ -251,13 +273,21 @@ void main() {
         navigator.pop();
         await tester.pump(const Duration(milliseconds: 500));
         await resumed;
-        await until(() => find.byType(ExperienceCanvas).evaluate().isNotEmpty);
+        tester
+            .state<ScrollableState>(find.byType(Scrollable).first)
+            .position
+            .jumpTo(0);
+        await until(
+          () => find.byType(ExperienceCanvas).evaluate().isNotEmpty,
+          stage: 'restoring the game after route return',
+        );
         await remote.close();
         await until(
           () => find
               .text('Paused while the other player reconnects.')
               .evaluate()
               .isNotEmpty,
+          stage: 'pausing after peer disconnect',
         );
         remote = await ExperienceLiveSession.connect(peer, space, session.id);
         await until(
@@ -265,6 +295,7 @@ void main() {
               .text('Paused while the other player reconnects.')
               .evaluate()
               .isEmpty,
+          stage: 'resuming after peer reconnect',
         );
         final disabled = await owner.experiences.configure(
           space,
@@ -276,7 +307,10 @@ void main() {
           isTrue,
           reason: '${disabled.statusCode}: ${disabled.error}',
         );
-        await until(() => find.byType(ExperienceCanvas).evaluate().isEmpty);
+        await until(
+          () => find.byType(ExperienceCanvas).evaluate().isEmpty,
+          stage: 'revoking the disabled game',
+        );
         expect(find.textContaining('disabled'), findsWidgets);
         await tester.pumpWidget(const SizedBox());
       });
