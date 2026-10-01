@@ -6,10 +6,11 @@ checks remain release gates for the overall plugin-system issues.
 | Gate | Evidence |
 |---|---|
 | Dart VM bounded runtime | 8 tests passed: reference games, malformed modules, denied instructions, output/fuel/depth limits, exact i32 overflow and grant revocation |
-| Browser bounded runtime | The same 8 tests passed in Chromium headless (Dart compiled to JavaScript) |
+| Browser bounded runtime | The same 8 tests passed in Chromium headless under both Dart JavaScript and Dart WASM compilers |
 | Signature/provenance | Flutter package test passed: exact payload, pinned identity, signature/key tampering, revocation and unsupported platform |
 | Turn notifications | Two Flutter tests passed: server isolation, revisions/dismissal, cleanup and bounded state |
 | Responsive/keyboard canvas | Actual chess WASM frame tested at mobile/desktop widths; spectator controls tested |
+| Widget host lifecycle | Covered-route shutdown, revalidation on return, account switch and stale package response tests passed |
 | Curated master directory | Full tests, contract tests and Docker CI passed; master PR #2 merged |
 | Community server | Full SQLite/PostgreSQL suites, lint and Docker CI passed on the final implementation; PR #90 merged, issue #88 closed |
 | Directory to chess/live Pong | Real master + community server + client SDK/signature/guest host test passed; server integration also covers authenticated sockets and reconnect |

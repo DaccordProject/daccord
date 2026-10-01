@@ -736,6 +736,7 @@ class _ExperienceSessionViewState extends ConsumerState<ExperienceSessionView>
                 await _client!.experiences.session(widget.spaceId, _session.id),
               )
               as AccordExperienceSession;
+      if (!_valid || generation != _generation) return;
       ExperienceModule? module;
       if (session.state == 'running') {
         final release =
@@ -746,6 +747,7 @@ class _ExperienceSessionViewState extends ConsumerState<ExperienceSessionView>
                   ),
                 )
                 as Map;
+        if (!_valid || generation != _generation) return;
         module = await validateExperiencePackage(
           release,
           digest: session.digest,
@@ -970,6 +972,9 @@ class _ExperienceSessionViewState extends ConsumerState<ExperienceSessionView>
     ref.watch(connectionsControllerProvider);
     if (!_valid) {
       _module = null;
+      _approvalExpires = null;
+      _drawings = [];
+      _closeLive();
       return const Scaffold(
         body: Center(
           child: Text('This experience is no longer active on this account.'),
