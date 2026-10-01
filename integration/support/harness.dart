@@ -210,11 +210,7 @@ class IntegrationHarness {
     final dir = Directory.systemTemp.createTempSync('accord-integration-hive-');
     _hiveDir = dir;
     Hive.init(dir.path);
-    for (final box in const [
-      'auth',
-      'space-cache',
-      'window-state',
-    ]) {
+    for (final box in const ['auth', 'space-cache', 'window-state']) {
       await Hive.openBox(box);
     }
     await ProfileStore.bootstrap(dir.path);

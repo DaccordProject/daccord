@@ -634,7 +634,10 @@ void main() {
         'c',
         {'content': 'pic'},
         [
-          {'filename': 'a.png', 'content': Uint8List.fromList([1])},
+          {
+            'filename': 'a.png',
+            'content': Uint8List.fromList([1])
+          },
         ],
       );
       expect(log, hasLength(1));

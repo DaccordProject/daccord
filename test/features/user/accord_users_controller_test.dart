@@ -174,11 +174,15 @@ void main() {
     expect(firstUsers.cached('same')?.username, 'first');
     expect(secondUsers.cached('same')?.username, 'second');
     expect(
-      container.read(accordUsersControllerProvider('server-a'))['same']?.username,
+      container
+          .read(accordUsersControllerProvider('server-a'))['same']
+          ?.username,
       'first',
     );
     expect(
-      container.read(accordUsersControllerProvider('server-b'))['same']?.username,
+      container
+          .read(accordUsersControllerProvider('server-b'))['same']
+          ?.username,
       'second',
     );
     expect(firstCalls, 1);

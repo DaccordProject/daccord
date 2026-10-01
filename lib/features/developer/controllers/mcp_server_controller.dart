@@ -25,12 +25,11 @@ class McpServerState {
     bool? listening,
     int? port,
     List<McpActivity>? activity,
-  }) =>
-      McpServerState(
-        listening: listening ?? this.listening,
-        port: port ?? this.port,
-        activity: activity ?? this.activity,
-      );
+  }) => McpServerState(
+    listening: listening ?? this.listening,
+    port: port ?? this.port,
+    activity: activity ?? this.activity,
+  );
 }
 
 const int _activityLogCap = 100;

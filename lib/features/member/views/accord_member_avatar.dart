@@ -61,8 +61,9 @@ class AccordMemberAvatar extends StatelessWidget {
                 : CachedNetworkImageProvider(url),
             child: Text(
               initial,
-              style: (initialStyle ?? theme.textTheme.labelLarge!)
-                  .copyWith(color: accordOnColor(bg)),
+              style: (initialStyle ?? theme.textTheme.labelLarge!).copyWith(
+                color: accordOnColor(bg),
+              ),
             ),
           ),
           if (dotColor != null)

@@ -39,38 +39,61 @@ class VoiceParticipantList extends ConsumerWidget {
 
     // Speaking highlights only apply while we're connected to this channel —
     // the speaking set is derived from our own LiveKit room.
-    final speaking = ref.watch(voiceControllerProvider.select((v) =>
-        v.channelId == channelId ? v.speakingUserIds : const <String>{}));
+    final speaking = ref.watch(
+      voiceControllerProvider.select(
+        (v) => v.channelId == channelId ? v.speakingUserIds : const <String>{},
+      ),
+    );
 
     // The Accord voice state carries no AFK field, so remote members are read
     // from presence (`idle`). Our own row uses the voice controller's flag so it
     // flips immediately, without waiting on the presence round-trip.
     final presences = ref.watch(activePresencesProvider);
-    final selfAfk = ref.watch(voiceControllerProvider
-        .select((v) => v.channelId == channelId && v.isAfk));
+    final selfAfk = ref.watch(
+      voiceControllerProvider.select(
+        (v) => v.channelId == channelId && v.isAfk,
+      ),
+    );
     final selfUserId = ref.watchUserId();
 
     final members = spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId!));
-    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
+        : ref.watch(
+            accordMembersControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              spaceId!,
+            ),
+          );
+    final users = ref.watch(
+      accordUsersControllerProvider(ref.readActiveServerKey() ?? ''),
+    );
     final roles = spaceId == null
         ? const <AccordRole>[]
-        : ref.watch(spacesControllerProvider.select((s) =>
-                s?.firstWhereOrNull((sp) => sp.id == spaceId)?.roles)) ??
-            const <AccordRole>[];
+        : ref.watch(
+                spacesControllerProvider.select(
+                  (s) => s?.firstWhereOrNull((sp) => sp.id == spaceId)?.roles,
+                ),
+              ) ??
+              const <AccordRole>[];
     final cdnUrl = ref.watchCdnUrl();
 
-    final rows = [
-      for (final vs in bucket.values)
-        (
-          voiceState: vs,
-          display: participantDisplay(vs.userId,
-              members: members, users: users, cdnUrl: cdnUrl),
-        ),
-    ]..sort((a, b) => a.display.name
-        .toLowerCase()
-        .compareTo(b.display.name.toLowerCase()));
+    final rows =
+        [
+          for (final vs in bucket.values)
+            (
+              voiceState: vs,
+              display: participantDisplay(
+                vs.userId,
+                members: members,
+                users: users,
+                cdnUrl: cdnUrl,
+              ),
+            ),
+        ]..sort(
+          (a, b) => a.display.name.toLowerCase().compareTo(
+            b.display.name.toLowerCase(),
+          ),
+        );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -82,7 +105,8 @@ class VoiceParticipantList extends ConsumerWidget {
             member: members?[row.voiceState.userId],
             roles: roles,
             speaking: speaking.contains(row.voiceState.userId),
-            afk: (selfAfk && row.voiceState.userId == selfUserId) ||
+            afk:
+                (selfAfk && row.voiceState.userId == selfUserId) ||
                 accordPresenceStatus(presences, row.voiceState.userId) ==
                     'idle',
           ),
@@ -117,7 +141,7 @@ class _ParticipantRow extends StatelessWidget {
     final colorRole = member == null ? null : memberColorRole(member!, roles);
     final nameColor =
         (colorRole == null ? null : accordRoleColor(colorRole.color)) ??
-            colors.dirtyWhite;
+        colors.dirtyWhite;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(28, 1, 8, 1),
@@ -188,11 +212,10 @@ class _ParticipantRow extends StatelessWidget {
   }
 
   Widget _flag(String text, Color color) => Padding(
-        padding: const EdgeInsets.only(left: 4),
-        child: Text(
-          text,
-          style: TextStyle(
-              fontSize: 11, color: color, fontWeight: FontWeight.bold),
-        ),
-      );
+    padding: const EdgeInsets.only(left: 4),
+    child: Text(
+      text,
+      style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold),
+    ),
+  );
 }

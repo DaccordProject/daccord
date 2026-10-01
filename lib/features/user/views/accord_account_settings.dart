@@ -101,10 +101,7 @@ class _AccountSettingsDialogState
               ),
               const SizedBox(height: 8),
               if (_mfaEnabled == null)
-                const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: LoadingView(),
-                )
+                const Padding(padding: EdgeInsets.all(8), child: LoadingView())
               else
                 _TwoFactorSection(
                   enabled: _mfaEnabled!,
@@ -515,18 +512,15 @@ class _BackupCodesView extends StatelessWidget {
           ),
           child: SelectableText(
             codes.join('\n'),
-            style: theme.textTheme.bodyMedium!.copyWith(
-              fontFeatures: const [],
-            ),
+            style: theme.textTheme.bodyMedium!.copyWith(fontFeatures: const []),
           ),
         ),
         const SizedBox(height: 8),
         Align(
           alignment: Alignment.centerRight,
           child: TextButton.icon(
-            onPressed: () => Clipboard.setData(
-              ClipboardData(text: codes.join('\n')),
-            ),
+            onPressed: () =>
+                Clipboard.setData(ClipboardData(text: codes.join('\n'))),
             icon: const Icon(Icons.copy, size: 16),
             label: const Text('Copy codes'),
           ),

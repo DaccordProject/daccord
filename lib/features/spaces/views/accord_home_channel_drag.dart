@@ -125,7 +125,10 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
     final client = ref.accordClient;
     if (client == null) return;
     final notifier = ref.read(
-      accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier,
+      accordChannelsControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        widget.spaceId,
+      ).notifier,
     );
 
     final updates = diffChannelPositions(_items);

@@ -232,7 +232,9 @@ void main() {
         // Nothing registered spaceRail, and there is no home screen to probe:
         // the card renders anyway, centred, instead of throwing.
         expect(find.text('Step two'), findsOneWidget);
-        final centreOne = tester.getCenter(find.byType(CustomSingleChildLayout));
+        final centreOne = tester.getCenter(
+          find.byType(CustomSingleChildLayout),
+        );
         expect(centreOne.dx, closeTo(400, 1)); // 800x600 default test viewport
       },
     );
@@ -240,7 +242,10 @@ void main() {
     testWidgets('anchors unregister when their widget leaves the tree', (
       tester,
     ) async {
-      expect(onboardingAnchors.keysFor(OnboardingAnchorId.channelList), isEmpty);
+      expect(
+        onboardingAnchors.keysFor(OnboardingAnchorId.channelList),
+        isEmpty,
+      );
       await tester.pumpWidget(
         MaterialApp(
           theme: ThemeData(extensions: const [_theme]),
@@ -261,7 +266,10 @@ void main() {
           home: const SizedBox.shrink(),
         ),
       );
-      expect(onboardingAnchors.keysFor(OnboardingAnchorId.channelList), isEmpty);
+      expect(
+        onboardingAnchors.keysFor(OnboardingAnchorId.channelList),
+        isEmpty,
+      );
     });
 
     testWidgets('a zero-sized anchor is not spotlit', (tester) async {

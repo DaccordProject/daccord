@@ -144,7 +144,12 @@ class _ReactorsDialogState extends ConsumerState<_ReactorsDialog> {
       return;
     }
     final users = await ref
-        .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId).notifier)
+        .read(
+          accordMessagesControllerProvider(
+            ref.readActiveServerKey() ?? '',
+            widget.channelId,
+          ).notifier,
+        )
         .reactionUsers(
           client,
           widget.messageId,
@@ -168,10 +173,7 @@ class _ReactorsDialogState extends ConsumerState<_ReactorsDialog> {
       content: SizedBox(
         width: 300,
         child: users == null
-            ? const SizedBox(
-                height: 80,
-                child: LoadingView(),
-              )
+            ? const SizedBox(height: 80, child: LoadingView())
             : users.isEmpty
             ? Padding(
                 padding: const EdgeInsets.all(16),

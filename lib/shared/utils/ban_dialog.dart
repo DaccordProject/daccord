@@ -14,9 +14,9 @@ class BanRequest {
   /// entirely when nothing is being purged, so a ban against an older server
   /// that doesn't know the field looks exactly as it always did.
   Map<String, dynamic> toJson() => {
-        if (deleteMessageSeconds > 0)
-          'delete_message_seconds': deleteMessageSeconds,
-      };
+    if (deleteMessageSeconds > 0)
+      'delete_message_seconds': deleteMessageSeconds,
+  };
 }
 
 /// The purge windows offered in the ban dialog, matching the reference client
@@ -79,8 +79,9 @@ Future<BanRequest?> showBanDialog(
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.of(ctx)
-                  .pop(BanRequest(deleteMessageSeconds: seconds)),
+              onPressed: () => Navigator.of(
+                ctx,
+              ).pop(BanRequest(deleteMessageSeconds: seconds)),
               style: FilledButton.styleFrom(backgroundColor: colors.red),
               child: const Text('Ban'),
             ),

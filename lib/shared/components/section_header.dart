@@ -16,10 +16,9 @@ class SectionHeader extends StatelessWidget {
     final colors = BonfireThemeExtension.of(context);
     final label = Text(
       title.toUpperCase(),
-      style: Theme.of(context).textTheme.labelMedium!.copyWith(
-            color: colors.gray,
-            letterSpacing: 0.6,
-          ),
+      style: Theme.of(
+        context,
+      ).textTheme.labelMedium!.copyWith(color: colors.gray, letterSpacing: 0.6),
     );
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 12, trailing != null ? 8 : 16, 4),

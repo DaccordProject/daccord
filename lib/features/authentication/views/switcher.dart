@@ -72,10 +72,7 @@ class _AccountSwitcherScreenState extends ConsumerState<AccountSwitcherScreen> {
               ),
               const SizedBox(height: 24),
               if (accounts == null)
-                const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: LoadingView(),
-                )
+                const Padding(padding: EdgeInsets.all(24), child: LoadingView())
               else if (accounts.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -107,8 +104,9 @@ class _AccountSwitcherScreenState extends ConsumerState<AccountSwitcherScreen> {
                   icon: const Icon(Icons.add, color: Colors.white),
                   label: Text(
                     'Add account',
-                    style: theme.textTheme.titleSmall!
-                        .copyWith(color: Colors.white),
+                    style: theme.textTheme.titleSmall!.copyWith(
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -161,9 +159,10 @@ class _AccountTile extends StatelessWidget {
           onTap: onTap,
           leading: CircleAvatar(
             backgroundColor: colors.primary,
-            child: Text(accordInitial(session.username),
-                style: theme.textTheme.titleSmall!
-                    .copyWith(color: Colors.white)),
+            child: Text(
+              accordInitial(session.username),
+              style: theme.textTheme.titleSmall!.copyWith(color: Colors.white),
+            ),
           ),
           title: Text(session.username, style: theme.textTheme.bodyLarge),
           subtitle: Text(

@@ -399,22 +399,24 @@ void main() {
       expect(stateOf(c).spaceOrder, encoded(['c', 'a']));
     });
 
-    test('keeps colliding space IDs from two servers as separate rail entries',
-        () {
-      final c = makeContainer();
-      final onA = ServerEntityKey('server-a', 'same-space');
-      final onB = ServerEntityKey('server-b', 'same-space');
+    test(
+      'keeps colliding space IDs from two servers as separate rail entries',
+      () {
+        final c = makeContainer();
+        final onA = ServerEntityKey('server-a', 'same-space');
+        final onB = ServerEntityKey('server-b', 'same-space');
 
-      controllerOf(c).setSpaceOrder([onA, onB]);
-      controllerOf(c).createFolder(spaces: [onA, onB]);
+        controllerOf(c).setSpaceOrder([onA, onB]);
+        controllerOf(c).createFolder(spaces: [onA, onB]);
 
-      expect(stateOf(c).spaceOrder, [onA.encoded, onB.encoded]);
-      expect(stateOf(c).spaceFolders.single.spaceIds, [
-        onA.encoded,
-        onB.encoded,
-      ]);
-      expect(onA.encoded, isNot(onB.encoded));
-    });
+        expect(stateOf(c).spaceOrder, [onA.encoded, onB.encoded]);
+        expect(stateOf(c).spaceFolders.single.spaceIds, [
+          onA.encoded,
+          onB.encoded,
+        ]);
+        expect(onA.encoded, isNot(onB.encoded));
+      },
+    );
   });
 
   group('createFolder', () {

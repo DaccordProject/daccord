@@ -40,9 +40,6 @@ void main() {
     // advice that cannot help someone who dropped a folder. XFile.length()
     // delegates straight to File.length(), asserted on here to keep the test
     // off a transitive dependency.
-    expect(
-      () => File(tmp.path).length(),
-      throwsA(isA<FileSystemException>()),
-    );
+    expect(() => File(tmp.path).length(), throwsA(isA<FileSystemException>()));
   });
 }

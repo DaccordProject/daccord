@@ -74,19 +74,24 @@ class _ScreenShareSourceDialogState extends State<_ScreenShareSourceDialog>
   void initState() {
     super.initState();
 
-    _subscriptions.add(rtc.desktopCapturer.onAdded.stream.listen((source) {
-      if (!mounted) return;
-      setState(() => _sources[source.id] = source);
-    }));
-    _subscriptions.add(rtc.desktopCapturer.onRemoved.stream.listen((source) {
-      if (!mounted) return;
-      setState(() => _sources.remove(source.id));
-    }));
-    _subscriptions
-        .add(rtc.desktopCapturer.onThumbnailChanged.stream.listen((_) {
-      if (!mounted) return;
-      setState(() {});
-    }));
+    _subscriptions.add(
+      rtc.desktopCapturer.onAdded.stream.listen((source) {
+        if (!mounted) return;
+        setState(() => _sources[source.id] = source);
+      }),
+    );
+    _subscriptions.add(
+      rtc.desktopCapturer.onRemoved.stream.listen((source) {
+        if (!mounted) return;
+        setState(() => _sources.remove(source.id));
+      }),
+    );
+    _subscriptions.add(
+      rtc.desktopCapturer.onThumbnailChanged.stream.listen((_) {
+        if (!mounted) return;
+        setState(() {});
+      }),
+    );
 
     _loadSources();
   }
@@ -104,8 +109,9 @@ class _ScreenShareSourceDialogState extends State<_ScreenShareSourceDialog>
 
   void _onTabChanged() {
     if (_tabs.indexIsChanging) return;
-    final type =
-        _tabs.index == 0 ? rtc.SourceType.Screen : rtc.SourceType.Window;
+    final type = _tabs.index == 0
+        ? rtc.SourceType.Screen
+        : rtc.SourceType.Window;
     if (type == _sourceType) return;
     _sourceType = type;
     _loadSources();
@@ -113,8 +119,9 @@ class _ScreenShareSourceDialogState extends State<_ScreenShareSourceDialog>
 
   Future<void> _loadSources() async {
     try {
-      final sources =
-          await rtc.desktopCapturer.getSources(types: [_sourceType]);
+      final sources = await rtc.desktopCapturer.getSources(
+        types: [_sourceType],
+      );
       if (!mounted) return;
       setState(() {
         _sources
@@ -170,13 +177,16 @@ class _ScreenShareSourceDialogState extends State<_ScreenShareSourceDialog>
                   ? Center(
                       child: Text(
                         'No sources available',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: colors.gray),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.gray,
+                        ),
                       ),
                     )
                   : GridView.count(
                       padding: const EdgeInsets.all(16),
-                      crossAxisCount: _sourceType == rtc.SourceType.Screen ? 2 : 3,
+                      crossAxisCount: _sourceType == rtc.SourceType.Screen
+                          ? 2
+                          : 3,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
                       childAspectRatio: 1.4,

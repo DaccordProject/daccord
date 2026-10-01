@@ -125,8 +125,7 @@ class AuthCredentialsFields extends StatelessWidget {
               children: [
                 Checkbox(
                   value: tosAccepted,
-                  onChanged:
-                      enabled ? (v) => onTosChanged(v ?? false) : null,
+                  onChanged: enabled ? (v) => onTosChanged(v ?? false) : null,
                 ),
                 Text('I agree to the ', style: theme.textTheme.bodyMedium),
                 GestureDetector(

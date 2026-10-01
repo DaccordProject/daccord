@@ -27,9 +27,8 @@ Duration? effectiveAfkTimeout(int userMinutes) =>
 /// How often the monitor should re-evaluate for a given [timeout]: a quarter of
 /// the timeout, clamped to 1–15s. Short enough that the AFK flip is prompt,
 /// long enough that a 30-minute timeout isn't polling the mic every second.
-Duration afkPollInterval(Duration timeout) => Duration(
-  milliseconds: (timeout.inMilliseconds ~/ 4).clamp(1000, 15000),
-);
+Duration afkPollInterval(Duration timeout) =>
+    Duration(milliseconds: (timeout.inMilliseconds ~/ 4).clamp(1000, 15000));
 
 /// The AFK state machine: a "last activity" timestamp plus the derived AFK
 /// flag. Every method takes `now` so tests can step time directly.

@@ -44,11 +44,15 @@ class AccordChannelsController extends _$AccordChannelsController {
     // `null` here is a failed request or a malformed payload — the pane has no
     // other way to tell that apart from "still loading".
     if (channels == null) {
-      ref.read(channelsLoadFailedProvider(serverKey, spaceId).notifier).set(true);
+      ref
+          .read(channelsLoadFailedProvider(serverKey, spaceId).notifier)
+          .set(true);
       return;
     }
     state = _sorted(channels);
-    ref.read(channelsLoadFailedProvider(serverKey, spaceId).notifier).set(false);
+    ref
+        .read(channelsLoadFailedProvider(serverKey, spaceId).notifier)
+        .set(false);
   }
 
   void setChannels(List<AccordChannel> channels) => state = _sorted(channels);

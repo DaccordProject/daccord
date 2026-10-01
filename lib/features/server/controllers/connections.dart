@@ -40,13 +40,12 @@ class AccordConnection {
     ConnectionStatus? status,
     List<AccordSpace>? spaces,
     bool? spacesReady,
-  }) =>
-      AccordConnection(
-        session: session,
-        status: status ?? this.status,
-        spaces: spaces ?? this.spaces,
-        spacesReady: spacesReady ?? this.spacesReady,
-      );
+  }) => AccordConnection(
+    session: session,
+    status: status ?? this.status,
+    spaces: spaces ?? this.spaces,
+    spacesReady: spacesReady ?? this.spacesReady,
+  );
 }
 
 /// The set of connected servers and which one is active (drives the panes).
@@ -60,14 +59,12 @@ class ConnectionsState {
     List<AccordConnection>? connections,
     String? activeKey,
     bool clearActive = false,
-  }) =>
-      ConnectionsState(
-        connections: connections ?? this.connections,
-        activeKey: clearActive ? null : (activeKey ?? this.activeKey),
-      );
+  }) => ConnectionsState(
+    connections: connections ?? this.connections,
+    activeKey: clearActive ? null : (activeKey ?? this.activeKey),
+  );
 
-  AccordConnection? get active =>
-      connectionFor(activeKey);
+  AccordConnection? get active => connectionFor(activeKey);
 
   AccordConnection? connectionFor(String? key) {
     if (key == null) return null;
@@ -132,16 +129,20 @@ class ConnectionsController extends _$ConnectionsController {
     final existing = state.connectionFor(key);
     if (existing == null) return;
     final spaces = existing.spaces.upsertById(space, (s) => s.id);
-    state = state.copyWith(connections: _upsert(existing.copyWith(spaces: spaces)));
+    state = state.copyWith(
+      connections: _upsert(existing.copyWith(spaces: spaces)),
+    );
   }
 
   void removeSpace(String key, String spaceId) {
     final existing = state.connectionFor(key);
     if (existing == null) return;
     state = state.copyWith(
-      connections: _upsert(existing.copyWith(
-        spaces: existing.spaces.removeById(spaceId, (s) => s.id),
-      )),
+      connections: _upsert(
+        existing.copyWith(
+          spaces: existing.spaces.removeById(spaceId, (s) => s.id),
+        ),
+      ),
     );
   }
 

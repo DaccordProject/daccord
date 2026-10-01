@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 class _FakeUpdateController extends UpdateController {
   _FakeUpdateController(this._state, {bool requiresPrivilegedInstall = false})
-      : _requiresPrivilegedInstall = requiresPrivilegedInstall;
+    : _requiresPrivilegedInstall = requiresPrivilegedInstall;
   final UpdateState _state;
   final bool _requiresPrivilegedInstall;
   @override
@@ -41,29 +41,29 @@ Widget _host({
   required UpdateState update,
   AccordSettings? settings,
   bool requiresPrivilegedInstall = false,
-}) =>
-    ProviderScope(
-      overrides: [
-        updateControllerProvider.overrideWith(
-          () => _FakeUpdateController(
-            update,
-            requiresPrivilegedInstall: requiresPrivilegedInstall,
-          ),
-        ),
-        settingsControllerProvider.overrideWith(
-          () => _FakeSettingsController(settings ?? const AccordSettings()),
-        ),
-      ],
-      child: MaterialApp(
-        theme: buildAppTheme(AppThemePreset.dark),
-        home: const Scaffold(body: UpdateBanner()),
+}) => ProviderScope(
+  overrides: [
+    updateControllerProvider.overrideWith(
+      () => _FakeUpdateController(
+        update,
+        requiresPrivilegedInstall: requiresPrivilegedInstall,
       ),
-    );
+    ),
+    settingsControllerProvider.overrideWith(
+      () => _FakeSettingsController(settings ?? const AccordSettings()),
+    ),
+  ],
+  child: MaterialApp(
+    theme: buildAppTheme(AppThemePreset.dark),
+    home: const Scaffold(body: UpdateBanner()),
+  ),
+);
 
 void main() {
   group('UpdateBanner', () {
-    testWidgets('collapses to zero height when no update is available',
-        (tester) async {
+    testWidgets('collapses to zero height when no update is available', (
+      tester,
+    ) async {
       await tester.pumpWidget(_host(update: const UpdateState()));
       await tester.pump();
 
@@ -76,14 +76,12 @@ void main() {
       );
       await tester.pump();
 
-      expect(
-        find.textContaining('Update available'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('Update available'), findsOneWidget);
     });
 
-    testWidgets('wraps content in SafeArea(bottom: false) when visible',
-        (tester) async {
+    testWidgets('wraps content in SafeArea(bottom: false) when visible', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(update: const UpdateState(latest: _newerRelease)),
       );
@@ -94,8 +92,9 @@ void main() {
       expect(safeArea.top, isTrue);
     });
 
-    testWidgets('collapses when dismissedVersion matches release version',
-        (tester) async {
+    testWidgets('collapses when dismissedVersion matches release version', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           update: const UpdateState(
@@ -109,8 +108,9 @@ void main() {
       expect(tester.getSize(find.byType(UpdateBanner)).height, 0);
     });
 
-    testWidgets('collapses when skippedUpdateVersion matches release version',
-        (tester) async {
+    testWidgets('collapses when skippedUpdateVersion matches release version', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           update: const UpdateState(latest: _newerRelease),
@@ -122,8 +122,9 @@ void main() {
       expect(tester.getSize(find.byType(UpdateBanner)).height, 0);
     });
 
-    testWidgets('shows "restart & install" text when updateReady',
-        (tester) async {
+    testWidgets('shows "restart & install" text when updateReady', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           update: const UpdateState(
@@ -139,10 +140,10 @@ void main() {
       expect(find.textContaining('Update available'), findsNothing);
     });
 
-    testWidgets(
-        'shows "admin required" text when updateReady and '
-        'requiresPrivilegedInstall (Linux system-package reinstall)',
-        (tester) async {
+    testWidgets('shows "admin required" text when updateReady and '
+        'requiresPrivilegedInstall (Linux system-package reinstall)', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           update: const UpdateState(
@@ -175,8 +176,9 @@ void main() {
       expect(tester.getSize(find.byType(UpdateBanner)).height, 0);
     });
 
-    testWidgets('shows "update available" when phase is failed (fallback)',
-        (tester) async {
+    testWidgets('shows "update available" when phase is failed (fallback)', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           update: const UpdateState(

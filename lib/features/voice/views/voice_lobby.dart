@@ -52,8 +52,15 @@ class VoiceLobbyBody extends ConsumerWidget {
         const [];
     final members = spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId!));
-    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
+        : ref.watch(
+            accordMembersControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              spaceId!,
+            ),
+          );
+    final users = ref.watch(
+      accordUsersControllerProvider(ref.readActiveServerKey() ?? ''),
+    );
     final cdnUrl = ref.watchCdnUrl();
 
     // Viewing a lobby while a call is running elsewhere is a normal state now
@@ -66,7 +73,10 @@ class VoiceLobbyBody extends ConsumerWidget {
     String? activeName;
     if (elsewhere && activeSpaceId != null) {
       activeName = ref.watch(
-        accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', activeSpaceId).select(
+        accordChannelsControllerProvider(
+          ref.readActiveServerKey() ?? '',
+          activeSpaceId,
+        ).select(
           (channels) =>
               channels?.firstWhereOrNull((c) => c.id == activeChannelId)?.name,
         ),

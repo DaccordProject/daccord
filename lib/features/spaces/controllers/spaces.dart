@@ -44,8 +44,10 @@ class SpacesController extends _$SpacesController {
         }
       });
 
-  void removeRole(String spaceId, String roleId) =>
-      _mutateRoles(spaceId, (roles) => roles.removeWhere((r) => r.id == roleId));
+  void removeRole(String spaceId, String roleId) => _mutateRoles(
+    spaceId,
+    (roles) => roles.removeWhere((r) => r.id == roleId),
+  );
 
   /// Replaces [spaceId]'s entire role list (e.g. after a reorder).
   void setRoles(String spaceId, List<AccordRole> roles) =>

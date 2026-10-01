@@ -38,10 +38,9 @@ Future<WidgetRef> _pumpRef(WidgetTester tester) async {
 bool _isUnread(WidgetRef ref, String serverKey, String channelId) =>
     ref.read(readStateControllerProvider(serverKey)).isUnread(channelId);
 
-void _seedUnread(WidgetRef ref, String serverKey, String channelId) =>
-    ref
-        .read(readStateControllerProvider(serverKey).notifier)
-        .markUnread(channelId, spaceId: 's1');
+void _seedUnread(WidgetRef ref, String serverKey, String channelId) => ref
+    .read(readStateControllerProvider(serverKey).notifier)
+    .markUnread(channelId, spaceId: 's1');
 
 /// A minimal logged-in [AccordAuth] override whose [clientForKey] resolves
 /// only [key] to [client] — enough to exercise the REST ack without a real
@@ -99,7 +98,12 @@ void main() {
         // No client is connected in this container, so the `channels.ack`
         // REST call resolves to a no-op — the local clear must not depend on
         // it succeeding (or even being attempted).
-        markChannelRead(ref, 'c1', serverKey: key, fallbackMessageId: 'm-fallback');
+        markChannelRead(
+          ref,
+          'c1',
+          serverKey: key,
+          fallbackMessageId: 'm-fallback',
+        );
 
         expect(_isUnread(ref, key, 'c1'), isFalse);
       },
@@ -119,19 +123,16 @@ void main() {
       },
     );
 
-    testWidgets(
-      'is a no-op when there is no explicit serverKey and no active '
-      'connection',
-      (tester) async {
-        final ref = await _pumpRef(tester);
-        const key = 'u1@server.test';
-        _seedUnread(ref, key, 'c1');
+    testWidgets('is a no-op when there is no explicit serverKey and no active '
+        'connection', (tester) async {
+      final ref = await _pumpRef(tester);
+      const key = 'u1@server.test';
+      _seedUnread(ref, key, 'c1');
 
-        markChannelRead(ref, 'c1');
+      markChannelRead(ref, 'c1');
 
-        expect(_isUnread(ref, key, 'c1'), isTrue);
-      },
-    );
+      expect(_isUnread(ref, key, 'c1'), isTrue);
+    });
 
     testWidgets(
       'an explicit serverKey wins over an unrelated active connection',

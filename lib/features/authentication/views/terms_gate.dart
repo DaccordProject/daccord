@@ -185,8 +185,7 @@ Future<void> showAppTermsDialog(BuildContext context) {
                 overflowSpacing: 8,
                 children: [
                   TextButton.icon(
-                    onPressed: () =>
-                        openTrustedUrl(kDaccordPrivacyPolicyUrl),
+                    onPressed: () => openTrustedUrl(kDaccordPrivacyPolicyUrl),
                     icon: const Icon(Icons.privacy_tip_outlined, size: 18),
                     label: const Text('Privacy Policy'),
                   ),

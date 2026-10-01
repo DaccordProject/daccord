@@ -45,7 +45,8 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
     // would come back on the next connect via READY's `unread`.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final serverKey = ref.read(voiceControllerProvider).serverKey ??
+      final serverKey =
+          ref.read(voiceControllerProvider).serverKey ??
           ref.read(connectionsControllerProvider).activeKey;
       markChannelRead(
         ref,
@@ -63,7 +64,12 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
     final spaceId = widget.spaceId;
     if (spaceId == null) return null;
     return ref
-        .read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', spaceId))
+        .read(
+          accordChannelsControllerProvider(
+            ref.readActiveServerKey() ?? '',
+            spaceId,
+          ),
+        )
         ?.firstWhereOrNull((c) => c.id == widget.channelId);
   }
 
@@ -72,10 +78,15 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
     final spaceId = widget.spaceId;
     final channel = spaceId == null
         ? null
-        : ref.watch(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', spaceId).select(
-            (channels) =>
-                channels?.firstWhereOrNull((c) => c.id == widget.channelId),
-          ));
+        : ref.watch(
+            accordChannelsControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              spaceId,
+            ).select(
+              (channels) =>
+                  channels?.firstWhereOrNull((c) => c.id == widget.channelId),
+            ),
+          );
     return MessagePane(
       channel: channel,
       channelId: widget.channelId,

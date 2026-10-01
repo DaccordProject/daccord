@@ -77,8 +77,7 @@ class _VoicePipOverlayState extends ConsumerState<VoicePipOverlay> {
 
     final size = MediaQuery.of(context).size;
     final pos = _clamp(
-      _pos ??
-          Offset(size.width - _w - _margin, size.height - _h - _margin * 2),
+      _pos ?? Offset(size.width - _w - _margin, size.height - _h - _margin * 2),
       size,
     );
 
@@ -110,8 +109,10 @@ class _VoicePipOverlayState extends ConsumerState<VoicePipOverlay> {
                       tooltip: 'Disconnect',
                       iconSize: 16,
                       visualDensity: VisualDensity.compact,
-                      constraints:
-                          const BoxConstraints(minWidth: 28, minHeight: 28),
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
                       onPressed: () => ref
                           .read(callControllerProvider.notifier)
                           .hangUp(channelId, spaceId),
@@ -122,8 +123,11 @@ class _VoicePipOverlayState extends ConsumerState<VoicePipOverlay> {
                 const Positioned(
                   left: 4,
                   bottom: 4,
-                  child: Icon(Icons.open_in_full,
-                      size: 14, color: Colors.white70),
+                  child: Icon(
+                    Icons.open_in_full,
+                    size: 14,
+                    color: Colors.white70,
+                  ),
                 ),
               ],
             ),
@@ -176,10 +180,7 @@ class _VoicePipOverlayState extends ConsumerState<VoicePipOverlay> {
   Offset _clamp(Offset p, Size screen) {
     final maxX = (screen.width - _w - _margin).clamp(_margin, double.infinity);
     final maxY = (screen.height - _h - _margin).clamp(_margin, double.infinity);
-    return Offset(
-      p.dx.clamp(_margin, maxX),
-      p.dy.clamp(_margin, maxY),
-    );
+    return Offset(p.dx.clamp(_margin, maxX), p.dy.clamp(_margin, maxY));
   }
 
   /// The first available video track to preview: our own screen-share or

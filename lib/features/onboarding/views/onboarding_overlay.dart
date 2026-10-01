@@ -31,7 +31,8 @@ Offset onboardingCalloutOffset({
 }) {
   const gap = kOnboardingCalloutGap;
   const margin = kOnboardingCalloutMargin;
-  double clampX(double x) => _clamp(x, margin, overlay.width - card.width - margin);
+  double clampX(double x) =>
+      _clamp(x, margin, overlay.width - card.width - margin);
   double clampY(double y) =>
       _clamp(y, margin, overlay.height - card.height - margin);
 
@@ -404,10 +405,7 @@ class _OnboardingCard extends StatelessWidget {
                   if (!isLast)
                     TextButton(
                       onPressed: onSkip,
-                      child: Text(
-                        'Skip',
-                        style: TextStyle(color: colors.gray),
-                      ),
+                      child: Text('Skip', style: TextStyle(color: colors.gray)),
                     ),
                   if (onBack != null)
                     TextButton(

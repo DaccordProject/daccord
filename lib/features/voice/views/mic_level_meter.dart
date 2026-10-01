@@ -13,11 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// Polls the voice controller on a short timer: the level is a polled value,
 /// not a stream.
 class MicLevelMeter extends ConsumerStatefulWidget {
-  const MicLevelMeter({
-    super.key,
-    this.height = 6,
-    this.threshold,
-  });
+  const MicLevelMeter({super.key, this.height = 6, this.threshold});
 
   final double height;
 
@@ -69,8 +65,9 @@ class _MicLevelMeterState extends ConsumerState<MicLevelMeter> {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    final marker =
-        widget.threshold == null ? null : _displayOf(widget.threshold!);
+    final marker = widget.threshold == null
+        ? null
+        : _displayOf(widget.threshold!);
 
     return SizedBox(
       height: widget.height,

@@ -19,8 +19,10 @@ final Set<ServerSpaceKey> activeMemberSpaces = <ServerSpaceKey>{};
 /// The [LoadFailed] flag for a space's roster: set once the initial fetch has
 /// exhausted its retries, so the roster offers Retry instead of spinning
 /// forever. Cleared on a successful load and by the Retry button.
-LoadFailedProvider membersLoadFailedProvider(String serverKey, String spaceId) =>
-    loadFailedProvider('members', serverKey, spaceId);
+LoadFailedProvider membersLoadFailedProvider(
+  String serverKey,
+  String spaceId,
+) => loadFailedProvider('members', serverKey, spaceId);
 
 /// A space's members, keyed by space ID and indexed by user ID for O(1) author
 /// resolution. Self-loads via `members.list` the first time it's watched (once
