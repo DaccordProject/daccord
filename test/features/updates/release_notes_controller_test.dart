@@ -231,7 +231,7 @@ void main() {
       expect((await _notifier(c).loadNotesForCurrentVersion())?.notes, 'notes');
       await _notifier(c).loadNotesForCurrentVersion();
       expect(requests, 1);
-      expect(c.read(releaseNotesControllerProvider).hasNotes, isTrue);
+      expect(c.read(releaseNotesControllerProvider).release?.notes, 'notes');
       await _notifier(c).loadNotesForCurrentVersion(force: true);
       expect(requests, 2);
     });

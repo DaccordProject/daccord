@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:bonfire/features/developer/services/mcp_server_io.dart';
 import 'package:bonfire/features/developer/services/mcp_tools.dart';
+import 'package:bonfire/shared/app_info.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -136,6 +137,9 @@ void main() {
     'handshake notifications have no body and tool discovery still works',
     () async {
       token = ''.padLeft(64, 'd');
+      final previousVersion = kAppVersion;
+      kAppVersion = '9.8.7';
+      addTearDown(() => kAppVersion = previousVersion);
       expect(await server.start(0), isTrue);
       final client = HttpClient();
       try {
@@ -159,10 +163,10 @@ void main() {
           'method': 'initialize',
         });
         expect(initialized.$1, HttpStatus.ok);
-        expect(
-          jsonDecode(initialized.$2)['result']['serverInfo']['name'],
-          'daccord',
-        );
+        expect(jsonDecode(initialized.$2)['result']['serverInfo'], {
+          'name': 'daccord',
+          'version': '9.8.7',
+        });
 
         for (final method in [
           'notifications/initialized',

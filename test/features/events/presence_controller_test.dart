@@ -117,15 +117,6 @@ void main() {
       await pastGrace();
       expect(accordPresenceStatus(stateOf(c, _keyA), 'bob'), 'idle');
     });
-
-    test('clear empties only that server', () {
-      final c = makeContainer();
-      ctl(c, _keyA).seed([presence('alice', 'online')]);
-      ctl(c, _keyB).seed([presence('carol', 'dnd')]);
-      ctl(c, _keyA).clear();
-      expect(stateOf(c, _keyA).byUser, isEmpty);
-      expect(accordPresenceStatus(stateOf(c, _keyB), 'carol'), 'dnd');
-    });
   });
 
   group('offline smoothing (#210)', () {

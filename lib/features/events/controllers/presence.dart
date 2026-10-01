@@ -10,15 +10,10 @@ part 'presence.g.dart';
 
 /// One connection's presence cache, keyed by **qualified** user ID.
 ///
-/// The gateway broadcasts `presence.update` with a bare `user_id`, while a
-/// member seen through a federated space carries a qualified `id@domain` — so
-/// an exact-key lookup never matched and those members read permanently offline
-/// (#209). Both sides are normalised through [qualify] here instead: bare IDs
-/// are suffixed with the connection's [homeDomain], already-qualified IDs are
-/// left alone. That is [isSameUser] semantics expressed as a map key, and it
-/// keeps a remote `123@b.example` from colliding with a local `123` — which a
-/// bare [localPart] fallback would not, since snowflakes are only unique per
-/// home server.
+/// `presence.update` carries a bare `user_id` while federated members are
+/// qualified, so both are keyed through [qualify] with the connection's
+/// [homeDomain] ([isSameUser] semantics as a map key). A bare [localPart] key
+/// would let a remote `123@b.example` collide with a local `123`.
 @immutable
 class PresenceMap {
   const PresenceMap({this.byUser = const {}, this.homeDomain = ''});
@@ -30,10 +25,6 @@ class PresenceMap {
   /// The connection's home domain (`a.example`), empty until the first write
   /// supplies it.
   final String homeDomain;
-
-  bool get isEmpty => byUser.isEmpty;
-  bool get isNotEmpty => byUser.isNotEmpty;
-  int get length => byUser.length;
 
   /// The cache key for [userId]. [qualify] is idempotent, so passing an
   /// already-qualified ID is a no-op.
@@ -58,30 +49,10 @@ class PresenceMap {
   }
 }
 
-/// One connection's per-user presence cache, scoped to [serverKey]
-/// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the
-/// same reason: snowflake IDs are minted per server, so a single global map lets
-/// two servers' users collide.
-///
-/// Every connection (active *or* background) seeds this from its gateway READY
-/// payload's `presences` array and keeps it current from `presence.update`
-/// events — both wired in `accord_event_handler.dart`. Nothing is gated on the
-/// connection being the active one: with the cache keyed per server there is
-/// nothing for a background connection to clobber, and gating was what left a
-/// backgrounded server permanently showing everyone as offline (#191).
-///
-/// Offline transitions are held for [offlineGrace] before they reach the state
-/// (#210). Presence is purely socket-lifetime driven server-side — one socket
-/// drop on a peer's client is one visible offline/online flip for everyone — so
-/// without smoothing a momentary blip re-buckets that member into the roster's
-/// "Offline" section and back, and rows visibly jump. Going *non*-offline is
-/// never delayed, and a pending offline is cancelled the moment the user comes
-/// back, so a blip shorter than the window is never rendered at all.
-///
-/// Consumers resolve a member's status by user ID via [accordPresenceStatus];
-/// an absent entry means "offline" (the gateway only pushes presence for
-/// non-offline users). Read the active connection's map through
-/// [activePresencesProvider] rather than picking a key by hand.
+/// Per-connection presence cache seeded from READY and `presence.update` for
+/// every connection; offline transitions wait [offlineGrace] so reconnect blips
+/// don't reshuffle the roster, and an absent entry means offline. Read the
+/// active connection's map through [activePresencesProvider].
 @Riverpod(keepAlive: true)
 class PresenceController extends _$PresenceController {
   /// How long an offline transition is held before it is rendered. Long enough
@@ -128,16 +99,10 @@ class PresenceController extends _$PresenceController {
     _holdOffline(key, presence);
   }
 
-  /// Replaces *this server's* presences with [presences] (used to seed from
-  /// READY). Replacing rather than merging is deliberate: READY carries every
-  /// online user we can see, so anyone absent from it has since gone offline.
-  /// Other servers' caches are separate provider instances and are untouched —
-  /// a second connection READYing can no longer wipe the first's presences.
-  ///
-  /// Those implied offline transitions go through the same [offlineGrace] hold
-  /// as an explicit one. A re-seed is almost always *our own* reconnect, and
-  /// dropping every absent user on the spot blanked the whole roster for as
-  /// long as the handshake took (#210).
+  /// Replaces this server's presences with READY's [presences]: READY carries
+  /// every online user we can see, so anyone absent has gone offline. Those
+  /// implied transitions wait out [offlineGrace] too, since a re-seed is almost
+  /// always our own reconnect.
   void seed(Iterable<AccordPresence> presences, {String? homeDomain}) {
     final map = _rekeyed(homeDomain);
     final seeded = <String, AccordPresence>{
@@ -157,11 +122,6 @@ class PresenceController extends _$PresenceController {
     }
     next.addAll(seeded);
     state = PresenceMap(byUser: next, homeDomain: map.homeDomain);
-  }
-
-  void clear() {
-    _cancelPending();
-    state = PresenceMap(homeDomain: state.homeDomain);
   }
 
   /// Renders the offline transition for [key] once [offlineGrace] elapses:

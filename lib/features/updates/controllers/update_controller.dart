@@ -72,10 +72,6 @@ class UpdateState {
   /// when a newer release ships. Null when nothing has been prepared.
   final String? preparedVersion;
 
-  /// Whether a download/verify is actively in flight in the background.
-  bool get downloading =>
-      phase == UpdatePhase.downloading || phase == UpdatePhase.verifying;
-
   /// Whether an install is actively in flight (download/verify/swap).
   bool get installing =>
       phase == UpdatePhase.downloading ||
@@ -178,26 +174,16 @@ class UpdateController extends _$UpdateController {
     await check();
   }
 
-  /// Fetches the latest release. [manual] checks just surface errors to the
-  /// user. Returns the resulting state.
-  ///
-  /// A no-op on store/package-manager builds: those never query GitHub for release
-  /// information at all, so `latest` stays null and every downstream surface
-  /// (banner, Updates page, install path) stays empty. The store build's only
-  /// update channel is the store or package manager.
+  /// Fetches the latest release; only [manual] checks surface errors. Returns
+  /// the resulting state. Store and package-manager builds never query GitHub,
+  /// so `latest` stays null and every update surface stays empty.
   Future<UpdateState> check({bool manual = false}) async {
     if (!isSelfUpdateEnabled) return state;
     if (state.checking) return state;
     state = state.copyWith(checking: true, clearError: true);
     try {
       final res = await http
-          .get(
-            Uri.parse(kGithubLatestReleaseUrl),
-            headers: {
-              'User-Agent': 'daccord/$kAppVersion',
-              'Accept': 'application/vnd.github+json',
-            },
-          )
+          .get(Uri.parse(kGithubLatestReleaseUrl), headers: githubApiHeaders())
           .timeout(const Duration(seconds: 15));
 
       if (res.statusCode == 404) {
@@ -264,21 +250,14 @@ class UpdateController extends _$UpdateController {
         .setSkippedUpdateVersion(version);
   }
 
-  /// File extensions the in-place installer can actually apply for the current
-  /// platform, in priority order — kept in lockstep with [UpdateInstaller]
-  /// (`.tgz`/`.zip` bundle swap on Linux/Windows, `.dmg` on macOS, `.apk` on
-  /// Android; `.rpm`/`.appimage` and setup `.exe`/`.msi` are download-only).
+  /// Extensions the in-place installer can apply here, in priority order (kept
+  /// in lockstep with [UpdateInstaller]). A non-writable install root yields
+  /// none, except a Linux `.deb` install reinstalled via `pkexec`. Windows
+  /// prefers `windows-x86_64.zip` so the web bundle zip is never picked.
   ///
-  /// A swap needs a writable install root, so a package-manager install yields
-  /// nothing — except a Linux `.deb` install with `pkexec` available, which is
-  /// reinstalled via `pkexec dpkg -i`. Windows tries `windows-x86_64.zip` before
-  /// the generic `.zip` so the web bundle (`daccord-web.zip`) is never picked.
-  ///
-  /// Releases must **never** publish a `.tar.gz` asset again (the release
-  /// workflow enforces this): clients at v0.2.6 and earlier picked `.tar.gz`
-  /// unconditionally on Linux with no writable-root check, and withholding that
-  /// suffix is what drops them back to the manual-download banner. `.tar.gz`
-  /// stays *accepted* here so an older release is still applicable.
+  /// Releases must **never** publish a `.tar.gz` asset again: clients up to
+  /// v0.2.6 apply it on Linux without a writable-root check. It stays accepted
+  /// here so older releases remain applicable.
   List<String> get _installableExts {
     if (UniversalPlatform.isAndroid) return const ['.apk'];
     if (UniversalPlatform.isWindows) {

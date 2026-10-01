@@ -18,7 +18,7 @@ class McpServerState {
   final bool listening;
   final int port;
 
-  /// Most-recent tool calls, oldest first (capped to [_McpServerControllerCap]).
+  /// Most-recent tool calls, oldest first (capped to [_activityLogCap]).
   final List<McpActivity> activity;
 
   McpServerState copyWith({
@@ -35,22 +35,14 @@ class McpServerState {
 
 const int _activityLogCap = 100;
 
-/// Owns the desktop-only local MCP server lifecycle, driven by the persisted
-/// [SettingsController] flags. The server runs only while Developer Mode **and**
-/// the MCP toggle are both on (mirroring the reference client's two-step
-/// opt-in); it restarts when the port changes. The bearer token and allowed
-/// tool groups are read live by the server, so changing those takes effect
-/// without a restart.
+/// Owns the local MCP server lifecycle, driven by the persisted
+/// [SettingsController] flags: it runs only while Developer Mode **and** the
+/// MCP toggle are on, and restarts when the port changes. The bearer token and
+/// allowed tool groups are read live, so changing them needs no restart.
 ///
-/// The desktop-only part is enforced here rather than assumed: [McpServer]
-/// resolves to the real `dart:io` implementation on *any* platform with
-/// `dart:library.io` — which includes iOS and Android — so without this gate a
-/// persisted `developerMode` flag would start a real HTTP listener on a phone or
-/// inside a store build. [isDeveloperModeAvailable] is the single source of
-/// truth, shared with the settings UI that offers the toggle.
-///
-/// On web (no `dart:io`) the [McpServer] facade is a no-op, so this controller
-/// is inert there too.
+/// [isDeveloperModeAvailable] gates it explicitly because [McpServer] resolves
+/// to the real `dart:io` listener on iOS and Android too, where a persisted
+/// `developerMode` flag must not start one.
 @Riverpod(keepAlive: true)
 class McpServerController extends _$McpServerController {
   McpServer? _server;

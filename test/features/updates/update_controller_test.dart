@@ -406,33 +406,6 @@ void main() {
     });
   });
 
-  group('UpdateState.downloading', () {
-    test('is true when phase is downloading', () {
-      expect(
-        const UpdateState(phase: UpdatePhase.downloading).downloading,
-        isTrue,
-      );
-    });
-
-    test('is true when phase is verifying', () {
-      expect(
-        const UpdateState(phase: UpdatePhase.verifying).downloading,
-        isTrue,
-      );
-    });
-
-    test('is false for idle, ready, installing, failed', () {
-      for (final p in [
-        UpdatePhase.idle,
-        UpdatePhase.ready,
-        UpdatePhase.installing,
-        UpdatePhase.failed,
-      ]) {
-        expect(UpdateState(phase: p).downloading, isFalse, reason: '$p');
-      }
-    });
-  });
-
   group('UpdateState.installing', () {
     test('covers downloading, verifying, and installing phases', () {
       for (final p in [

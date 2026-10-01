@@ -37,7 +37,6 @@ void main() {
       expect(restored.mutedSpaces, settings.mutedSpaces);
       expect(restored.hiddenSpaces, settings.hiddenSpaces);
       expect(restored.isSpaceMuted('server', 'space-1'), isTrue);
-      expect(restored.isSpaceHidden('server', 'space-3'), isTrue);
     });
 
     test('a null accentColor round-trips as null', () {

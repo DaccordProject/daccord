@@ -7,9 +7,8 @@ import 'package:flutter/material.dart';
 
 /// A slim banner shown on web when a newer build has been deployed and the
 /// active tab is still running the old one. Polls the service-worker bridge
-/// (set up in `web/index.html`) and offers a one-tap reload into the new build —
-/// replacing the old "refresh the page manually" guidance (#91). Renders nothing
-/// off the web or until an update is detected.
+/// (set up in `web/index.html`) and offers a one-tap reload into the new build.
+/// Renders nothing off the web or until an update is detected.
 class WebUpdatePrompt extends StatefulWidget {
   const WebUpdatePrompt({super.key});
 

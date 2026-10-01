@@ -17,10 +17,10 @@ LoadFailedProvider channelsLoadFailedProvider(
   String spaceId,
 ) => loadFailedProvider('channels', serverKey, spaceId);
 
-/// A space's channel list, keyed by space ID. The Accord analogue of Bonfire's
-/// firebridge-backed channel list. Self-loads via `spaces.listChannels` the
-/// first time it's watched (once logged in) and is kept in sync by
-/// channel create/update/delete gateway events. `null` means "not loaded yet".
+/// A space's channel list, keyed by space ID. Self-loads via
+/// `spaces.listChannels` the first time it's watched (once logged in) and is
+/// kept in sync by channel create/update/delete gateway events. `null` means
+/// "not loaded yet".
 @Riverpod(keepAlive: true)
 class AccordChannelsController extends _$AccordChannelsController {
   @override

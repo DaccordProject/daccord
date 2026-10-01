@@ -1,13 +1,11 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
-import 'package:bonfire/features/channels/views/channel_management.dart';
-import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/channels/controllers/muted_channels.dart';
+import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/channels/utils/mark_channel_read.dart';
 import 'package:bonfire/features/channels/utils/toggle_channel_mute.dart';
-import 'package:bonfire/features/server/controllers/connections.dart';
+import 'package:bonfire/features/channels/views/channel_management.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -26,10 +24,6 @@ IconData _glyphFor(String? type) {
   }
 }
 
-AccordClient? _clientOf(WidgetRef ref) => ref.read(
-  accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-);
-
 /// Opens the long-press / right-click context menu for a leaf [channel]. On
 /// desktop it anchors next to [globalPosition]; on touch it opens a bottom
 /// sheet. [hostContext] is the launching tile's context (kept distinct so
@@ -46,8 +40,8 @@ Future<void> showChannelContextMenu(
   Offset? globalPosition,
   List<AccordMenuEntry> leadingEntries = const [],
 }) async {
-  final client = _clientOf(ref);
-  final activeKey = ref.read(connectionsControllerProvider).activeKey;
+  final client = ref.accordClient;
+  final activeKey = ref.readActiveServerKey();
   final mutedChannels = activeKey == null
       ? const <String>{}
       : await ref.read(mutedChannelsControllerProvider(activeKey).future);

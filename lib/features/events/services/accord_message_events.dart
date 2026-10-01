@@ -34,22 +34,16 @@ void bindMessageEvents(
   required String selfDomain,
   required bool Function() isActive,
 }) {
-  // Federation echoes the local user's own actions back qualified to our home
-  // domain (`<id>@<selfDomain>`), so a bare `== currentUserId` no longer
-  // recognises them. These treat both forms as self — see [isSameUser] — and
-  // are used wherever an event would otherwise self-notify, self-chime, or
-  // double-count (message author, mentions, reaction ownership, typing).
+  // Federation echoes our own actions back qualified to our home domain
+  // (`<id>@<selfDomain>`), so self checks accept both forms (see [isSameUser]).
   bool isSelf(String? id) =>
       id != null && isSameUser(id, currentUserId, localDomain: selfDomain);
   bool mentionsSelf(Iterable<String> mentions) => mentions.any(isSelf);
 
   // ── Incoming messages ────────────────────────────────────────────────────
-  // One `message.create` subscription fans out to four independent concerns —
-  // channel cache, read-state badge, mention notification, SFX — run in that
-  // order (the order the standalone subscriptions used to fire in). Shared
-  // reads (self-authorship, self-mention, settings, active/visible checks) are
-  // computed once; each concern keeps its own skip conditions, so a guard that
-  // silences the chime never suppresses the badge, and vice versa.
+  // One `message.create` fans out to the caches, read state, the mention
+  // notification and SFX, in that order. Each keeps its own skip conditions, so
+  // a guard that silences the chime never suppresses the badge, and vice versa.
   subs.add(
     client.onMessageCreate.listen((message) {
       final active = isActive();
@@ -91,10 +85,8 @@ void bindMessageEvents(
             .applyMessage(message);
       }
 
-      // Thread views: a message carrying `thread_id` is a reply — route it into
-      // the matching open thread's replies cache (the composer's optimistic
-      // append is deduped by `addReply`). Same opened-only rule as above, via
-      // [activeThreadReplies].
+      // A message carrying `thread_id` is a reply: route it into that thread
+      // if open (`addReply` dedupes the composer's optimistic append).
       final threadId = message.threadId;
       if (active &&
           threadId != null &&
@@ -114,10 +106,8 @@ void bindMessageEvents(
             .addReply(message);
       }
 
-      // Forum boards: a top-level (no `thread_id`) message in a channel with a
-      // live forum controller is a new root post — surface it on the board live.
-      // Only forum channels ever build that controller, so membership in
-      // [activeForumChannels] is also the cheap "is this a forum?" test.
+      // A top-level message in an open forum is a new root post. Only forum
+      // channels build that controller, so membership is the "is a forum" test.
       if (active &&
           threadId == null &&
           activeForumChannels.contains((
@@ -134,27 +124,9 @@ void bindMessageEvents(
             .addPost(message);
       }
 
-      // Read state (unread + mention badges): independent of the channel cache —
-      // every message that arrives in a channel other than the visible one marks
-      // that channel unread (with a bumped mention count when the user is
-      // mentioned). Runs for *every* connection so background servers light up
-      // their rail icon too — state is keyed by [serverKey] so colliding
-      // snowflakes don't cross-contaminate. Only the active connection
-      // suppresses the on-screen channel (the visible-channel pointer belongs to
-      // the active session). Mirrors `client_unread.gd`.
-      //
-      // Intentionally *not* filtered by mutes: the stored state stays truthful
-      // and the rail/channel indicators apply [UnreadIndicatorGate] when they
-      // render (see `ReadStateSnapshot.spaceShowsUnread`), so unmuting a space
-      // reveals what arrived while it was muted without waiting for a reconnect.
-      //
-      // Our own message is the one case that *clears* read state instead:
-      // posting into a channel reads it. The local badge alone isn't enough —
-      // without the `channels.ack` the server's read position stays behind our
-      // own message, so its `unread` array re-lights the channel on the next
-      // READY (a restart, or any reconnect that re-identifies). That is what
-      // made a channel highlight for messages the user wrote themselves. The
-      // ack also echoes to our other sessions via `read_state.update`.
+      // Read state is tracked for every connection and ignores mutes
+      // (indicators apply them at render); our own message is acked so the
+      // server's READY `unread` list can't re-light the channel.
       final tracker = ref.read(readStateControllerProvider(serverKey).notifier);
       final fresh = tracker.receiveMessage(message.channelId, message.id);
       if (isOwn || isVisibleChannel) {
@@ -170,14 +142,9 @@ void bindMessageEvents(
       // Keep cache updates for replays, but suppress duplicate alerts.
       if (!fresh) return;
 
-      // Mention notifications: fire for *any* mentioning message, even in
-      // channels the UI hasn't opened and on servers that aren't currently
-      // active (so a message on server B still notifies while you're on server
-      // A). Direct messages notify without a mention (#326) — the gate handles
-      // that, so an unread DM pings you while you're reading another channel.
-      // [currentUserId] is per-connection, so author matching is correct on
-      // every server; only the *visible-channel* skip is active-connection
-      // -scoped, since that pointer belongs to the on-screen session.
+      // Notifications fire on every connection, opened channel or not; DMs
+      // notify without a mention. Only the visible-channel skip is scoped to the
+      // active connection, which owns that pointer.
       final notify = MessageNotificationGate.shouldNotify(
         notificationsEnabled: settings.notificationsEnabled,
         suppressEveryone: settings.suppressEveryone,
@@ -212,13 +179,9 @@ void bindMessageEvents(
         );
       }
 
-      // Message SFX (mirrors the reference `play_for_message`): plays for *any*
-      // incoming message on *any* connection, gated by sound prefs + window
-      // focus, and never chimes for our own messages, a muted space (which stays
-      // silent like its suppressed banner), or the channel that's on screen
-      // (only the active connection owns the visible-channel pointer).
-      // A DM chimes like a mention: it is addressed to you, so it should be
-      // heard even while the window is focused on something else (#326).
+      // Message SFX (the reference `play_for_message`) on every connection,
+      // never for our own messages, a muted space or a silenced channel. A DM
+      // chimes like a mention.
       if (settings.soundsEnabled &&
           !spaceMuted &&
           !isOwn &&
@@ -234,12 +197,9 @@ void bindMessageEvents(
   );
 
   // ── Withdrawn attachments ────────────────────────────────────────────────
-  // AutoMod withdrawing a published file (or any edit that drops one) reaches
-  // us as a `message.update` with the shorter list — and, for our own uploads,
-  // an `automod.upload_status`. Replacing the cached message is what the
-  // fan-out below already does; what it can't do by itself is tell the image
-  // cache and an open lightbox that the bytes they hold are gone. These two
-  // helpers do that.
+  // A withdrawn file arrives as a `message.update` with a shorter attachment
+  // list (and, for our own uploads, an `automod.upload_status`). Besides the
+  // cached message, the image cache and any open lightbox must drop the bytes.
   final withdrawn = ref.read(
     withdrawnAttachmentsControllerProvider(serverKey).notifier,
   );
@@ -277,14 +237,16 @@ void bindMessageEvents(
     return null;
   }
 
-  /// Pushes [message] (already stripped of an attachment) back through every
-  /// cache that holds it, so each re-emits its list.
+  /// Pushes an edited [message] into the DM preview and, on the active
+  /// connection, every open cache for its channel. Each cache ignores IDs it
+  /// doesn't hold, so no thread/forum routing is needed.
   void reapplyToCaches(AccordMessage message) {
     if (message.spaceId == null) {
       ref
           .read(dmChannelsControllerProvider(serverKey).notifier)
           .updateMessagePreview(message);
     }
+    if (!isActive()) return;
     final key = (serverKey: serverKey, channelId: message.channelId);
     if (activeMessageChannels.contains(key)) {
       ref
@@ -296,7 +258,7 @@ void bindMessageEvents(
           )
           .updateMessage(message);
     }
-    for (final t in activeThreadReplies) {
+    for (final t in [...activeThreadReplies]) {
       if (t.serverKey != serverKey || t.channelId != message.channelId) {
         continue;
       }
@@ -327,67 +289,17 @@ void bindMessageEvents(
       // A tracked upload turning up as a real attachment is its publication,
       // whether or not the `published` status event has arrived yet.
       pendingUploads.applyPublishedAttachments(message);
-      if (message.spaceId == null) {
-        ref
-            .read(dmChannelsControllerProvider(serverKey).notifier)
-            .updateMessagePreview(message);
+      if (isActive()) {
+        // Compare against the copy we hold *before* the caches replace it.
+        final previous = cachedMessage(
+          message.channelId,
+          message.id,
+          threadId: message.threadId,
+        );
+        final gone = withdrawnAttachments(previous, message);
+        if (gone.isNotEmpty) withdrawn.withdraw(gone, cdnUrl: cdnUrl);
       }
-      if (!isActive()) return;
-      // Compare against the copy we hold *before* the caches replace it.
-      final previous = cachedMessage(
-        message.channelId,
-        message.id,
-        threadId: message.threadId,
-      );
-      final gone = withdrawnAttachments(previous, message);
-      if (gone.isNotEmpty) withdrawn.withdraw(gone, cdnUrl: cdnUrl);
-      if (activeMessageChannels.contains((
-        serverKey: serverKey,
-        channelId: message.channelId,
-      ))) {
-        ref
-            .read(
-              accordMessagesControllerProvider(
-                serverKey,
-                message.channelId,
-              ).notifier,
-            )
-            .updateMessage(message);
-      }
-      // Route edits into open thread views (replies) and forum boards (root
-      // posts) the same way creates are routed; both mutators no-op on ids they
-      // don't hold.
-      final threadId = message.threadId;
-      if (threadId != null &&
-          activeThreadReplies.contains((
-            serverKey: serverKey,
-            channelId: message.channelId,
-            rootId: threadId,
-          ))) {
-        ref
-            .read(
-              threadRepliesControllerProvider(
-                serverKey,
-                message.channelId,
-                threadId,
-              ).notifier,
-            )
-            .updateReply(message);
-      }
-      if (threadId == null &&
-          activeForumChannels.contains((
-            serverKey: serverKey,
-            channelId: message.channelId,
-          ))) {
-        ref
-            .read(
-              forumPostsControllerProvider(
-                serverKey,
-                message.channelId,
-              ).notifier,
-            )
-            .updatePost(message);
-      }
+      reapplyToCaches(message);
     }),
   );
   subs.add(
@@ -442,16 +354,11 @@ void bindMessageEvents(
   );
 
   // ── AutoMod upload status ────────────────────────────────────────────────
-  // `automod.upload_status` (uploader only, `messages` intent) advances the
-  // placeholders on our own messages; every ID it names is ours, so one we
-  // don't know yet is buffered until the composer's 202 lands. Reasons are
-  // fetched from `automod.getUpload` for those — and only those — uploads.
-  // `automod.upload_update` (`moderation` intent) is subscribed for parity but
-  // the client doesn't request that intent by default; when a moderator
-  // session does receive it, only IDs already tracked (a moderator's own
-  // upload) touch the placeholders — a stranger's upload is never a
-  // placeholder here — and a refusal shrinks the cached message like the
-  // server's `message.update` does.
+  // `automod.upload_status` (uploader only) names our own uploads, so an
+  // unknown ID is buffered until the composer's 202 lands.
+  // `automod.upload_update` (`moderation` intent, not requested by default)
+  // only touches already-tracked IDs: a stranger's upload is never a
+  // placeholder here. A refusal shrinks the cached message either way.
   void applyUploadStatus(
     AccordAutomodUploadStatus status, {
     required bool own,
@@ -459,10 +366,8 @@ void bindMessageEvents(
     pendingUploads.applyStatus(status, client: client, bufferUnknown: own);
     if (!AutomodUploadStatus.isRefused(status.status)) return;
     if (!isActive()) return;
-    // A published-then-withdrawn file: the attachment carries the upload's ID.
-    // Strip it from whichever cache holds the message so the row, any open
-    // viewer and the image cache let go of it even if the `message.update`
-    // is delayed.
+    // A published-then-withdrawn attachment carries the upload's ID; strip it
+    // now in case the `message.update` is delayed.
     final cached = cachedMessage(status.channelId, status.messageId);
     if (cached == null) return;
     final removed = removeAttachmentInPlace(cached, status.id);
@@ -483,9 +388,7 @@ void bindMessageEvents(
   );
 
   // ── Read-state sync (multi-device) ───────────────────────────────────────
-  // The server echoes our own acks to our *other* sessions, so reading a channel
-  // on one device clears its badge here too. Keyed by [serverKey] like the rest
-  // of read state; we only clear (acks never re-raise a badge).
+  // The server echoes our acks to our other sessions; acks only ever clear.
   subs.add(
     client.onReadStateUpdate.listen((data) {
       final channelId = data['channel_id']?.toString();
@@ -499,12 +402,9 @@ void bindMessageEvents(
   );
 
   // ── Reactions (per channel) ──────────────────────────────────────────────
-  // Like messages, only mutate channels the UI has opened.
-  // The gateway echoes a reaction's emoji either as a map (`{name, id}`) or as
-  // a bare token — `name:id` for custom emoji, a glyph/shortcode otherwise. We
-  // split the token so the id survives; otherwise a custom reaction would be
-  // stored with id=null and a name of `name:id`, rendering as literal text and
-  // never matching the optimistic pill (leaving two pills for one reaction).
+  // Only opened channels are mutated. The gateway sends a reaction's emoji as
+  // a map (`{name, id}`) or a bare token (`name:id` for custom emoji); the token
+  // is split so the echo keeps its id and matches the optimistic pill.
   EmojiRef reactionEmoji(Map<String, dynamic> data) {
     final raw = data['emoji'];
     if (raw is Map) {
@@ -526,9 +426,8 @@ void bindMessageEvents(
     ))) {
       return;
     }
-    // A federated reaction carries a qualified actor id; our own reaction on a
-    // remote-homed message echoes back qualified to our domain, so match both
-    // forms or the optimistic pill and its echo double-count.
+    // Our own reaction may echo back qualified; matching both forms keeps the
+    // optimistic pill and its echo from double-counting.
     final isOwn = isSelf(data['user_id']?.toString());
     ref
         .read(accordMessagesControllerProvider(serverKey, channelId).notifier)
@@ -585,10 +484,8 @@ void bindMessageEvents(
   );
 
   // ── Typing indicators (per channel) ──────────────────────────────────────
-  // A remote user's typing arrives with a qualified id; the typing controller
-  // holds it verbatim and the UI resolves identity via the member/user cache
-  // (fetching the replica on demand). Our own typing echoes back qualified to
-  // our domain on a remote-homed channel, so skip-self matches both forms.
+  // Remote ids are stored verbatim (the UI resolves them); skip-self matches
+  // our own qualified echo too.
   subs.add(
     client.onTypingStart.listen((data) {
       if (!isActive()) return;

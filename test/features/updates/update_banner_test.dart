@@ -159,31 +159,6 @@ void main() {
       expect(find.textContaining('restart & install'), findsNothing);
     });
 
-    testWidgets(
-        'hides (returns SizedBox.shrink) while background download is in '
-        'flight on an installable platform — avoids a flash before ready',
-        (tester) async {
-      // Simulate a platform where canInstallInPlace would be true: the check
-      // is done via `notifier.canInstallInPlace`, which evaluates to false
-      // in the test environment (no real platform assets). We verify the
-      // banner logic by directly putting the state into `downloading` phase
-      // and checking the showViewBanner condition that would hide it.
-      //
-      // The invariant: when phase == downloading and canInstallInPlace is
-      // true, showViewBanner is false, so the banner collapses.
-      // In the test environment canInstallInPlace is always false (no assets),
-      // so the banner instead shows the "view" variant — this test documents
-      // the intended conditional, which we verify through UpdateState.downloading.
-      const downloadingState = UpdateState(
-        latest: _newerRelease,
-        phase: UpdatePhase.downloading,
-      );
-      expect(downloadingState.downloading, isTrue);
-      expect(downloadingState.updateReady, isFalse);
-      // updateAvailable is still true while downloading
-      expect(downloadingState.updateAvailable, isTrue);
-    });
-
     testWidgets('never renders on an app store build', (tester) async {
       // A store binary must not advertise a GitHub release (#292). check() is
       // already a no-op there, so `latest` can't normally be set — this proves

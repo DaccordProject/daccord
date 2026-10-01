@@ -26,28 +26,21 @@ class AccordSettings {
   static const List<int> videoFpsOptions = [15, 30, 60];
 
   /// Screen-share capture resolution labels, indexed by [screenShareResolution].
-  /// A separate ladder from the camera's: 480p is useless for sharing a desktop
-  /// (UI text is unreadable), and sharing benefits from resolutions above what
-  /// a webcam ever produces.
+  /// Separate from the camera ladder: 480p makes shared UI text unreadable.
   static const List<String> screenShareResolutionLabels = [
     '720p',
     '1080p',
     '1440p',
   ];
 
-  /// Selectable screen-share frame rates. Unlike the camera, this defaults to
-  /// the top of the range — the common case for sharing is gameplay/video,
-  /// where frame rate is what makes it look right.
+  /// Selectable screen-share frame rates.
   static const List<int> screenShareFpsOptions = [15, 30, 60];
 
-  /// Default screen-share resolution index (720p). 720p60 costs roughly half
-  /// the pixels/second of 1080p60, so it is the setting most machines and
-  /// connections can actually sustain at 60 fps; users on better links can move
-  /// up in Voice & Video settings.
+  /// Default screen-share resolution index (720p): roughly half the pixel rate
+  /// of 1080p60, so most machines and links can sustain it at 60 fps.
   static const int defaultScreenShareResolution = 0;
 
-  /// Default screen-share frame rate. Motion-friendly by default — see
-  /// [screenShareFps].
+  /// Default screen-share frame rate; see [screenShareFps].
   static const int defaultScreenShareFps = 60;
 
   /// Default port for the local Client MCP server. Mirrors the reference
@@ -160,21 +153,16 @@ class AccordSettings {
   final int videoFps;
 
   /// Screen-share capture resolution index into [screenShareResolutionLabels]
-  /// (0 = 720p, 1 = 1080p, 2 = 1440p). Independent of [videoResolution]: a
-  /// webcam and a shared game screen have nothing in common as encoder input.
+  /// (0 = 720p, 1 = 1080p, 2 = 1440p), independent of [videoResolution].
   final int screenShareResolution;
 
   /// Screen-share capture frame rate (one of [screenShareFpsOptions]).
-  /// Defaults to 60 — screen share is overwhelmingly used for games and video,
-  /// and 30 fps is what made game streams look choppy (issue #151).
+  /// Defaults to 60: screen share is mostly games and video.
   final int screenShareFps;
 
-  /// Whether the screen-share encoder should protect frame rate over
-  /// resolution when it runs short of CPU or bandwidth (WebRTC's
-  /// `maintainFramerate` degradation preference, plus a single non-simulcast
-  /// layer). On = smooth motion for games/video; off = keeps every pixel sharp
-  /// and drops frames instead, which is what you want for slides, code or
-  /// anything mostly-static. Mirrors Discord's smoothness-vs-clarity choice.
+  /// Whether the screen-share encoder protects frame rate over resolution when
+  /// short of CPU or bandwidth (WebRTC `maintainFramerate`, plus a single
+  /// non-simulcast layer). Off keeps pixels sharp for mostly-static content.
   final bool screenShareMotionPriority;
 
   /// Selected microphone device ID (empty = system default). Applied to the
@@ -312,8 +300,7 @@ class AccordSettings {
   final List<SpaceFolder> spaceFolders;
 
   /// Space IDs the user has muted (per-space notification suppression). Stored
-  /// client-side like [spaceFolders] — accordkit exposes no server-synced
-  /// notification settings. Mirrors the old client's space "Mute Server" action.
+  /// client-side: accordkit exposes no server-synced notification settings.
   final List<String> mutedSpaces;
 
   /// Space IDs hidden from the rail *without leaving membership* — the local
@@ -436,10 +423,6 @@ class AccordSettings {
   bool isSpaceMuted(String serverKey, String spaceId) =>
       mutedSpaces.contains(ServerEntityKey(serverKey, spaceId).encoded);
 
-  /// Whether [spaceId] is hidden from the rail (still joined on the server).
-  bool isSpaceHidden(String serverKey, String spaceId) =>
-      hiddenSpaces.contains(ServerEntityKey(serverKey, spaceId).encoded);
-
   /// Whether the rules interstitial for [spaceId] has been accepted.
   bool isRulesAccepted(String serverKey, String spaceId) =>
       acceptedRuleSpaces.contains(ServerEntityKey(serverKey, spaceId).encoded);
@@ -512,25 +495,11 @@ class AccordSettings {
   /// Suggested max send bitrate (bits/sec) for the current screen-share
   /// resolution + frame rate.
   ///
-  /// Deliberately far above [videoBitrate]. Those are LiveKit's *camera*
-  /// presets (720p → 1.7 Mbps), tuned for a soft, low-detail, slow-moving
-  /// talking head; gameplay is full-frame motion with hard edges, and the same
-  /// bitrate turns it into a blocky smear. LiveKit's built-in *screen-share*
-  /// presets are no help either — they assume slides and IDEs, so they cap
-  /// 720p at 800 kbps @ 5 fps and 1080p at 2.5 Mbps @ 15 fps.
-  ///
-  /// The 60 fps numbers below are the low end of what the live-streaming
-  /// industry publishes for high-motion content: Twitch recommends 3,000–4,500
-  /// kbps for 720p60 and 4,500–6,000 kbps for 1080p60; YouTube recommends
-  /// 4,500 and 7,500 kbps respectively; Discord's screen-share tiers span
-  /// roughly 2.5–8 Mbps over the same resolutions. We take the bottom of those
-  /// ranges rather than the top because WebRTC encodes live (no lookahead or
-  /// two-pass to spend the extra bits well) and the SFU has to relay the stream
-  /// to every viewer in the channel.
-  ///
-  /// Frame rate scales the ceiling sub-linearly — halving the frame rate does
-  /// not halve the bits needed, since consecutive frames are then less
-  /// correlated and each costs more.
+  /// Far above [videoBitrate]: LiveKit's camera presets (and its slide-oriented
+  /// screen-share presets) turn full-frame gameplay into a blocky smear. The
+  /// 60 fps values sit at the low end of Twitch/YouTube high-motion guidance,
+  /// since WebRTC encodes live and the SFU relays to every viewer. Lower frame
+  /// rates scale sub-linearly: less-correlated frames each cost more.
   int get screenShareBitrate {
     final base = switch (screenShareResolution) {
       1 => 6000000, // 1080p60
@@ -631,10 +600,8 @@ class AccordSettings {
       sfxVolume: (json['sfxVolume'] as num?)?.toDouble() ?? 1.0,
       videoResolution: (json['videoResolution'] as num?)?.toInt() ?? 1,
       videoFps: (json['videoFps'] as num?)?.toInt() ?? 30,
-      // Screen-share quality landed after these settings shipped, so existing
-      // installs have no keys here. They fall back to the motion-friendly
-      // defaults rather than inheriting the camera values that made game
-      // streams choppy in the first place (issue #151).
+      // Missing screen-share keys use the motion-friendly defaults, not the
+      // camera values.
       screenShareResolution:
           (json['screenShareResolution'] as num?)?.toInt().clamp(
             0,

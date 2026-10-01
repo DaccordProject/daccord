@@ -103,8 +103,9 @@ Map<String, dynamic>? _validateManagementValue(
   };
   Map<String, dynamic> invalid(String message) =>
       _managementError('validation_error', message, field: field);
-  if (!types.contains(type))
+  if (!types.contains(type)) {
     return invalid('$field must be ${types.join(' or ')}');
+  }
   if (value == null) return null;
   if (schema['enum'] is List && !(schema['enum'] as List).contains(value)) {
     return invalid(
@@ -131,8 +132,9 @@ Map<String, dynamic>? _validateManagementValue(
       }
     }
     for (final key in value.keys) {
-      if (!properties.containsKey(key))
+      if (!properties.containsKey(key)) {
         return invalid('Unknown field: $field.$key');
+      }
       final error = _validateManagementValue(
         value[key],
         properties[key] as Map,
@@ -308,8 +310,9 @@ extension _McpSpaceManagement on McpTools {
         spaceId,
         auth.session.userId,
       );
-      if (!memberResult.ok)
+      if (!memberResult.ok) {
         return (space: null, error: _managementRestError(memberResult));
+      }
       if (memberResult.data is! AccordMember) {
         return (
           space: null,
@@ -321,8 +324,9 @@ extension _McpSpaceManagement on McpTools {
       }
       member = memberResult.data as AccordMember;
       final rolesResult = await auth.client.roles.list(spaceId);
-      if (!rolesResult.ok)
+      if (!rolesResult.ok) {
         return (space: null, error: _managementRestError(rolesResult));
+      }
       if (rolesResult.data is! List) {
         return (
           space: null,
@@ -408,8 +412,9 @@ extension _McpSpaceManagement on McpTools {
 
   Future<Map<String, dynamic>> _updateSpace(Map<String, dynamic> args) async {
     final data = {...args}..remove('space_id');
-    if (data.isEmpty)
+    if (data.isEmpty) {
       return _managementError('validation_error', 'No fields to update');
+    }
     final imageError = _managementImages(data);
     if (imageError != null) return imageError;
     final auth = _managementSession;
@@ -446,8 +451,9 @@ extension _McpSpaceManagement on McpTools {
     }
     if (_managementCurrent(auth)) {
       if (data.containsKey('icon') && data['icon'] == null) space.icon = null;
-      if (data.containsKey('banner') && data['banner'] == null)
+      if (data.containsKey('banner') && data['banner'] == null) {
         space.banner = null;
+      }
       final cdnUrl = auth.session.server.cdnUrl;
       await spaceMediaCache.invalidate(
         [
@@ -510,8 +516,9 @@ extension _McpSpaceManagement on McpTools {
     final data = {...args}
       ..remove('space_id')
       ..remove('channel_id');
-    if (data.isEmpty)
+    if (data.isEmpty) {
       return _managementError('validation_error', 'No fields to update');
+    }
     final auth = _managementSession;
     if (auth == null) return _notConnected;
     final spaceId = args['space_id'] as String;
@@ -669,20 +676,22 @@ extension _McpSpaceManagement on McpTools {
     if (permission.error != null) return permission.error!;
     final fetched = await auth.client.spaces.listChannels(spaceId);
     if (!fetched.ok) return _managementRestError(fetched);
-    if (fetched.data is! List)
+    if (fetched.data is! List) {
       return _managementError(
         'invalid_response',
         'Server did not return channels.',
       );
+    }
     final channels = (fetched.data as List).whereType<AccordChannel>().toList();
     for (final entry in entries) {
       final channel = channels.firstWhereOrNull((c) => c.id == entry['id']);
-      if (channel == null)
+      if (channel == null) {
         return _managementError(
           'validation_error',
           'Every reordered channel must belong to this space.',
           field: 'channels',
         );
+      }
       final error = await _managementParent(
         auth,
         spaceId,

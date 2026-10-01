@@ -10,7 +10,7 @@
 /// * a 1MB max request body, POST-only, to `/mcp` or `/mcp/`;
 /// * tool-group permission filtering against the live allowed-groups list;
 /// * MCP `content` wrapping of every tool result;
-/// * a 100-entry in-memory activity ring buffer (surfaced via [onActivity]).
+/// * every tool call reported through `onActivity`.
 ///
 /// The token is generated locally and is never sent to the Accord server.
 library;
@@ -20,6 +20,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bonfire/features/developer/services/mcp_tools.dart';
+import 'package:bonfire/shared/app_info.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 
 class McpServer {
@@ -28,7 +29,6 @@ class McpServer {
     required String Function() tokenGetter,
     required List<String> Function() allowedGroupsGetter,
     required void Function(McpActivity) onActivity,
-    this.appVersion = '0.0.0',
   })  : _tokenGetter = tokenGetter,
         _allowedGroupsGetter = allowedGroupsGetter,
         _onActivity = onActivity;
@@ -40,7 +40,6 @@ class McpServer {
   static const int _rateLimitWindowMs = 1000;
 
   final McpTools tools;
-  final String appVersion;
   final String Function() _tokenGetter;
   final List<String> Function() _allowedGroupsGetter;
   final void Function(McpActivity) _onActivity;
@@ -176,7 +175,7 @@ class McpServer {
           'capabilities': {
             'tools': {'listChanged': false},
           },
-          'serverInfo': {'name': 'daccord', 'version': appVersion},
+          'serverInfo': {'name': 'daccord', 'version': kAppVersion},
         });
       case 'notifications/initialized':
         return id != null ? _jsonRpcResult(id, <String, dynamic>{}) : {};

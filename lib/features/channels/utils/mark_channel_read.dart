@@ -1,7 +1,7 @@
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
-import 'package:bonfire/features/server/controllers/connections.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Clears [channelId]'s unread badge locally *and* POSTs `channels.ack` so the
@@ -24,10 +24,13 @@ void markChannelRead(
   String? serverKey,
   String? fallbackMessageId,
 }) {
-  final key = serverKey ?? ref.read(connectionsControllerProvider).activeKey;
+  final key = serverKey ?? ref.readActiveServerKey();
   if (key == null) return;
   final tracker = ref.read(readStateControllerProvider(key).notifier);
-  final messages = ref.read(accordMessagesControllerProvider(key, channelId));
+  // Reading an unopened channel's provider would build it just to fire (and
+  // drop) a history fetch.
+  final provider = accordMessagesControllerProvider(key, channelId);
+  final messages = ref.exists(provider) ? ref.read(provider) : null;
   final candidates = <String>[
     if (messages?.isNotEmpty == true) messages!.last.id,
     if (fallbackMessageId != null) fallbackMessageId,

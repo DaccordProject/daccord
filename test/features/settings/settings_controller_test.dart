@@ -207,8 +207,9 @@ void main() {
 
         expect(stateOf(c).draftFor('server-a', 'same-id'), 'legacy draft');
         expect(stateOf(c).draftFor('server-b', 'same-id'), isEmpty);
-        expect(stateOf(c).isSpaceHidden('server-a', 'same-id'), isTrue);
-        expect(stateOf(c).isSpaceHidden('server-b', 'same-id'), isFalse);
+        expect(stateOf(c).hiddenSpaces, [
+          ServerEntityKey('server-a', 'same-id').encoded,
+        ]);
         expect(stateOf(c).spaceFolders.single.spaceIds, [
           ServerEntityKey('server-a', 'same-id').encoded,
         ]);
