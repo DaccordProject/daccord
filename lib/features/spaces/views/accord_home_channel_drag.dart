@@ -122,11 +122,7 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
   /// changed. Positions count within each bucket (categories share one bucket;
   /// each category's children share another) so siblings stay coherent.
   Future<void> _persist() async {
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
+    final client = ref.accordClient;
     if (client == null) return;
     final notifier = ref.read(
       accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier,

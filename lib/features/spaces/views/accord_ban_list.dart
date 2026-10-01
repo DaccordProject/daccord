@@ -326,7 +326,7 @@ class _Ban {
   String? username;
   String? displayName;
 
-  /// displayName → username → "Unknown". Never the raw snowflake (#25).
+  /// displayName → username → "Unknown". Never the raw snowflake.
   String get name => accordUserName(
     AccordUser(id: userId, username: username ?? '', displayName: displayName),
   );

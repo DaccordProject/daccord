@@ -151,8 +151,9 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     if (result.ok && space is AccordSpace) {
       // A removal must also work with servers that omit cleared fields.
       if (body.containsKey('icon') && body['icon'] == null) space.icon = null;
-      if (body.containsKey('banner') && body['banner'] == null)
+      if (body.containsKey('banner') && body['banner'] == null) {
         space.banner = null;
+      }
       await spaceMediaCache.invalidate(
         {
           if (body.containsKey('icon')) ...[

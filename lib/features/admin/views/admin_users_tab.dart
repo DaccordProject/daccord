@@ -68,21 +68,6 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab>
     return q;
   }
 
-  Future<bool?> _confirm(
-    String title,
-    String message,
-    String action, {
-    bool danger = false,
-  }) {
-    return showConfirmDialog(
-      context,
-      title: title,
-      message: message,
-      confirmLabel: action,
-      danger: danger,
-    );
-  }
-
   Future<void> _setAdmin(AccordUser user, bool value) async {
     final client = _client;
     if (client == null) return;
@@ -98,12 +83,13 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab>
   }
 
   Future<void> _setDisabled(AccordUser user, bool disable) async {
-    final ok = await _confirm(
-      disable ? 'Disable user' : 'Enable user',
-      disable
+    final ok = await showConfirmDialog(
+      context,
+      title: disable ? 'Disable user' : 'Enable user',
+      message: disable
           ? "Disable '${user.username}'? They will be unable to log in."
           : "Re-enable '${user.username}'? They will be able to log in again.",
-      disable ? 'Disable' : 'Enable',
+      confirmLabel: disable ? 'Disable' : 'Enable',
       danger: disable,
     );
     if (ok != true) return;
@@ -144,10 +130,11 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab>
   }
 
   Future<void> _delete(AccordUser user) async {
-    final ok = await _confirm(
-      'Delete user',
-      "Delete '${user.username}'? This cannot be undone.",
-      'Delete',
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Delete user',
+      message: "Delete '${user.username}'? This cannot be undone.",
+      confirmLabel: 'Delete',
       danger: true,
     );
     if (ok != true) return;

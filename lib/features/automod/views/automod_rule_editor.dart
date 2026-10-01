@@ -35,18 +35,20 @@ class _RuleEditorState extends State<_RuleEditor> {
   void initState() {
     super.initState();
     final rule = widget.rule ?? <String, dynamic>{};
-    final trigger = automodMap(rule['trigger']),
-        action = automodMap(rule['action']),
-        scope = automodMap(rule['scope']);
+    final trigger = asMap(rule['trigger']) ?? const {},
+        action = asMap(rule['action']) ?? const {},
+        scope = asMap(rule['scope']) ?? const {};
     _id = TextEditingController(text: asString(rule['id']));
     _trigger = asString(trigger['type'], 'media');
     _action = asString(action['type'], 'quarantine');
     _scope = asString(scope['type'], 'non_nsfw');
-    _channelIds = automodList(scope['ids']).map((id) => id.toString()).toSet();
+    _channelIds = (asList(scope['ids']) ?? const [])
+        .map((id) => id.toString())
+        .toSet();
     _categories = TextEditingController(
       text: trigger['categories'] == null
           ? 'FEMALE_BREAST_EXPOSED, FEMALE_GENITALIA_EXPOSED, MALE_GENITALIA_EXPOSED, ANUS_EXPOSED'
-          : automodList(trigger['categories']).join(', '),
+          : (asList(trigger['categories']) ?? const []).join(', '),
     );
     _threshold = TextEditingController(text: '${trigger['threshold'] ?? 0.8}');
     _seconds = TextEditingController(text: '${action['seconds'] ?? 300}');

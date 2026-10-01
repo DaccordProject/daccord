@@ -16,18 +16,17 @@ const _theme = BonfireThemeExtension(
   yellow: Color(0xffffcc33),
 );
 
-Widget _host(AccordReport report, ValueChanged<AccordReport> onDelete) {
+Widget _host(
+  AccordReport report,
+  void Function(AccordReport, ModerationReportAction) onAction,
+) {
   return MaterialApp(
     theme: ThemeData(extensions: const [_theme]),
     home: Scaffold(
       body: ModerationReportRow(
         report: report,
         busy: false,
-        onDismiss: (_) {},
-        onResolve: (_) {},
-        onDeleteMessage: onDelete,
-        onKick: (_) {},
-        onBan: (_) {},
+        onAction: onAction,
       ),
     ),
   );
@@ -44,9 +43,11 @@ void main() {
       'category': 'harassment',
       'description': 'Repeated insults',
     });
-    AccordReport? deleted;
+    (AccordReport, ModerationReportAction)? pressed;
 
-    await tester.pumpWidget(_host(report, (value) => deleted = value));
+    await tester.pumpWidget(
+      _host(report, (value, action) => pressed = (value, action)),
+    );
 
     expect(find.text('Harassment or bullying'), findsOneWidget);
     expect(find.text('Repeated insults'), findsOneWidget);
@@ -55,7 +56,8 @@ void main() {
     expect(find.text('Ban'), findsOneWidget);
 
     await tester.tap(find.text('Delete msg'));
-    expect(deleted, same(report));
+    expect(pressed?.$1, same(report));
+    expect(pressed?.$2, ModerationReportAction.deleteMessage);
   });
 
   testWidgets('hides target-specific actions when attribution is absent', (
@@ -68,7 +70,7 @@ void main() {
       category: 'new_server_category',
     );
 
-    await tester.pumpWidget(_host(report, (_) {}));
+    await tester.pumpWidget(_host(report, (_, _) {}));
 
     expect(find.text('new_server_category'), findsOneWidget);
     expect(find.text('Delete msg'), findsNothing);

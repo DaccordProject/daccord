@@ -1,9 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/admin/views/admin_list_scaffold.dart';
 import 'package:bonfire/shared/components/moderation_report_row.dart';
-import 'package:bonfire/shared/utils/ban_dialog.dart';
-import 'package:bonfire/shared/utils/rest_result_ext.dart';
-import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -97,106 +94,20 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     });
   }
 
-  Future<void> _resolve(
-    AccordReport report,
-    String status, {
-    String? actionTaken,
-  }) async {
+  void _onAction(AccordReport report, ModerationReportAction action) {
     final client = _client;
-    final spaceId = report.spaceId;
-    final id = report.id;
-    if (client == null || spaceId.isEmpty || id.isEmpty) return;
-    final result = await client.reports.resolve(spaceId, id, {
-      'status': status,
-      if (actionTaken != null) 'action_taken': actionTaken,
-    });
-    if (!mounted) return;
-    if (!result.ok) {
-      setState(() => _error = result.errorOr('Failed to resolve'));
-      return;
-    }
-    setState(() => _reports.removeWhere((e) => e.id == id));
-  }
-
-  Future<bool> _confirm(String title, String message, String action) async {
-    final ok = await showConfirmDialog(
+    if (client == null) return;
+    runModerationReportAction(
       context,
-      title: title,
-      message: message,
-      confirmLabel: action,
+      client,
+      spaceId: report.spaceId,
+      report: report,
+      action: action,
+      onBusy: (busy) => setState(() => _busy = busy),
+      onError: (message) => setState(() => _error = message),
+      onResolved: () =>
+          setState(() => _reports.removeWhere((e) => e.id == report.id)),
     );
-    return ok == true;
-  }
-
-  Future<void> _kick(AccordReport report) async {
-    final client = _client;
-    final spaceId = report.spaceId;
-    final userId = report.reportedUserId;
-    if (client == null || spaceId.isEmpty || userId == null) return;
-    if (!await _confirm(
-      'Kick member',
-      'Kick the reported member and action this report?',
-      'Kick',
-    )) {
-      return;
-    }
-    setState(() => _busy = true);
-    final result = await client.members.kick(spaceId, userId);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (!result.ok) {
-      setState(() => _error = result.errorOr('Failed to kick'));
-      return;
-    }
-    await _resolve(report, 'actioned', actionTaken: 'kick_member');
-  }
-
-  Future<void> _ban(AccordReport report) async {
-    final client = _client;
-    final spaceId = report.spaceId;
-    final userId = report.reportedUserId;
-    if (client == null || spaceId.isEmpty || userId == null) return;
-    final request = await showBanDialog(
-      context,
-      memberName: 'The reported member',
-    );
-    if (request == null || !mounted) return;
-    setState(() => _busy = true);
-    final result = await client.bans.create(
-      spaceId,
-      userId,
-      data: request.toJson(),
-    );
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (!result.ok) {
-      setState(() => _error = result.errorOr('Failed to ban'));
-      return;
-    }
-    await _resolve(report, 'actioned', actionTaken: 'ban_member');
-  }
-
-  Future<void> _deleteMessage(AccordReport report) async {
-    final client = _client;
-    final channelId = report.channelId;
-    final messageId = report.targetId;
-    if (client == null || channelId == null || messageId.isEmpty) return;
-    if (!await _confirm(
-      'Delete message',
-      'Delete the reported message and action this report?',
-      'Delete',
-    )) {
-      return;
-    }
-    setState(() => _busy = true);
-    final result = await client.messages.delete(channelId, messageId);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (!result.ok) {
-      setState(() => _error = result.errorOr('Failed to delete message'));
-      return;
-    }
-    await _resolve(report, 'actioned', actionTaken: 'delete_message');
   }
 
   @override
@@ -245,12 +156,7 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
         itemBuilder: (context, i) => ModerationReportRow(
           report: _reports[i],
           busy: _busy,
-          onDismiss: (report) => _resolve(report, 'dismissed'),
-          onResolve: (report) =>
-              _resolve(report, 'resolved', actionTaken: 'none'),
-          onDeleteMessage: _deleteMessage,
-          onKick: _kick,
-          onBan: _ban,
+          onAction: _onAction,
         ),
       ),
     );

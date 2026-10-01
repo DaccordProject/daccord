@@ -1,15 +1,12 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/dialog_title_bar.dart';
 import 'package:bonfire/shared/components/load_more_footer.dart';
 import 'package:bonfire/shared/components/moderation_report_row.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/self_loading_list.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
-import 'package:bonfire/shared/utils/ban_dialog.dart';
-import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
-import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/controllers/hidden_messages.dart';
 import 'package:bonfire/features/user/controllers/blocked_users.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -106,11 +103,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
   }
 
   Future<void> _loadCategories() async {
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
+    final client = ref.accordClient;
     if (client == null) return;
     final result = await client.reports.categories();
     if (!mounted || !result.ok) return;
@@ -144,11 +137,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
   }
 
   Future<void> _submit() async {
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
+    final client = ref.accordClient;
     if (client == null) return;
     final category = _category;
     if (category == null) {
@@ -479,95 +468,20 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel>
   String loadMoreError(RestResult result) =>
       result.errorOr('Failed to load more');
 
-  Future<void> _resolve(
-    String reportId,
-    String status, {
-    String? actionTaken,
-  }) async {
+  void _onAction(AccordReport report, ModerationReportAction action) {
     final client = _client;
     if (client == null) return;
-    final result = await client.reports.resolve(widget.spaceId, reportId, {
-      'status': status,
-      if (actionTaken != null) 'action_taken': actionTaken,
-    });
-    if (!mounted) return;
-    if (!result.ok) {
-      setState(() => error = result.errorOr('Failed to resolve'));
-      return;
-    }
-    setState(() => items.removeWhere((r) => r.id == reportId));
-  }
-
-  Future<void> _deleteMessage(AccordReport report) async {
-    final client = _client;
-    final channelId = report.channelId;
-    final messageId = report.targetId;
-    final id = report.id;
-    if (client == null || channelId == null || messageId.isEmpty) return;
-    final ok = await showConfirmDialog(
+    runModerationReportAction(
       context,
-      title: 'Delete message',
-      message: 'Delete the reported message and action this report?',
-      confirmLabel: 'Delete',
+      client,
+      spaceId: widget.spaceId,
+      report: report,
+      action: action,
+      onBusy: (busy) => setState(() => _busy = busy),
+      onError: (message) => setState(() => error = message),
+      onResolved: () =>
+          setState(() => items.removeWhere((r) => r.id == report.id)),
     );
-    if (ok != true) return;
-    setState(() => _busy = true);
-    final result = await client.messages.delete(channelId, messageId);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (!result.ok) {
-      setState(() => error = result.errorOr('Failed to delete message'));
-      return;
-    }
-    await _resolve(id, 'actioned', actionTaken: 'delete_message');
-  }
-
-  Future<void> _kick(AccordReport report) async {
-    final client = _client;
-    final userId = report.reportedUserId;
-    final id = report.id;
-    if (client == null || userId == null) return;
-    final ok = await showConfirmDialog(
-      context,
-      title: 'Kick member',
-      message: 'Kick the reported member and action this report?',
-      confirmLabel: 'Kick',
-    );
-    if (ok != true) return;
-    setState(() => _busy = true);
-    final result = await client.members.kick(widget.spaceId, userId);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (!result.ok) {
-      setState(() => error = result.errorOr('Failed to kick'));
-      return;
-    }
-    await _resolve(id, 'actioned', actionTaken: 'kick_member');
-  }
-
-  Future<void> _ban(AccordReport report) async {
-    final client = _client;
-    final userId = report.reportedUserId;
-    final id = report.id;
-    if (client == null || userId == null) return;
-    final request = await showBanDialog(
-      context,
-      memberName: 'The reported member',
-    );
-    if (request == null || !mounted) return;
-    setState(() => _busy = true);
-    final result = await client.bans.create(
-      widget.spaceId,
-      userId,
-      data: request.toJson(),
-    );
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (!result.ok) {
-      setState(() => error = result.errorOr('Failed to ban'));
-      return;
-    }
-    await _resolve(id, 'actioned', actionTaken: 'ban_member');
   }
 
   @override
@@ -589,18 +503,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel>
                   bottom: BorderSide(color: colors.background, width: 1),
                 ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text('Reports', style: theme.textTheme.titleMedium),
-                  ),
-                  IconButton(
-                    tooltip: 'Close',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(Icons.close, size: 20, color: colors.gray),
-                  ),
-                ],
-              ),
+              child: const DialogTitleBar('Reports'),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
@@ -647,16 +550,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel>
                         return ModerationReportRow(
                           report: items[index],
                           busy: _busy,
-                          onDismiss: (report) =>
-                              _resolve(report.id, 'dismissed'),
-                          onResolve: (report) => _resolve(
-                            report.id,
-                            'resolved',
-                            actionTaken: 'none',
-                          ),
-                          onDeleteMessage: _deleteMessage,
-                          onKick: _kick,
-                          onBan: _ban,
+                          onAction: _onAction,
                         );
                       },
                     ),

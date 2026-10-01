@@ -34,8 +34,8 @@ const double kMemberListWidth = 240;
 /// The narrowest the message column is allowed to get before a pane is dropped.
 ///
 /// Below roughly this width message bodies wrap to a handful of words per line
-/// and the composer placeholder breaks onto two lines — an iPad Air in portrait
-/// (820pt) used to land there, and read as a broken build to App Review (#292).
+/// and the composer placeholder breaks onto two lines; App Review read that on
+/// an iPad Air in portrait (820pt) as a broken build.
 /// Everything above it is a pane that must give way first: the member roster,
 /// then the channel list.
 const double kMinMessagePaneWidth = 420;

@@ -72,7 +72,7 @@ List<AccordMenuEntry> _serverActionEntries(
       subtitle: isOwner ? 'Transfer ownership before leaving.' : null,
       onSelected: isOwner
           ? null
-          : () => _leaveSpace(context, ref, space, serverKey),
+          : () => leaveSpace(context, ref, space, serverKey),
     ),
     AccordMenuEntry(
       label: 'Leave & delete data',
@@ -82,7 +82,7 @@ List<AccordMenuEntry> _serverActionEntries(
       subtitle: isOwner ? null : 'Permanently delete your messages & data here',
       onSelected: isOwner
           ? null
-          : () => _leaveAndDeleteSpace(context, ref, space, serverKey),
+          : () => leaveSpace(context, ref, space, serverKey, deleteData: true),
     ),
     AccordMenuEntry(
       label: 'Remove server',
@@ -98,7 +98,7 @@ List<AccordMenuEntry> _serverActionEntries(
 /// Removes the whole server *connection* that hosts a space from this app,
 /// purely locally: it disposes the client and clears the saved credentials,
 /// the rail entry, open tabs, unread state and the cached space list. Unlike
-/// [_leaveSpace] it makes no network call, so it works for a server you can no
+/// [leaveSpace] it makes no network call, so it works for a server you can no
 /// longer reach. A connection can host several spaces, so this removes all of
 /// them on that host; nothing is deleted server-side.
 Future<void> _removeServer(
@@ -173,83 +173,7 @@ Future<void> _copyServerLink(
     }
     return;
   }
-  final link = baseUrl == null ? code : '$baseUrl/invite/$code';
+  final link = accordInviteLink(baseUrl, code);
   await Clipboard.setData(ClipboardData(text: link));
   if (context.mounted) showInfoSnack(context, 'Server link copied');
-}
-
-/// Confirms then leaves [space] *and deletes all the user's data* on its own
-/// connection (`deleteData: true`). The destructive sibling of [_leaveSpace],
-/// surfaced from the space menu as well as Privacy & Data. Owner-guarded by the
-/// caller (the tile is disabled for owners).
-Future<void> _leaveAndDeleteSpace(
-  BuildContext context,
-  WidgetRef ref,
-  AccordSpace space,
-  String serverKey,
-) async {
-  final confirmed = await showConfirmDialog(
-    context,
-    title: 'Leave & delete data',
-    message:
-        "This will permanently leave '${space.name}' and delete all your "
-        'messages, reactions, and data from this server. Your account stays '
-        'active. This cannot be undone.',
-    confirmLabel: 'Leave & delete',
-    danger: true,
-  );
-  if (confirmed != true || !context.mounted) return;
-
-  final client = ref.read(accordAuthProvider.notifier).clientForKey(serverKey);
-  if (client == null) return;
-  final result = await client.members.leaveMe(space.id, deleteData: true);
-  if (!result.ok) {
-    if (context.mounted) {
-      showErrorSnack(context, result, prefix: 'Failed to leave');
-    }
-    return;
-  }
-  ref
-      .read(connectionsControllerProvider.notifier)
-      .removeSpace(serverKey, space.id);
-  ref.read(spacesControllerProvider.notifier).removeSpace(space.id);
-  if (context.mounted) {
-    showInfoSnack(context, "Left '${space.name}' and deleted your data");
-  }
-}
-
-/// Confirms then leaves [space] on its own connection, without deleting any
-/// data. Drops the space from both the connection cache and the active list on
-/// success.
-Future<void> _leaveSpace(
-  BuildContext context,
-  WidgetRef ref,
-  AccordSpace space,
-  String serverKey,
-) async {
-  final confirmed = await showConfirmDialog(
-    context,
-    title: "Leave '${space.name}'?",
-    message:
-        'You will lose access to this server until you rejoin with an '
-        'invite. Your messages stay on the server.',
-    confirmLabel: 'Leave',
-    danger: true,
-  );
-  if (confirmed != true || !context.mounted) return;
-
-  final client = ref.read(accordAuthProvider.notifier).clientForKey(serverKey);
-  if (client == null) return;
-  final result = await client.members.leaveMe(space.id);
-  if (!result.ok) {
-    if (context.mounted) {
-      showErrorSnack(context, result, prefix: 'Failed to leave');
-    }
-    return;
-  }
-  ref
-      .read(connectionsControllerProvider.notifier)
-      .removeSpace(serverKey, space.id);
-  ref.read(spacesControllerProvider.notifier).removeSpace(space.id);
-  if (context.mounted) showInfoSnack(context, "Left '${space.name}'");
 }

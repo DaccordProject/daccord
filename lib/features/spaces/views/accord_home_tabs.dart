@@ -240,7 +240,7 @@ String _buildConnectLink(
   final slash = host.indexOf('/');
   if (slash != -1) host = host.substring(0, slash);
   final slug = (space?.slug.isNotEmpty ?? false) ? space!.slug : '';
-  var url = 'https://www.daccord.gg/open/connect/$host';
+  var url = '$kUniversalLinkBase/connect/$host';
   if (slug.isNotEmpty) url += '/${Uri.encodeComponent(slug)}';
   if (channelName.isNotEmpty) {
     url += '?channel=${Uri.encodeComponent(channelName)}';

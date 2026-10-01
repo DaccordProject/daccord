@@ -23,6 +23,11 @@ Future<void> showAccordInvites(
   );
 }
 
+/// The shareable link for invite [code] on the server at [baseUrl], or the
+/// bare code when the server is unknown.
+String accordInviteLink(String? baseUrl, String code) =>
+    baseUrl == null ? code : '$baseUrl/invite/$code';
+
 /// Preset invite expirations, mapped to `max_age` seconds (0 = never).
 const _expiryPresets = <({String label, int seconds})>[
   (label: '30 minutes', seconds: 1800),
@@ -141,14 +146,10 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog>
     setState(() => _selected.clear());
   }
 
-  String _inviteLink(AccordInvite invite) {
-    final base = _baseUrl;
-    if (base == null) return invite.code;
-    return '$base/invite/${invite.code}';
-  }
-
   Future<void> _copy(AccordInvite invite) async {
-    await Clipboard.setData(ClipboardData(text: _inviteLink(invite)));
+    await Clipboard.setData(
+      ClipboardData(text: accordInviteLink(_baseUrl, invite.code)),
+    );
     if (!mounted) return;
     showInfoSnack(context, 'Invite link copied');
   }

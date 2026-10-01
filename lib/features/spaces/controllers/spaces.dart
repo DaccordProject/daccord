@@ -13,8 +13,7 @@ LoadFailedProvider spacesLoadFailedProvider(String serverKey) =>
 
 /// Holds the current user's space list — the left rail. Populated on gateway
 /// ready (via `users.listSpaces()`) and kept in sync by space
-/// create/update/delete gateway events. The Accord analogue of Bonfire's
-/// `GuildsController`.
+/// create/update/delete gateway events.
 @Riverpod(keepAlive: true)
 class SpacesController extends _$SpacesController {
   @override
