@@ -151,7 +151,7 @@ End-user documentation lives in [`docs/`](docs/index.md):
 
 Maintainer-facing notes: [release signing](docs/release-signing.md) and [store deployment](docs/app-store-deploy.md).
 CI checks Mac upload metadata isolation before release builds; see the store deployment guide for retrying a failed Mac upload.
-Manual CI includes platform build checks by default (`build_artifacts=true`); store recovery runs the test gates and its selected store build.
+Manual CI includes Web, Android, unsigned iOS, Linux, macOS and Windows build checks by default (`build_artifacts=true`); store recovery runs the test gates and its selected store build.
 
 ---
 
@@ -355,7 +355,7 @@ Every contribution — however small — goes straight into maintaining and impr
 |---|---|---|---|
 | **this repo** | Flutter client (what you ship) | Dart / Flutter | GPL-3.0 |
 | [`accordserver`](https://github.com/DaccordProject/accordserver) | Accord server backend and desktop host app | Rust | — |
-| [`daccord-editor`](https://github.com/DaccordProject/daccord-editor) | Author and test Lua-based activity plugins for your server | — | — |
+| [`daccord-editor`](https://github.com/DaccordProject/daccord-editor) | Legacy editor (retired for new curated WASM experiences) | — | — |
 | [`legacy-godot`](https://github.com/DaccordProject/daccord/tree/legacy-godot) | The retired Godot client this app replaced | GDScript | MIT |
 
 `accordkit`, `livekit_client`, and `markdown_viewer` are vendored in-tree under `packages/` and maintained in this repository.
@@ -391,3 +391,26 @@ see [adding a server](docs/getting-started/adding-a-server.md#joining-with-a-sav
 YouTube previews offer consent-gated playback on Web and an external link on
 native clients. Appearance settings can hide embeds locally; see
 [link previews](docs/messaging/sending-messages.md#link-previews).
+
+Curated WASM experiences use a bounded portable host and server-owned game state.
+See [the architecture and creator SDK](docs/experiences/architecture.md) and
+[validation evidence](docs/experiences/validation.md). Runtime tests: `cd packages/experience_runtime && dart test`.
+
+Space owners manage the reviewed directory and Arcade from space settings.
+Members use the single Space Arcade entry above the channel list to create
+open/invite-only lobbies, ready up, spectate, and resume turns. Chess uses legal
+server-validated moves; Pong uses server-owned live snapshots and paddle inputs.
+The host verifies Ed25519 package signatures with `cryptography`, then runs
+`experience_runtime` without filesystem or networking access. The matching
+community server and configured directory keys are required.
+
+Validate the host on both engines with `dart test` and `dart test -p chrome`
+inside `packages/experience_runtime`; CI gates both. Run
+`flutter test test/features/experiences` for signature, turn-alert and actual
+WASM-canvas checks. Physical-device gates remain listed in the validation file.
+
+The coordinated CI workflow in the private master-server repository builds
+immutable community/client revisions and runs `integration/experiences_test.dart`
+against signed reference releases on a temporary directory. The local fixture helper and exact evidence are documented
+in `docs/experiences/validation.md`. Rust is needed only to build these optional
+local server fixtures, not to build the Flutter client or bounded Dart host.

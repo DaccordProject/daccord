@@ -152,7 +152,7 @@ flutter build ios     --release --no-tree-shake-icons --no-codesign -v
 ```
 
 CI lives in `.github/workflows/` and is Daccord-native (no OpenBonfire infra):
-- `ci.yml` — blocking jobs cover root codegen/analyze/tests, vendored `accordkit`, the full `markdown_viewer` suite, and LiveKit's Android native unit tests. Broader server/UI scenarios remain advisory. The `build` job is a Web (JavaScript)/Android/Linux/Windows matrix.
+- `ci.yml` — blocking jobs cover root codegen/analyze/tests, vendored `accordkit`, the full `markdown_viewer` suite, and LiveKit's Android native unit tests. Broader server/UI scenarios remain advisory. The manual `build` job covers Web (JavaScript), Android, unsigned iOS, Linux, macOS and Windows.
 - Every workflow builds with the exact Flutter beta in `FLUTTER_VERSION`, mirrored in `.fvmrc`; analyze also runs the latest stable. Bump the pin deliberately after smoke-testing a desktop build — an unpinned beta once shipped a broken Linux renderer.
 - The blocking `linux-render` job (and a step in the release's Linux build) runs `dist/verify-linux-render.sh`: it launches the release bundle under Xvfb and fails unless every window quadrant is painted, on both the blit and the NVIDIA-style fallback compositor paths. Widget/integration tests can't see engine rendering faults.
 - CI also evaluates the Mac upload lane against Fastlane's directory validator (`bundle exec ruby fastlane/test/mac_upload_metadata_test.rb`); upload-only lanes must scope metadata and screenshots to their platform folders.
@@ -240,3 +240,24 @@ Developer Mode. Existing releases predating this gate must not be submitted with
 marker-based recipes. Do not advertise catalogue install commands before acceptance.
 Collapsed rail folders reuse the size-aware space icon renderer for their first
 four resolved members; keep normal and drag previews consistent.
+
+## Curated experiences
+
+`packages/experience_runtime` is the portable bounded WASM host. Guest instructions
+and capabilities are allowlisted; broader Wasm/WASI output must fail closed.
+`tools/experiences/build_reference.py` reproducibly builds reference packages.
+See `docs/experiences/architecture.md` for ABI and lifecycle requirements. Run
+`dart test` in the runtime package for changes to validation or execution.
+
+The Arcade lives in `lib/features/experiences`; never put games in the channel
+list or pass SDK tokens/sockets to guests. `client.experiences` and
+`ExperienceLiveSession` reconcile server-owned revisions for both modes. The
+root tests cover package signatures, isolated turn alerts and responsive WASM
+frames; CI also gates native/browser runtime tests and reproducible packages.
+Run `flutter test test/features/experiences` after changing the trusted host.
+
+The coordinated master-server workflow runs immutable community/client fixtures
+with `tools/experiences/run_fixture.py` and the actual client game API/host.
+It runs in the private master repository so that source stays private. The
+client's runtime gate tests Dart VM, browser JavaScript and browser Dart WASM.
+See `docs/experiences/validation.md` to reproduce the full stack locally.

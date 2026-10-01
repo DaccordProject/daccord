@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:bonfire/features/experiences/views/arcade.dart';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/client_access.dart';

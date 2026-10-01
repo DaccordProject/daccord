@@ -38,5 +38,15 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_macos_build_settings(target)
+    # video_player_avfoundation 2.9.7 checks TARGET_OS_OSX before importing
+    # any Apple header. Supply TargetConditionals so its standalone Objective-C
+    # sources select FlutterMacOS rather than the iOS Flutter module.
+    if target.name == 'video_player_avfoundation'
+      target.build_configurations.each do |config|
+        flags = config.build_settings['OTHER_CFLAGS'] || ['$(inherited)']
+        flags = [flags] unless flags.is_a?(Array)
+        config.build_settings['OTHER_CFLAGS'] = flags + ['-include', 'TargetConditionals.h']
+      end
+    end
   end
 end

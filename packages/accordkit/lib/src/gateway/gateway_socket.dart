@@ -155,12 +155,8 @@ class GatewaySocket {
   late final _inviteCreate = _ctrl<AccordInvite>();
   late final _inviteDelete = _ctrl<Map<String, dynamic>>();
 
-  late final _pluginInstalled = _ctrl<Map<String, dynamic>>();
-  late final _pluginUninstalled = _ctrl<Map<String, dynamic>>();
-  late final _pluginEvent = _ctrl<Map<String, dynamic>>();
-  late final _pluginSessionState = _ctrl<Map<String, dynamic>>();
-  late final _pluginRoleChanged = _ctrl<Map<String, dynamic>>();
-  late final _pluginLeaderboardUpdated = _ctrl<Map<String, dynamic>>();
+  late final _experienceSession = _ctrl<Map<String, dynamic>>();
+
 
   late final _emojiCreate = _ctrl<Map<String, dynamic>>();
   late final _emojiUpdate = _ctrl<Map<String, dynamic>>();
@@ -251,16 +247,8 @@ class GatewaySocket {
   Stream<AccordInvite> get onInviteCreate => _inviteCreate.stream;
   Stream<Map<String, dynamic>> get onInviteDelete => _inviteDelete.stream;
 
-  Stream<Map<String, dynamic>> get onPluginInstalled => _pluginInstalled.stream;
-  Stream<Map<String, dynamic>> get onPluginUninstalled =>
-      _pluginUninstalled.stream;
-  Stream<Map<String, dynamic>> get onPluginEvent => _pluginEvent.stream;
-  Stream<Map<String, dynamic>> get onPluginSessionState =>
-      _pluginSessionState.stream;
-  Stream<Map<String, dynamic>> get onPluginRoleChanged =>
-      _pluginRoleChanged.stream;
-  Stream<Map<String, dynamic>> get onPluginLeaderboardUpdated =>
-      _pluginLeaderboardUpdated.stream;
+  Stream<Map<String, dynamic>> get onExperienceSession => _experienceSession.stream;
+
 
   Stream<Map<String, dynamic>> get onEmojiCreate => _emojiCreate.stream;
   Stream<Map<String, dynamic>> get onEmojiUpdate => _emojiUpdate.stream;
@@ -856,23 +844,8 @@ class GatewaySocket {
       case 'invite.delete':
         _inviteDelete.add(data);
         break;
-      case 'plugin.installed':
-        _pluginInstalled.add(data);
-        break;
-      case 'plugin.uninstalled':
-        _pluginUninstalled.add(data);
-        break;
-      case 'plugin.event':
-        _pluginEvent.add(data);
-        break;
-      case 'plugin.session_state':
-        _pluginSessionState.add(data);
-        break;
-      case 'plugin.role_changed':
-        _pluginRoleChanged.add(data);
-        break;
-      case 'plugin.leaderboard_updated':
-        _pluginLeaderboardUpdated.add(data);
+      case 'experience.session':
+        _experienceSession.add(data);
         break;
       case 'anonymous_count.update':
         _anonymousCountUpdated.add(data);

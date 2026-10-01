@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:bonfire/features/experiences/views/arcade.dart';
 
 import 'package:bonfire/features/automod/views/automod_panel.dart';
 import 'package:accordkit/accordkit.dart';
@@ -539,6 +540,20 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
         ],
         actions: [
           _MembershipSection(onEditNickname: _editOwnNickname),
+          if (canManageSpace && ref.watchActiveServerKey() != null)
+            ListTile(
+              leading: const Icon(Icons.sports_esports_outlined),
+              title: const Text('Game directory & Arcade'),
+              subtitle: const Text(
+                'Enable reviewed games and configure this space’s Arcade',
+              ),
+              onTap: () => showSpaceArcade(
+                context,
+                serverKey: ref.readActiveServerKey()!,
+                spaceId: widget.spaceId,
+                manage: true,
+              ),
+            ),
           if (accordHasPermission(perms, AccordPermission.manageSpace) ||
               accordHasPermission(perms, AccordPermission.moderateMembers))
             ListTile(
