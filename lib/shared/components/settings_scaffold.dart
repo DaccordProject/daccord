@@ -3,10 +3,6 @@ import 'package:flutter/material.dart';
 
 /// Standard chrome for a pushed settings sub-page: themed [Scaffold] +
 /// [AppBar] with a back button that calls `Navigator.maybePop`.
-///
-/// Consolidates the identical `Scaffold(backgroundColor → AppBar(…, leading:
-/// back))` shell that was copy-pasted into the connections, privacy, profiles,
-/// voice, updates and developer settings screens.
 class SettingsScaffold extends StatelessWidget {
   const SettingsScaffold({
     super.key,

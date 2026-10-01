@@ -11,17 +11,16 @@ import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// The channel a search result points at, returned when the user taps a message
-/// hit so the caller can jump to it.
+/// The channel and message selected from a search result.
 class AccordSearchSelection {
-  const AccordSearchSelection({required this.channelId, this.messageId});
+  const AccordSearchSelection({
+    required this.channelId,
+    required this.messageId,
+  });
   final String channelId;
-  final String? messageId;
+  final String messageId;
 }
 
-/// Opens the space-scoped search dialog. Resolves with an
-/// [AccordSearchSelection] when the user taps a message result (so the caller
-/// can switch channels), or null if dismissed.
 Future<AccordSearchSelection?> showAccordSearch(
   BuildContext context, {
   required String spaceId,
@@ -169,9 +168,14 @@ class _SearchDialogState extends ConsumerState<_SearchDialog>
     if (messages.isEmpty) {
       return _hint('No messages found', theme);
     }
-    final members = ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId));
-    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
-    final ensureUser = ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure;
+    final serverKey = ref.readActiveServerKey() ?? '';
+    final members = ref.watch(
+      accordMembersControllerProvider(serverKey, widget.spaceId),
+    );
+    final users = ref.watch(accordUsersControllerProvider(serverKey));
+    final ensureUser = ref
+        .read(accordUsersControllerProvider(serverKey).notifier)
+        .ensure;
     return ListView.separated(
       padding: const EdgeInsets.all(8),
       itemCount: messages.length,

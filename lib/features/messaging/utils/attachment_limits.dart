@@ -1,15 +1,7 @@
 import 'package:bonfire/features/messaging/utils/attachment_types.dart';
 
-/// Fallback maximum size of a single attachment, mirroring the limit documented
-/// in `docs/messaging/file-sharing.md` and the accordserver default
-/// (`max_attachment_size`, 26214400).
-///
-/// This is only the fallback: the live limit comes from the server's
-/// `GET /settings` via `AccordServerLimits`, because it is per-deployment
-/// configuration. Enforced client-side so an oversize file is rejected at pick
-/// time with a clear message, rather than being read into memory, assembled
-/// into a multipart body and uploaded in full only to come back as an opaque
-/// server error.
+/// Fallback for the server's `max_attachment_size` setting. Enforce the live
+/// limit at pick time to avoid reading and uploading an oversize file.
 const int kMaxAttachmentBytes = 25 * 1024 * 1024;
 
 /// Fallback maximum number of files on one message, matching the accordserver
@@ -85,22 +77,9 @@ class AttachmentScreening {
   String? get error => rejections.isEmpty ? null : rejections.join('\n');
 }
 
-/// Screens [files] for attachability.
-///
-/// Three things disqualify a file — the first two would otherwise be dropped
-/// silently, leaving the composer to say nothing about the missing files:
-///
-/// - the picker returned no bytes (a cloud- or provider-backed file the
-///   platform couldn't read into memory);
-/// - the file exceeds [maxBytes], which music and video routinely do where the
-///   images this flow was built around never did;
-/// - it would push the message past [maxCount] files, counting the
-///   [alreadyAttached] ones already on the composer. The server rejects the
-///   whole upload in that case, so catching it here saves losing the rest of
-///   the batch too.
-///
-/// Both limits default to the compiled-in fallbacks; callers pass the connected
-/// server's own values (see `AccordServerLimits`).
+/// Reject unreadable and oversized files, and those beyond the remaining
+/// message slots. The server rejects an entire over-count upload, so screen
+/// locally to preserve the accepted files. Callers pass the live server limits.
 AttachmentScreening screenAttachments(
   Iterable<PendingAttachment> files, {
   int maxBytes = kMaxAttachmentBytes,

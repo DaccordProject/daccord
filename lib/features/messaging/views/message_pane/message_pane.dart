@@ -34,6 +34,7 @@ import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/messaging/utils/attachment_limits.dart';
 import 'package:bonfire/features/messaging/utils/attachment_types.dart';
 import 'package:bonfire/features/messaging/utils/attachment_withdrawal.dart';
+import 'package:bonfire/features/messaging/utils/composer_input.dart';
 import 'package:bonfire/features/messaging/utils/dropped_entity.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/messaging/views/box/accord_embed_box.dart';
@@ -76,8 +77,7 @@ import 'package:collection/collection.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform, kIsWeb, visibleForTesting;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pasteboard/pasteboard.dart';

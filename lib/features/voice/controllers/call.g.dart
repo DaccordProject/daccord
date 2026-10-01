@@ -52,28 +52,25 @@ String _$callRingtoneHash() => r'ea4321143cf6dbd77936e59a484393163e432a1a';
 
 /// Orchestrates DM voice/video calls: placing an outgoing call (join voice +
 /// `call/ring`), reacting to the `call.*` gateway events, and accepting or
-/// declining an incoming ring. The actual media session is owned by
-/// [VoiceController]; this controller layers the ring/accept/decline signaling
-/// on top, mirroring how the server models a DM call as "voice join + signaling"
-/// (accordserver #32).
+/// declining an incoming ring. The media session is owned by [VoiceController];
+/// this layers the ring/accept/decline signaling on top, matching the server's
+/// model of a DM call as "voice join + signaling".
 
 @ProviderFor(CallController)
 final callControllerProvider = CallControllerProvider._();
 
 /// Orchestrates DM voice/video calls: placing an outgoing call (join voice +
 /// `call/ring`), reacting to the `call.*` gateway events, and accepting or
-/// declining an incoming ring. The actual media session is owned by
-/// [VoiceController]; this controller layers the ring/accept/decline signaling
-/// on top, mirroring how the server models a DM call as "voice join + signaling"
-/// (accordserver #32).
+/// declining an incoming ring. The media session is owned by [VoiceController];
+/// this layers the ring/accept/decline signaling on top, matching the server's
+/// model of a DM call as "voice join + signaling".
 final class CallControllerProvider
     extends $NotifierProvider<CallController, CallState> {
   /// Orchestrates DM voice/video calls: placing an outgoing call (join voice +
   /// `call/ring`), reacting to the `call.*` gateway events, and accepting or
-  /// declining an incoming ring. The actual media session is owned by
-  /// [VoiceController]; this controller layers the ring/accept/decline signaling
-  /// on top, mirroring how the server models a DM call as "voice join + signaling"
-  /// (accordserver #32).
+  /// declining an incoming ring. The media session is owned by [VoiceController];
+  /// this layers the ring/accept/decline signaling on top, matching the server's
+  /// model of a DM call as "voice join + signaling".
   CallControllerProvider._()
     : super(
         from: null,
@@ -101,14 +98,13 @@ final class CallControllerProvider
   }
 }
 
-String _$callControllerHash() => r'52cc869408abbea2679ecddebca982a9f53df7c7';
+String _$callControllerHash() => r'c5421e11c01cc8952339d2eb1f23c6822b0beb25';
 
 /// Orchestrates DM voice/video calls: placing an outgoing call (join voice +
 /// `call/ring`), reacting to the `call.*` gateway events, and accepting or
-/// declining an incoming ring. The actual media session is owned by
-/// [VoiceController]; this controller layers the ring/accept/decline signaling
-/// on top, mirroring how the server models a DM call as "voice join + signaling"
-/// (accordserver #32).
+/// declining an incoming ring. The media session is owned by [VoiceController];
+/// this layers the ring/accept/decline signaling on top, matching the server's
+/// model of a DM call as "voice join + signaling".
 
 abstract class _$CallController extends $Notifier<CallState> {
   CallState build();

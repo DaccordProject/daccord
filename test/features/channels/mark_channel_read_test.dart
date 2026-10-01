@@ -5,6 +5,7 @@ import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/channels/utils/mark_channel_read.dart';
+import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,10 +38,9 @@ Future<WidgetRef> _pumpRef(WidgetTester tester) async {
 bool _isUnread(WidgetRef ref, String serverKey, String channelId) =>
     ref.read(readStateControllerProvider(serverKey)).isUnread(channelId);
 
-void _seedUnread(WidgetRef ref, String serverKey, String channelId) =>
-    ref
-        .read(readStateControllerProvider(serverKey).notifier)
-        .markUnread(channelId, spaceId: 's1');
+void _seedUnread(WidgetRef ref, String serverKey, String channelId) => ref
+    .read(readStateControllerProvider(serverKey).notifier)
+    .markUnread(channelId, spaceId: 's1');
 
 /// A minimal logged-in [AccordAuth] override whose [clientForKey] resolves
 /// only [key] to [client] — enough to exercise the REST ack without a real
@@ -98,7 +98,12 @@ void main() {
         // No client is connected in this container, so the `channels.ack`
         // REST call resolves to a no-op — the local clear must not depend on
         // it succeeding (or even being attempted).
-        markChannelRead(ref, 'c1', serverKey: key, fallbackMessageId: 'm-fallback');
+        markChannelRead(
+          ref,
+          'c1',
+          serverKey: key,
+          fallbackMessageId: 'm-fallback',
+        );
 
         expect(_isUnread(ref, key, 'c1'), isFalse);
       },
@@ -118,19 +123,16 @@ void main() {
       },
     );
 
-    testWidgets(
-      'is a no-op when there is no explicit serverKey and no active '
-      'connection',
-      (tester) async {
-        final ref = await _pumpRef(tester);
-        const key = 'u1@server.test';
-        _seedUnread(ref, key, 'c1');
+    testWidgets('is a no-op when there is no explicit serverKey and no active '
+        'connection', (tester) async {
+      final ref = await _pumpRef(tester);
+      const key = 'u1@server.test';
+      _seedUnread(ref, key, 'c1');
 
-        markChannelRead(ref, 'c1');
+      markChannelRead(ref, 'c1');
 
-        expect(_isUnread(ref, key, 'c1'), isTrue);
-      },
-    );
+      expect(_isUnread(ref, key, 'c1'), isTrue);
+    });
 
     testWidgets(
       'an explicit serverKey wins over an unrelated active connection',
@@ -178,6 +180,42 @@ void main() {
 
         expect(acked, ['20']);
         expect(_isUnread(ref, key, 'c1'), isFalse);
+      },
+    );
+
+    testWidgets(
+      'acks an open channel from its cached history without building the '
+      'cache of a closed one',
+      (tester) async {
+        final acked = <String>[];
+        final client = AccordClient(
+          baseUrl: 'https://example.test',
+          httpClient: MockClient((request) async {
+            if (request.url.path.endsWith('/ack')) {
+              acked.add(jsonDecode(request.body)['message_id'] as String);
+            }
+            return http.Response('{"data":null}', 200);
+          }),
+        );
+        addTearDown(client.dispose);
+        const key = 'u1@server.test';
+        final ref = await _pumpRefWithClient(tester, key: key, client: client);
+        final open = accordMessagesControllerProvider(key, 'open');
+        final sub = ref.listenManual(open, (_, _) {});
+        addTearDown(sub.close);
+        ref
+            .read(open.notifier)
+            .addMessage(AccordMessage(id: '30', channelId: 'open'));
+
+        markChannelRead(ref, 'open', serverKey: key, fallbackMessageId: '5');
+        markChannelRead(ref, 'closed', serverKey: key, fallbackMessageId: '7');
+        expect(
+          ref.exists(accordMessagesControllerProvider(key, 'closed')),
+          isFalse,
+        );
+        await tester.pump();
+
+        expect(acked, ['30', '7']);
       },
     );
   });

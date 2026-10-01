@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:accordkit/accordkit.dart';
+
 Map<String, dynamic> copyAutomodJson(Map<String, dynamic> value) =>
     (jsonDecode(jsonEncode(value)) as Map).cast<String, dynamic>();
 
@@ -36,9 +38,9 @@ String? validateAutomodPolicy(Map<String, dynamic> policy) {
         !ids.add(id)) {
       return 'Each rule needs a unique name of at most 64 bytes.';
     }
-    final trigger = automodMap(rule['trigger']);
-    final action = automodMap(rule['action']);
-    final scope = automodMap(rule['scope']);
+    final trigger = asMap(rule['trigger']) ?? const {};
+    final action = asMap(rule['action']) ?? const {};
+    final scope = asMap(rule['scope']) ?? const {};
     if (!['all', 'non_nsfw', 'channels'].contains(scope['type'])) {
       return 'Unsupported channel scope.';
     }
@@ -62,9 +64,9 @@ String? validateAutomodPolicy(Map<String, dynamic> policy) {
         return 'Content rules need detector categories and a threshold between 0 and 1.';
       }
     }
+    final channelIds = asList(scope['ids']) ?? const [];
     if (scope['type'] == 'channels' &&
-        (automodList(scope['ids']).isEmpty ||
-            automodList(scope['ids']).length > 100)) {
+        (channelIds.isEmpty || channelIds.length > 100)) {
       return 'Choose between 1 and 100 channels for a channel-specific rule.';
     }
     if (action['type'] == 'timeout') {
@@ -79,8 +81,3 @@ String? validateAutomodPolicy(Map<String, dynamic> policy) {
   }
   return null;
 }
-
-Map<String, dynamic> automodMap(Object? value) =>
-    value is Map ? value.cast<String, dynamic>() : <String, dynamic>{};
-List<dynamic> automodList(Object? value) =>
-    value is List ? List<dynamic>.of(value) : <dynamic>[];

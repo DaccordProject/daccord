@@ -9,19 +9,13 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Text chat for a voice channel, shown beside (or over) the video grid while in
-/// a voice call. Ports the reference client's dedicated `voice_text_panel.gd`.
+/// Text chat for a voice channel, shown beside (or over) the video grid.
 ///
-/// A voice channel's chat is an ordinary text channel, so this is a thin
-/// wrapper around [MessagePane] in its panel presentation rather than a
-/// second, slimmer message list. That was the bug (#210): the hand-rolled panel
-/// rendered author + content and nothing else, so voice chat silently lost the
-/// context menu, reactions, replies, threads, edit/delete/pin/report,
-/// attachments, embeds, timestamps, mention highlighting, history paging and
-/// the full composer that every other channel has. The only things this widget
-/// still owns are the voice-specific bits: acking the channel on open (against
-/// the connection the *call* is pinned to, which needn't be the active one) and
-/// the panel's title/close button.
+/// A voice channel's chat is an ordinary text channel, so this wraps
+/// [MessagePane] in its panel presentation (don't hand-roll a slimmer list: it
+/// would lose every message feature). It only owns the voice-specific bits:
+/// acking the channel on open, against the connection the *call* is pinned to,
+/// and the panel's title/close button.
 class VoiceTextPanel extends ConsumerStatefulWidget {
   const VoiceTextPanel({
     super.key,
@@ -47,14 +41,12 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
   @override
   void initState() {
     super.initState();
-    // Opening the panel clears the voice channel's unread state, mirroring the
-    // reference's `Client.clear_channel_unread`. This acks to the server too —
-    // a local-only clear comes back on the next connect via READY's `unread`.
+    // Opening the panel acks the channel to the server — a local-only clear
+    // would come back on the next connect via READY's `unread`.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      // The panel's channel lives on whichever server the call is pinned to,
-      // which may not be the active one.
-      final serverKey = ref.read(voiceControllerProvider).serverKey ??
+      final serverKey =
+          ref.read(voiceControllerProvider).serverKey ??
           ref.read(connectionsControllerProvider).activeKey;
       markChannelRead(
         ref,
@@ -72,7 +64,12 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
     final spaceId = widget.spaceId;
     if (spaceId == null) return null;
     return ref
-        .read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', spaceId))
+        .read(
+          accordChannelsControllerProvider(
+            ref.readActiveServerKey() ?? '',
+            spaceId,
+          ),
+        )
         ?.firstWhereOrNull((c) => c.id == widget.channelId);
   }
 
@@ -81,10 +78,15 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
     final spaceId = widget.spaceId;
     final channel = spaceId == null
         ? null
-        : ref.watch(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', spaceId).select(
-            (channels) =>
-                channels?.firstWhereOrNull((c) => c.id == widget.channelId),
-          ));
+        : ref.watch(
+            accordChannelsControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              spaceId,
+            ).select(
+              (channels) =>
+                  channels?.firstWhereOrNull((c) => c.id == widget.channelId),
+            ),
+          );
     return MessagePane(
       channel: channel,
       channelId: widget.channelId,

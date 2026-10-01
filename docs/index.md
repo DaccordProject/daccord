@@ -46,7 +46,7 @@ New to daccord? Start here.
 
 ## Plugins
 
-- [daccord Editor](https://github.com/DaccordProject/daccord-editor) -- Create and test Lua-based activity plugins for your server
+- [Curated WASM experiences](experiences/architecture.md) — Host API, networking and reference SDK
 
 ## Help
 

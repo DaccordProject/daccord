@@ -4,9 +4,6 @@ import 'package:flutter/material.dart';
 /// A slim, full-width banner across the top of the app (update prompts and the
 /// like): a primary-tinted [Material] bar with a leading [icon], a single-line
 /// [message], optional trailing [actions], and a dismiss ✕.
-///
-/// Consolidates the identical banner chrome shared by `UpdateBanner` and
-/// `WebUpdatePrompt`.
 class AppBanner extends StatelessWidget {
   const AppBanner({
     super.key,

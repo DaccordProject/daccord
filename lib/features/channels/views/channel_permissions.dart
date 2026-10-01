@@ -1,6 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/channels/views/channel_member_picker_dialog.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/dialog_title_bar.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -15,9 +16,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Opens the per-channel permission overwrites editor for [channel]. Lets an
 /// operator grant or deny specific permissions to individual roles or members,
-/// layered on top of the space-wide role permissions. The Accord analogue of
-/// Discord's channel permission overrides; mirrors the reference client's
-/// `scenes/admin/channel_permissions_dialog.gd`.
+/// layered on top of the space-wide role permissions. Mirrors the reference
+/// client's `scenes/admin/channel_permissions_dialog.gd`.
 Future<void> showChannelPermissionsDialog(
   BuildContext context, {
   required String spaceId,
@@ -42,30 +42,30 @@ const _compactBreakpoint = 560.0;
 
 /// Permissions only meaningful on voice channels — hidden for text/forum/etc.
 const _voiceOnlyPerms = <String>{
-  'connect',
-  'speak',
-  'mute_members',
-  'deafen_members',
-  'move_members',
-  'use_vad',
-  'priority_speaker',
-  'stream',
+  AccordPermission.connect,
+  AccordPermission.speak,
+  AccordPermission.muteMembers,
+  AccordPermission.deafenMembers,
+  AccordPermission.moveMembers,
+  AccordPermission.useVad,
+  AccordPermission.prioritySpeaker,
+  AccordPermission.stream,
 };
 
 /// Permissions only meaningful on text-like channels — hidden for voice.
 const _textOnlyPerms = <String>{
-  'send_messages',
-  'send_tts',
-  'manage_messages',
-  'embed_links',
-  'attach_files',
-  'read_history',
-  'mention_everyone',
-  'use_external_emojis',
-  'manage_threads',
-  'create_threads',
-  'use_external_stickers',
-  'send_in_threads',
+  AccordPermission.sendMessages,
+  AccordPermission.sendTts,
+  AccordPermission.manageMessages,
+  AccordPermission.embedLinks,
+  AccordPermission.attachFiles,
+  AccordPermission.readHistory,
+  AccordPermission.mentionEveryone,
+  AccordPermission.useExternalEmojis,
+  AccordPermission.manageThreads,
+  AccordPermission.createThreads,
+  AccordPermission.useExternalStickers,
+  AccordPermission.sendInThreads,
 };
 
 class _ChannelPermissionsDialog extends ConsumerStatefulWidget {
@@ -107,8 +107,6 @@ class _ChannelPermissionsDialogState
     _load();
   }
 
-  AccordClient? get _client => ref.accordClient;
-
   List<AccordRole> get _roles {
     final space = ref
         .read(spacesControllerProvider)
@@ -128,7 +126,7 @@ class _ChannelPermissionsDialogState
       const <String, AccordMember>{};
 
   Future<void> _load() async {
-    final client = _client;
+    final client = ref.accordClient;
     if (client == null) {
       setState(() => _loading = false);
       return;
@@ -242,7 +240,7 @@ class _ChannelPermissionsDialogState
   }
 
   Future<void> _save() async {
-    final client = _client;
+    final client = ref.accordClient;
     if (client == null) return;
     setState(() {
       _saving = true;
@@ -389,10 +387,17 @@ class _ChannelPermissionsDialogState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Header(
-                title:
-                    'Permissions: #${widget.channel.name ?? widget.channel.id}',
-                onClose: _tryClose,
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: colors.background, width: 1),
+                  ),
+                ),
+                child: DialogTitleBar(
+                  'Permissions: #${widget.channel.name ?? widget.channel.id}',
+                  onClose: _tryClose,
+                ),
               ),
               Expanded(
                 child: _loading
@@ -478,41 +483,6 @@ class _ChannelPermissionsDialogState
       enabled: !_saving,
       compact: compact,
       onSet: _setPermission,
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({required this.title, required this.onClose});
-
-  final String title;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.background, width: 1)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: theme.textTheme.titleMedium,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          IconButton(
-            tooltip: 'Close',
-            onPressed: onClose,
-            icon: Icon(Icons.close, size: 20, color: colors.gray),
-          ),
-        ],
-      ),
     );
   }
 }

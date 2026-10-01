@@ -1,13 +1,7 @@
-/// Client-side registration credential rules, shared by the login screen
-/// (`accord_login.dart`) and the Add-a-Server dialog (`add_server_dialog.dart`).
-/// Rules are checked in order and the first failing rule's message is
-/// returned (`null` when all pass), so callers keep their existing
-/// first-error-wins banner behaviour.
-///
-/// The server enforces all of these authoritatively as well — these checks
-/// only exist to fail fast with a friendly message before a network round
-/// trip. `AccordAuth`'s register paths repeat the username rule server-side
-/// of the forms for callers that bypass the UI.
+/// Client-side registration credential rules, shared by the login screen and
+/// the Add-a-Server dialog. Returns the first failing rule's message, or null
+/// when all pass. The server enforces these authoritatively; this only fails
+/// fast with a friendly message before a round trip.
 String? validateRegistrationCredentials({
   required String username,
   required String password,

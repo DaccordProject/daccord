@@ -1,7 +1,6 @@
 import 'dart:async';
 
-import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/authentication/utils/wait_for_sign_in.dart';
 import 'package:bonfire/features/onboarding/controllers/onboarding_controller.dart';
 import 'package:bonfire/features/onboarding/models/onboarding_step.dart';
 import 'package:bonfire/features/onboarding/views/onboarding_help.dart';
@@ -13,15 +12,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Startup hook for the first-launch walkthrough (#175). Call once from a
-/// post-frame callback in `main.dart`. Never throws.
+/// Startup hook for the first-launch walkthrough. Call once from a post-frame
+/// callback in `main.dart`. Never throws.
 ///
-/// **Precedence against the other startup dialog.**
-///
-/// The post-update release notes (#183) can never collide: they are shown only
-/// for `ReleaseNotesTrigger.updated`, and the tour only for a first launch with
-/// no marker at all. The two conditions are mutually exclusive by construction,
-/// and a first install explicitly suppresses the notes.
+/// It can't collide with the post-update release notes: those show only for
+/// `ReleaseNotesTrigger.updated`, the tour only for a first launch with no
+/// marker, and a first install suppresses the notes.
 ///
 /// Like the release-notes hook, this waits for a signed-in session first: the
 /// tour points at the home screen's panes, which don't exist behind the sign-in
@@ -50,7 +46,7 @@ Future<void> maybeShowOnboardingOnStartup(WidgetRef ref) async {
         break;
     }
 
-    if (!await _waitForSignIn(ref)) return;
+    if (!await waitForSignIn(ref)) return;
     // Let the home screen finish its first real layout (spaces load, the
     // default channel auto-opens) so the anchors resolve to their settled
     // positions rather than to an empty rail.
@@ -72,11 +68,8 @@ Future<void> maybeShowOnboardingOnStartup(WidgetRef ref) async {
 /// dismisses it for free and the home screen underneath keeps rendering (the
 /// tour has to be able to point at it).
 Future<void> startOnboardingTour(BuildContext context, WidgetRef ref) async {
-  // MainWindow is hosted inside a small outer MaterialApp used by ProfileGate.
-  // Asking for rootNavigator from inside MainWindow therefore climbs past the
-  // themed router and pushes the tour into that bootstrap app, where the
-  // BonfireThemeExtension is absent. Prefer the router's explicitly keyed
-  // navigator; the fallback keeps this helper usable in isolated widget tests.
+  // Prefer the router's explicitly keyed root navigator; the fallback keeps
+  // this helper usable in isolated widget tests.
   final navigator = rootNavigatorKey.currentState ?? Navigator.of(context);
   final notifier = ref.read(onboardingControllerProvider.notifier);
   notifier.setActive(true);
@@ -103,9 +96,7 @@ Future<void> startOnboardingTour(BuildContext context, WidgetRef ref) async {
 /// Replays the walkthrough from Settings.
 ///
 /// Settings is `push`ed over `/spaces`, so the panes the tour describes are
-/// behind it — this returns home first, then starts the tour there. Without
-/// that every step would fail to resolve an anchor and the tour would degrade
-/// to the centred cards this feature exists to avoid.
+/// behind it — this returns home first, or no step could resolve its anchor.
 Future<void> replayOnboardingTour(BuildContext context, WidgetRef ref) async {
   context.go('/spaces');
   // One frame is not enough: the home screen has to mount and lay out its panes
@@ -133,31 +124,7 @@ class OnboardingTourPage extends ConsumerWidget {
   }
 }
 
-/// Completes with true once the session is logged in (immediately when it
-/// already is), or false if that hasn't happened within [timeout]. Mirrors the
-/// release-notes hook's helper.
-Future<bool> _waitForSignIn(
-  WidgetRef ref, {
-  Duration timeout = const Duration(minutes: 5),
-}) async {
-  if (ref.read(accordAuthProvider) is AccordAuthLoggedIn) return true;
-  final completer = Completer<bool>();
-  final sub = ref.listenManual<AccordAuthState>(accordAuthProvider, (_, next) {
-    if (next is AccordAuthLoggedIn && !completer.isCompleted) {
-      completer.complete(true);
-    }
-  });
-  try {
-    return await completer.future.timeout(timeout, onTimeout: () => false);
-  } finally {
-    sub.close();
-  }
-}
-
 /// Settings rows for the walkthrough: replay it, or jump straight to help.
-///
-/// A whole section (header included) so the Settings screen needs one line to
-/// adopt it, in both the flat narrow list and the desktop category pane.
 class OnboardingHelpSection extends ConsumerWidget {
   const OnboardingHelpSection({super.key});
 

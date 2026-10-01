@@ -14,7 +14,6 @@ dependencies:
 
   dart_markdown: ^3.1.7
   flutter_riverpod: ^3.4.3
-  riverpod_annotation: ^4.0.7
 
 dev_dependencies:
   flutter_test:

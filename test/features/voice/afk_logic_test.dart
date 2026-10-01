@@ -15,7 +15,6 @@ void main() {
   group('AfkTracker', () {
     test('starts active', () {
       expect(connectedTracker().isAfk, isFalse);
-      expect(connectedTracker().lastActivityAt, t0);
     });
 
     test('goes AFK once the idle threshold is reached', () {
@@ -46,7 +45,11 @@ void main() {
 
     test('reports the flip only once while it stays AFK', () {
       final tracker = connectedTracker();
-      tracker.tick(now: t0.add(tenMinutes), connected: true, timeout: tenMinutes);
+      tracker.tick(
+        now: t0.add(tenMinutes),
+        connected: true,
+        timeout: tenMinutes,
+      );
       expect(tracker.isAfk, isTrue);
 
       expect(
@@ -63,13 +66,16 @@ void main() {
 
     test('activity restores active and reports the change', () {
       final tracker = connectedTracker();
-      tracker.tick(now: t0.add(tenMinutes), connected: true, timeout: tenMinutes);
+      tracker.tick(
+        now: t0.add(tenMinutes),
+        connected: true,
+        timeout: tenMinutes,
+      );
       expect(tracker.isAfk, isTrue);
 
       final back = t0.add(const Duration(minutes: 11));
       expect(tracker.markActivity(back), isTrue);
       expect(tracker.isAfk, isFalse);
-      expect(tracker.lastActivityAt, back);
 
       // A second activity while already active isn't a state change.
       expect(
@@ -102,7 +108,13 @@ void main() {
       final tracker = connectedTracker();
       tracker.markActivity(t0.add(const Duration(minutes: 5)));
       tracker.markActivity(t0.add(const Duration(minutes: 1)));
-      expect(tracker.lastActivityAt, t0.add(const Duration(minutes: 5)));
+      // 13 minutes after the stale stamp, but only 9 since the latest.
+      tracker.tick(
+        now: t0.add(const Duration(minutes: 14)),
+        connected: true,
+        timeout: tenMinutes,
+      );
+      expect(tracker.isAfk, isFalse);
     });
 
     test('never goes AFK while disconnected, however long the idle', () {
@@ -146,7 +158,11 @@ void main() {
 
     test('disconnecting while AFK clears AFK and reports it', () {
       final tracker = connectedTracker();
-      tracker.tick(now: t0.add(tenMinutes), connected: true, timeout: tenMinutes);
+      tracker.tick(
+        now: t0.add(tenMinutes),
+        connected: true,
+        timeout: tenMinutes,
+      );
       expect(tracker.isAfk, isTrue);
 
       expect(
@@ -162,7 +178,11 @@ void main() {
 
     test('a null timeout (feature off) never goes AFK and clears it', () {
       final tracker = connectedTracker();
-      tracker.tick(now: t0.add(tenMinutes), connected: true, timeout: tenMinutes);
+      tracker.tick(
+        now: t0.add(tenMinutes),
+        connected: true,
+        timeout: tenMinutes,
+      );
       expect(tracker.isAfk, isTrue);
 
       expect(
@@ -176,21 +196,27 @@ void main() {
       expect(tracker.isAfk, isFalse);
     });
 
-    test('the timeout is configurable — a 1-minute setting fires at 1 minute',
-        () {
-      final tracker = connectedTracker();
-      const oneMinute = Duration(minutes: 1);
+    test(
+      'the timeout is configurable — a 1-minute setting fires at 1 minute',
+      () {
+        final tracker = connectedTracker();
+        const oneMinute = Duration(minutes: 1);
 
-      tracker.tick(
-        now: t0.add(const Duration(seconds: 59)),
-        connected: true,
-        timeout: oneMinute,
-      );
-      expect(tracker.isAfk, isFalse);
+        tracker.tick(
+          now: t0.add(const Duration(seconds: 59)),
+          connected: true,
+          timeout: oneMinute,
+        );
+        expect(tracker.isAfk, isFalse);
 
-      tracker.tick(now: t0.add(oneMinute), connected: true, timeout: oneMinute);
-      expect(tracker.isAfk, isTrue);
-    });
+        tracker.tick(
+          now: t0.add(oneMinute),
+          connected: true,
+          timeout: oneMinute,
+        );
+        expect(tracker.isAfk, isTrue);
+      },
+    );
 
     test('a longer configured timeout defers AFK accordingly', () {
       final tracker = connectedTracker();

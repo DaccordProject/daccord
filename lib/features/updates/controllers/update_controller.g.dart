@@ -83,7 +83,7 @@ final class UpdateControllerProvider
   }
 }
 
-String _$updateControllerHash() => r'340fde21dd76a7cd23a6746eb54e1afebf7dc20a';
+String _$updateControllerHash() => r'b7271c2d502d5c47c542ac8f28968346b8531b1a';
 
 /// Checks the project's GitHub Releases for a newer build and exposes the
 /// result. Ports the reference client's `updater.gd`: a startup check plus an

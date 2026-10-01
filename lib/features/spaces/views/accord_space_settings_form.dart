@@ -1,7 +1,6 @@
 part of 'accord_space_settings.dart';
 
 /// Shared outlined dropdown used by the moderation/channel pickers below.
-/// Renders exactly the dropdown the old `_dropdown` state helper produced.
 class _SettingsDropdown<T> extends StatelessWidget {
   const _SettingsDropdown({
     required this.label,

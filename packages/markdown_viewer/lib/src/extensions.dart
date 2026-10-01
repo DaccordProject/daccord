@@ -85,8 +85,6 @@ extension WidgetExtensions on Widget {
     }
     return map;
   }
-
-  String toPrettyString() => toMap().toPrettyString();
 }
 
 extension TextSpanExtensions on TextSpan {
@@ -100,8 +98,6 @@ extension TextSpanExtensions on TextSpan {
       if (recognizer != null) 'recognizer': recognizer.runtimeType.toString(),
     };
   }
-
-  String toPrettyString() => toMap().toPrettyString();
 }
 
 extension TableRowExtensions on TableRow {
@@ -129,8 +125,6 @@ extension DecorationExtensions on Decoration {
       if (borderMap != null) 'border': borderMap,
     };
   }
-
-  String toPrettyString() => toMap().toPrettyString();
 }
 
 extension BorderExtensions on BoxBorder {
@@ -141,8 +135,6 @@ extension BorderExtensions on BoxBorder {
       if (bottom.width > 0) 'bottom': bottom.toMap(),
     };
   }
-
-  String toPrettyString() => toMap().toPrettyString();
 }
 
 extension BoxConstraintsExtensions on BoxConstraints {
@@ -155,8 +147,6 @@ extension BoxConstraintsExtensions on BoxConstraints {
       if (maxWidth != double.infinity) 'maxHeight': maxWidth,
     };
   }
-
-  String toPrettyString() => toMap().toPrettyString();
 }
 
 extension BorderSideExtensions on BorderSide {
@@ -167,8 +157,6 @@ extension BorderSideExtensions on BorderSide {
       'color': _colorToString(color),
     };
   }
-
-  String toPrettyString() => toMap().toPrettyString();
 }
 
 extension TextStyleExtensions on TextStyle {
@@ -185,23 +173,9 @@ extension TextStyleExtensions on TextStyle {
         if (fontFeatures != null)
           'fontFeatures': fontFeatures!.map((e) => e.toString()).toList(),
       };
-
-  String toPrettyString() => toMap().toPrettyString();
 }
 
 extension ListExtensions on List<dynamic> {
-  void addIfAbsent(Object? other) {
-    if (!contains(other)) {
-      add(other);
-    }
-  }
-
-  void addIfNotNull<T>(T item) {
-    if (item != null) {
-      add(item);
-    }
-  }
-
   void addIfTrue<T>(T item, bool isTrue) {
     if (isTrue) {
       add(item);
@@ -209,16 +183,8 @@ extension ListExtensions on List<dynamic> {
   }
 }
 
-extension WidgetsExtensions on List<Widget> {
-  List<Map<String, dynamic>> toMap() => map((e) => e.toMap()).toList();
-
-  String toPrettyString() => toMap().toPrettyString();
-}
-
 extension MapExtensions on Map {
-  String toPrettyString() {
-    return _toPrettyString(this);
-  }
+  String toPrettyString() => const JsonEncoder.withIndent('  ').convert(this);
 
   void addIfNotNull<T>(String key, T value) {
     if (value != null) {
@@ -226,15 +192,6 @@ extension MapExtensions on Map {
     }
   }
 }
-
-extension MapsExtensions on List<Map<String, dynamic>> {
-  String toPrettyString() {
-    return _toPrettyString(this);
-  }
-}
-
-String _toPrettyString(Object object) =>
-    const JsonEncoder.withIndent("  ").convert(object);
 
 // Flutter's Color.toString() is intended for diagnostics and changed format
 // in Flutter 3.27. Keep structural renderer snapshots stable across supported

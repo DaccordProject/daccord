@@ -50,12 +50,7 @@ const List<WelcomeHighlight> kWelcomeHighlights = <WelcomeHighlight>[
 
 /// First-run / signed-out landing screen: daccord branding, a short pitch, what
 /// the app does, and the two ways in — browse the public directory, or run a
-/// server of your own. The Flutter port of the reference client's
-/// `welcome_screen`.
-///
-/// The pitch breathes into a tablet/desktop canvas (three-up highlights above
-/// [kWelcomeWideBreakpoint]) and stays compact on a phone, where the primary
-/// button has to stay above the fold.
+/// server of your own. Mirrors the reference client's `welcome_screen`.
 ///
 /// [onBrowse] opens the server browser (the default next step); [onManualConnect]
 /// jumps straight to the connect-by-URL credentials form; [onSwitchAccount], when
@@ -108,9 +103,6 @@ class WelcomeView extends StatelessWidget {
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyLarge?.copyWith(color: colors.gray),
             ),
-            // Wide only, deliberately: on a phone the primary button has to
-            // stay above the fold, so the pitch breathes into a tablet or
-            // desktop canvas rather than bloating a 320pt one.
             if (wide) ...[
               const SizedBox(height: 28),
               const _Highlights(),
@@ -143,9 +135,8 @@ class WelcomeView extends StatelessWidget {
                   style: theme.textTheme.bodyMedium,
                 ),
               ),
-            // Narrow: the self-hosting CTA keeps its full button weight but
-            // sits last, so adding it can't push "Browse Servers" or the
-            // connect-by-URL link below the fold on a small phone.
+            // Narrow: the self-hosting CTA sits last so it can't push "Browse
+            // Servers" below the fold.
             if (!wide) ...[
               const SizedBox(height: 4),
               _selfHostButton(context, theme, colors),
@@ -200,8 +191,7 @@ class _Highlights extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // [IntrinsicHeight] so the three cards share the tallest one's height —
-    // ragged card bottoms are exactly the "unfinished" look this is fixing.
+    // [IntrinsicHeight] so the three cards share the tallest one's height.
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -9,12 +9,76 @@ import 'package:bonfire/features/member/views/accord_member_popout.dart';
 import 'package:bonfire/features/messaging/views/box/accord_markdown_box.dart';
 import 'package:bonfire/features/messaging/views/box/accord_message_markup.dart';
 import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
-import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:collection/collection.dart';
+import 'package:dart_markdown/dart_markdown.dart' as md;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'accord_message_content.g.dart';
+
+/// Without a space nothing resolves against space caches, so every DM row can
+/// share one list.
+final _noSpaceSyntaxes = accordMarkupSyntaxes();
+
+/// Keep syntax identity stable so MarkdownViewer retains its parse on rebuild.
+/// Only mention-bearing content loads the member roster; fetching it backfills
+/// each member even when the sidebar is collapsed.
+@riverpod
+List<md.Syntax> _spaceMarkupSyntaxes(
+  Ref ref,
+  String serverKey,
+  String spaceId,
+  String? cdnUrl, {
+  required bool withMembers,
+}) {
+  final members = withMembers
+      ? ref.watch(accordMembersControllerProvider(serverKey, spaceId))
+      : null;
+  final roles = ref.watch(
+    spacesControllerProvider.select(
+      (s) => s?.firstWhereOrNull((sp) => sp.id == spaceId)?.roles,
+    ),
+  );
+  final channels = ref.watch(
+    accordChannelsControllerProvider(serverKey, spaceId),
+  );
+  final emojis = ref.watch(accordEmojisControllerProvider(serverKey, spaceId));
+
+  final userByHandle = <String, AccordMember>{};
+  for (final member in members?.values ?? const <AccordMember>[]) {
+    for (final handle in [member.user?.username, member.user?.displayName]) {
+      if (handle != null && handle.isNotEmpty) {
+        userByHandle.putIfAbsent(handle.toLowerCase(), () => member);
+      }
+    }
+  }
+  final channelByName = <String, AccordChannel>{};
+  for (final channel in channels ?? const <AccordChannel>[]) {
+    final name = channel.name;
+    if (name != null && name.isNotEmpty && channel.type != 'category') {
+      channelByName.putIfAbsent(name.toLowerCase(), () => channel);
+    }
+  }
+  return accordMarkupSyntaxes(
+    AccordMarkupContext(
+      userByHandle: userByHandle,
+      roleByName: {
+        for (final role in roles ?? const <AccordRole>[])
+          if (role.mentionable && role.name.isNotEmpty)
+            role.name.toLowerCase(): role,
+      },
+      channelByName: channelByName,
+      emojiByName: {
+        for (final e in emojis ?? const <AccordEmoji>[])
+          if (e.name.isNotEmpty) e.name.toLowerCase(): e,
+      },
+      cdnUrl: cdnUrl,
+    ),
+  );
+}
 
 /// Renders Accord message content as markdown, with inline chips for `@user`,
 /// `@role`, `@everyone`/`@here`, and `#channel` references, custom `:emoji:`,
@@ -38,87 +102,30 @@ class AccordMessageContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cdnUrl = ref.watchCdnUrl();
-
     final id = spaceId;
-    if (id == null) {
-      // DM / no-space context: still resolve broadcasts, spoilers, underline,
-      // and markdown — just nothing that needs space caches or navigation.
-      final markup = buildAccordMarkup(AccordMarkupContext(cdnUrl: cdnUrl));
-      return AccordMarkdownBox(
-        content: content,
-        trustedMediaBaseUrl: cdnUrl,
-        syntaxExtensions: markup.syntaxes,
-        elementBuilders: markup.builders,
-      );
-    }
-
-    // The member roster is only consulted to resolve `@handle` mentions, and
-    // backfilling it fans out a fetch per member. Most messages contain no
-    // mention, so skip the load entirely unless this one does — that keeps a
-    // mention-free channel from triggering the roster fetch when the member
-    // sidebar (which loads it on its own) is collapsed.
-    final members = content.contains('@')
-        ? ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', id))
-        : null;
-    final space = ref.watch(
-      spacesControllerProvider.select(
-        (s) => s?.firstWhereOrNull((sp) => sp.id == id),
-      ),
-    );
-    final channels = ref.watch(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', id));
-    final emojiList = ref.watch(accordEmojisControllerProvider(ref.readActiveServerKey() ?? '', id));
-
-    final userByHandle = <String, AccordMember>{};
-    if (members != null) {
-      for (final member in members.values) {
-        final username = member.user?.username;
-        if (username != null && username.isNotEmpty) {
-          userByHandle.putIfAbsent(username.toLowerCase(), () => member);
-        }
-        final display = member.user?.displayName;
-        if (display != null && display.isNotEmpty) {
-          userByHandle.putIfAbsent(display.toLowerCase(), () => member);
-        }
-      }
-    }
-
-    final roleByName = <String, AccordRole>{
-      for (final role in (space?.roles ?? const <AccordRole>[]))
-        if (role.mentionable && role.name.isNotEmpty)
-          role.name.toLowerCase(): role,
-    };
-
-    final channelByName = <String, AccordChannel>{};
-    for (final channel in (channels ?? const <AccordChannel>[])) {
-      final name = channel.name;
-      if (name != null && name.isNotEmpty && channel.type != 'category') {
-        channelByName.putIfAbsent(name.toLowerCase(), () => channel);
-      }
-    }
-
-    final emojiByName = <String, AccordEmoji>{
-      for (final e in (emojiList ?? const <AccordEmoji>[]))
-        if (e.name.isNotEmpty) e.name.toLowerCase(): e,
-    };
-
-    final markup = buildAccordMarkup(
-      AccordMarkupContext(
-        userByHandle: userByHandle,
-        roleByName: roleByName,
-        channelByName: channelByName,
-        emojiByName: emojiByName,
-        cdnUrl: cdnUrl,
-        onTapUser: (userId) =>
-            showAccordMemberPopout(context, spaceId: id, userId: userId),
-        onTapChannel: (channelId) => _openChannel(ref, id, channelId),
-      ),
-    );
-
     return AccordMarkdownBox(
       content: content,
       trustedMediaBaseUrl: cdnUrl,
-      syntaxExtensions: markup.syntaxes,
-      elementBuilders: markup.builders,
+      syntaxExtensions: id == null
+          ? _noSpaceSyntaxes
+          : ref.watch(
+              _spaceMarkupSyntaxesProvider(
+                ref.readActiveServerKey() ?? '',
+                id,
+                cdnUrl,
+                withMembers: content.contains('@'),
+              ),
+            ),
+      elementBuilders: accordMarkupBuilders(
+        cdnUrl: cdnUrl,
+        onTapUser: id == null
+            ? null
+            : (userId) =>
+                  showAccordMemberPopout(context, spaceId: id, userId: userId),
+        onTapChannel: id == null
+            ? null
+            : (channelId) => _openChannel(ref, id, channelId),
+      ),
     );
   }
 
@@ -127,10 +134,10 @@ class AccordMessageContent extends ConsumerWidget {
   /// behaviour stay with the message pane / channel list; a mention tap just
   /// surfaces the channel.
   void _openChannel(WidgetRef ref, String spaceId, String channelId) {
-    final activeKey = ref.read(connectionsControllerProvider).activeKey;
+    final activeKey = ref.readActiveServerKey();
     if (activeKey == null) return;
     final channel = ref
-        .read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', spaceId))
+        .read(accordChannelsControllerProvider(activeKey, spaceId))
         ?.firstWhereOrNull((c) => c.id == channelId);
     ref
         .read(openTabsControllerProvider.notifier)

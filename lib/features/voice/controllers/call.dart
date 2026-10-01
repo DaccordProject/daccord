@@ -36,9 +36,8 @@ class IncomingCall {
 }
 
 /// The call ring/ringback tone, delegating to the app-wide [soundManager].
-///
-/// Sits behind [callRingtoneProvider] so the signaling transitions can be driven
-/// in tests (and, later, by a platform ringer) without the audio plugin.
+/// Sits behind [callRingtoneProvider] so tests can drive the signaling
+/// transitions without the audio plugin.
 class CallRingtone {
   const CallRingtone();
 
@@ -90,15 +89,14 @@ class CallState {
 
 /// Orchestrates DM voice/video calls: placing an outgoing call (join voice +
 /// `call/ring`), reacting to the `call.*` gateway events, and accepting or
-/// declining an incoming ring. The actual media session is owned by
-/// [VoiceController]; this controller layers the ring/accept/decline signaling
-/// on top, mirroring how the server models a DM call as "voice join + signaling"
-/// (accordserver #32).
+/// declining an incoming ring. The media session is owned by [VoiceController];
+/// this layers the ring/accept/decline signaling on top, matching the server's
+/// model of a DM call as "voice join + signaling".
 @Riverpod(keepAlive: true)
 class CallController extends _$CallController {
   /// How long an unanswered ring stays on screen before we give up and log it
-  /// as missed. accordserver runs no ring timer (accordserver #32), so without
-  /// this a caller who force-quits leaves the banner up forever.
+  /// as missed. accordserver runs no ring timer, so without this a caller who
+  /// force-quits leaves the banner up forever.
   static const ringTimeout = Duration(seconds: 45);
 
   Timer? _ringTimer;
@@ -123,7 +121,6 @@ class CallController extends _$CallController {
         .record(
           channelId: call.channelId,
           callerId: call.callerId,
-          serverKey: call.serverKey,
           video: call.video,
         );
   }
@@ -138,10 +135,9 @@ class CallController extends _$CallController {
   /// Places an outgoing call on a DM/group-DM [channel]: joins voice, then rings
   /// the other participant(s). [video] starts the camera and hints the callee.
   ///
-  /// Strictly join-then-ring, matching the server's model of a DM call as
-  /// "voice join + signaling": `POST /channels/{id}/voice/join` must succeed
-  /// before `call/ring` goes out. When the join is rejected the voice controller
-  /// leaves [VoiceConnection.error] set and we clear the outgoing state so the
+  /// Strictly join-then-ring: the voice join must succeed before `call/ring`
+  /// goes out. When the join is rejected the voice controller leaves
+  /// [VoiceConnection.error] set and we clear the outgoing state so the
   /// caller's screen can report it instead of opening an empty call view.
   Future<void> startCall(AccordChannel channel, {bool video = false}) async {
     // Guard against concurrent taps: set outgoingChannelId synchronously so a
@@ -237,6 +233,14 @@ class CallController extends _$CallController {
     await ref.read(voiceControllerProvider.notifier).leave();
     await client?.voice.cancelCall(channelId);
   }
+
+  /// Hangs up the call in [channelId]. A DM call ([spaceId] null) we're still
+  /// ringing goes through [cancelOutgoing] so the callee's device stops
+  /// ringing; anything else just leaves voice.
+  Future<void> hangUp(String channelId, String? spaceId) =>
+      spaceId == null && state.outgoingChannelId == channelId
+      ? cancelOutgoing()
+      : ref.read(voiceControllerProvider.notifier).leave();
 
   void clearEndedMessage() {
     if (state.endedMessage == null) return;

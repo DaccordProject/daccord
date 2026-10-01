@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:bonfire/features/experiences/views/arcade.dart';
 
 import 'package:bonfire/features/automod/views/automod_panel.dart';
 import 'package:accordkit/accordkit.dart';
@@ -24,7 +25,6 @@ import 'package:bonfire/features/spaces/views/accord_transfer_ownership.dart';
 import 'package:bonfire/shared/components/image_crop_dialog.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:collection/collection.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -151,8 +151,9 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     if (result.ok && space is AccordSpace) {
       // A removal must also work with servers that omit cleared fields.
       if (body.containsKey('icon') && body['icon'] == null) space.icon = null;
-      if (body.containsKey('banner') && body['banner'] == null)
+      if (body.containsKey('banner') && body['banner'] == null) {
         space.banner = null;
+      }
       await spaceMediaCache.invalidate(
         {
           if (body.containsKey('icon')) ...[
@@ -180,15 +181,8 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
   }
 
   Future<void> _pickBanner() async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      withData: true,
-    );
-    final file = picked?.files.firstOrNull;
-    if (file?.bytes == null || !mounted) return;
-    final cropped = await showImageCropDialog(
+    final cropped = await pickAndCropImage(
       context,
-      imageBytes: file!.bytes!,
       aspectRatio: 16 / 9,
       title: 'Crop banner',
       maxOutputDimension: 1024,
@@ -217,15 +211,8 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
   }
 
   Future<void> _pickIcon() async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      withData: true,
-    );
-    final file = picked?.files.firstOrNull;
-    if (file?.bytes == null || !mounted) return;
-    final cropped = await showImageCropDialog(
+    final cropped = await pickAndCropImage(
       context,
-      imageBytes: file!.bytes!,
       aspectRatio: 1,
       circular: true,
       title: 'Crop icon',
@@ -539,6 +526,20 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
         ],
         actions: [
           _MembershipSection(onEditNickname: _editOwnNickname),
+          if (canManageSpace && ref.watchActiveServerKey() != null)
+            ListTile(
+              leading: const Icon(Icons.sports_esports_outlined),
+              title: const Text('Game directory & Arcade'),
+              subtitle: const Text(
+                'Enable reviewed games and configure this space’s Arcade',
+              ),
+              onTap: () => showSpaceArcade(
+                context,
+                serverKey: ref.readActiveServerKey()!,
+                spaceId: widget.spaceId,
+                manage: true,
+              ),
+            ),
           if (accordHasPermission(perms, AccordPermission.manageSpace) ||
               accordHasPermission(perms, AccordPermission.moderateMembers))
             ListTile(

@@ -156,7 +156,6 @@ void main() {
     for (final path in [
       'ios/Runner/DebugProfile.entitlements',
       'ios/Runner/Release.entitlements',
-      'macos/Runner/DebugProfile.entitlements',
       'macos/Runner/Release.entitlements',
       'macos/Runner/AppStore.entitlements',
     ]) {
@@ -166,6 +165,11 @@ void main() {
         reason: path,
       );
     }
+    expect(
+      File('macos/Runner/DebugProfile.entitlements').readAsStringSync(),
+      isNot(contains('<key>keychain-access-groups</key>')),
+      reason: 'Ad-hoc macOS builds cannot claim provisioned Keychain sharing',
+    );
     final privacy = File('docs/privacy-network.md').readAsStringSync();
     expect(privacy, contains('non-exportable WebCrypto key'));
     expect(privacy, contains('does not fall back to plaintext storage'));

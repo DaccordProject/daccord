@@ -36,14 +36,6 @@ class TypingController extends _$TypingController {
     }
   }
 
-  /// Immediately clears [userId] (e.g. once they send a message).
-  void clear(String userId) {
-    _timers.remove(userId)?.cancel();
-    if (state.contains(userId)) {
-      state = state.where((id) => id != userId).toList();
-    }
-  }
-
   void _expire(String userId) {
     _timers.remove(userId);
     if (state.contains(userId)) {

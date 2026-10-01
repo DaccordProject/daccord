@@ -77,7 +77,7 @@ All configuration is done through environment variables.
 |----------|---------|-------------|
 | `PORT` | `39099` | HTTP listen port |
 | `DATABASE_URL` | `sqlite:data/accord.db?mode=rwc` | Database connection string |
-| `ACCORD_STORAGE_PATH` | `./data/cdn` | Path for uploaded files and plugin bundles |
+| `ACCORD_STORAGE_PATH` | `./data/cdn` | Path for uploaded files |
 | `RUST_LOG` | `accordserver=debug,tower_http=debug` | Log level filter |
 
 ### Voice and Video (LiveKit)
@@ -162,3 +162,8 @@ docker compose up -d
 ```
 
 Migrations run automatically on startup, so the database schema is always kept up to date.
+
+Curated games require `EXPERIENCES_ENABLED=true` and `EXPERIENCE_TRUSTED_KEYS`
+(operator-provisioned Ed25519 publication keys). Owners manage reviewed versions
+through Game directory & Arcade in space settings. Legacy plugin archives are
+not executable or installable; see [the host contract](../experiences/architecture.md).

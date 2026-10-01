@@ -171,13 +171,6 @@ class PendingUploadsController extends _$PendingUploadsController {
     _set(next);
   }
 
-  /// Drops one entry (e.g. the user dismissed a refusal placeholder).
-  void dismiss(String uploadId) {
-    if (!state.uploads.containsKey(uploadId)) return;
-    _reasonRequested.remove(uploadId);
-    _set({...state.uploads}..remove(uploadId));
-  }
-
   /// After READY: asks the server about every outstanding upload once, then
   /// — only while some remain pending — polls up to [maxFallbackPolls] more
   /// times, [fallbackPollInterval] apart. Never touches the moderator queue.

@@ -15,7 +15,7 @@ surface and wire behaviour.
 
 - **REST client** covering every endpoint group: users, spaces, channels,
   messages, members, roles, bans, reports, invites, emojis, soundboard,
-  reactions, plugins, auth, voice, audit logs, admin, federation, and the
+  reactions, curated experiences, auth, voice, audit logs, admin, federation, and the
   master-server directory.
 - **Gateway client** with IDENTIFY/RESUME handshake, heartbeating, exponential
   backoff reconnect, and ~50 typed event streams.
@@ -213,3 +213,10 @@ dart test
 ## License
 
 [MIT](LICENSE) © Daccord Project
+
+Curated games use `client.experiences` for space-owned releases, lobbies,
+turn actions and authoritative snapshots. `ExperienceLiveSession` supplies the
+same session identity over an authenticated live transport for real-time input.
+Mutations are never automatically retried; reconcile a revision conflict by
+fetching the latest session. Guests never receive the account token or socket.
+See [the host and creator contract](../../docs/experiences/architecture.md).

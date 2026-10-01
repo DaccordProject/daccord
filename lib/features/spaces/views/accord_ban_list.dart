@@ -136,8 +136,16 @@ class _BanListState extends ConsumerState<_BanList>
     final bans = items;
     // Ensure any bans the API returned with only a userId resolve their name
     // on the next rebuild via the on-demand user cache.
-    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
-    final ensureUser = ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure;
+    final users = ref.watch(
+      accordUsersControllerProvider(ref.readActiveServerKey() ?? ''),
+    );
+    final ensureUser = ref
+        .read(
+          accordUsersControllerProvider(
+            ref.readActiveServerKey() ?? '',
+          ).notifier,
+        )
+        .ensure;
     if (bans != null) {
       for (final b in bans) {
         if (b.username == null) {
@@ -290,9 +298,7 @@ class _BanListState extends ConsumerState<_BanList>
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 trailing: TextButton.icon(
-                                  onPressed: loading
-                                      ? null
-                                      : () => _unban(ban),
+                                  onPressed: loading ? null : () => _unban(ban),
                                   icon: const Icon(Icons.lock_open, size: 16),
                                   label: const Text('Unban'),
                                 ),
@@ -326,7 +332,7 @@ class _Ban {
   String? username;
   String? displayName;
 
-  /// displayName → username → "Unknown". Never the raw snowflake (#25).
+  /// displayName → username → "Unknown". Never the raw snowflake.
   String get name => accordUserName(
     AccordUser(id: userId, username: username ?? '', displayName: displayName),
   );

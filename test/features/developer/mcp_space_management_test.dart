@@ -116,10 +116,11 @@ void main() {
           }
         } else if (path.startsWith('/channels/')) {
           final id = path.split('/').last;
-          if (request.method == 'PATCH')
+          if (request.method == 'PATCH') {
             channels[id]!.addAll(
               jsonDecode(request.body) as Map<String, dynamic>,
             );
+          }
           data = channels[id];
           if (request.method == 'DELETE') channels.remove(id);
         } else {

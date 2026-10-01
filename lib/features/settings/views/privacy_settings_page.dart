@@ -1,13 +1,12 @@
 import 'dart:convert';
 import 'package:bonfire/shared/components/settings_scaffold.dart';
-import 'package:bonfire/shared/utils/rest_result_ext.dart';
-import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'dart:typed_data';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
+import 'package:bonfire/features/spaces/utils/leave_space.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -44,10 +43,8 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
   /// independently.
   final Set<String> _leaving = {};
 
-  AccordClient? get _client => ref.accordClient;
-
   Future<void> _requestExport() async {
-    final client = _client;
+    final client = ref.accordClient;
     if (client == null || _exporting) return;
     setState(() {
       _exporting = true;
@@ -97,32 +94,19 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
     });
   }
 
-  Future<void> _leaveAndDelete(AccordSpace space) async {
-    final client = _client;
-    if (client == null || _leaving.contains(space.id)) return;
-    final confirmed = await showConfirmDialog(
+  void _leaveAndDelete(AccordSpace space) {
+    final serverKey = ref.readActiveServerKey();
+    if (serverKey == null || _leaving.contains(space.id)) return;
+    leaveSpace(
       context,
-      title: 'Leave & Delete Data',
-      message:
-          "This will permanently leave '${space.name}' and delete all your "
-          'messages, reactions, and data from this server. Your account stays '
-          'active. This cannot be undone.',
-      confirmLabel: 'Leave & Delete',
-      danger: true,
+      ref,
+      space,
+      serverKey,
+      deleteData: true,
+      onBusy: (busy) => setState(
+        () => busy ? _leaving.add(space.id) : _leaving.remove(space.id),
+      ),
     );
-    if (confirmed != true || !mounted) return;
-    setState(() => _leaving.add(space.id));
-    final result = await client.members.leaveMe(space.id, deleteData: true);
-    if (!mounted) return;
-    setState(() => _leaving.remove(space.id));
-    if (!result.ok) {
-      showErrorSnack(context, result, prefix: 'Failed');
-      return;
-    }
-    // Drop the space from the cache immediately; the gateway member.leave echo
-    // would do this too, but the local update keeps the page in sync.
-    ref.read(spacesControllerProvider.notifier).removeSpace(space.id);
-    showInfoSnack(context, "Left '${space.name}' and deleted your data");
   }
 
   @override

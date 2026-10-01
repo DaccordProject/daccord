@@ -25,23 +25,23 @@ AccordPresence presence(String userId, String status, {String? custom}) =>
     AccordPresence(
       userId: userId,
       status: status,
-      activities:
-          custom == null ? [] : [AccordActivity(name: custom, type: 'custom')],
+      activities: custom == null
+          ? []
+          : [AccordActivity(name: custom, type: 'custom')],
     );
 
 Map<String, dynamic> ready(List<Map<String, dynamic>> presences) => {
-      'presences': presences,
-    };
+  'presences': presences,
+};
 
 Map<String, dynamic> readyEntry(String userId, String status) => {
-      'user_id': userId,
-      'status': status,
-    };
+  'user_id': userId,
+  'status': status,
+};
 
 void main() {
   setUp(() => PresenceController.offlineGrace = _grace);
-  tearDown(() =>
-      PresenceController.offlineGrace = const Duration(seconds: 8));
+  tearDown(() => PresenceController.offlineGrace = const Duration(seconds: 8));
 
   ProviderContainer makeContainer() {
     final c = ProviderContainer();
@@ -79,7 +79,10 @@ void main() {
 
     test('seeding two connections does not clobber either', () {
       final c = makeContainer();
-      ctl(c, _keyA).seed([presence('alice', 'online'), presence('bob', 'idle')]);
+      ctl(
+        c,
+        _keyA,
+      ).seed([presence('alice', 'online'), presence('bob', 'idle')]);
       // Second connection READYs afterwards — the regression from #191 was
       // this wiping the first connection's map.
       ctl(c, _keyB).seed([presence('carol', 'dnd')]);
@@ -90,42 +93,37 @@ void main() {
       expect(accordPresenceStatus(stateOf(c, _keyB), 'alice'), 'offline');
     });
 
-    test('seed replaces this server\'s map (a dropped user goes offline)',
-        () async {
-      final c = makeContainer();
-      ctl(c, _keyA)
-        ..seed([presence('alice', 'online'), presence('bob', 'idle')])
-        ..seed([presence('alice', 'idle')]);
-      expect(accordPresenceStatus(stateOf(c, _keyA), 'alice'), 'idle');
-      // Bob is absent from the re-seed, but the roster isn't blanked on the
-      // spot — the implied offline waits out the grace window like any other
-      // (#210).
-      expect(accordPresenceStatus(stateOf(c, _keyA), 'bob'), 'idle');
-      await pastGrace();
-      expect(accordPresenceStatus(stateOf(c, _keyA), 'bob'), 'offline');
-    });
+    test(
+      'seed replaces this server\'s map (a dropped user goes offline)',
+      () async {
+        final c = makeContainer();
+        ctl(c, _keyA)
+          ..seed([presence('alice', 'online'), presence('bob', 'idle')])
+          ..seed([presence('alice', 'idle')]);
+        expect(accordPresenceStatus(stateOf(c, _keyA), 'alice'), 'idle');
+        // Bob is absent from the re-seed, but the roster isn't blanked on the
+        // spot — the implied offline waits out the grace window like any other
+        // (#210).
+        expect(accordPresenceStatus(stateOf(c, _keyA), 'bob'), 'idle');
+        await pastGrace();
+        expect(accordPresenceStatus(stateOf(c, _keyA), 'bob'), 'offline');
+      },
+    );
 
-    test('a user re-seeded inside the grace window never goes offline',
-        () async {
-      final c = makeContainer();
-      ctl(c, _keyA)
-        ..seed([presence('alice', 'online'), presence('bob', 'idle')])
-        // Our own reconnect: a first READY that hasn't caught up with bob yet…
-        ..seed([presence('alice', 'online')])
-        // …then a live update putting him back before the window elapses.
-        ..upsert(presence('bob', 'idle'));
-      await pastGrace();
-      expect(accordPresenceStatus(stateOf(c, _keyA), 'bob'), 'idle');
-    });
-
-    test('clear empties only that server', () {
-      final c = makeContainer();
-      ctl(c, _keyA).seed([presence('alice', 'online')]);
-      ctl(c, _keyB).seed([presence('carol', 'dnd')]);
-      ctl(c, _keyA).clear();
-      expect(stateOf(c, _keyA).byUser, isEmpty);
-      expect(accordPresenceStatus(stateOf(c, _keyB), 'carol'), 'dnd');
-    });
+    test(
+      'a user re-seeded inside the grace window never goes offline',
+      () async {
+        final c = makeContainer();
+        ctl(c, _keyA)
+          ..seed([presence('alice', 'online'), presence('bob', 'idle')])
+          // Our own reconnect: a first READY that hasn't caught up with bob yet…
+          ..seed([presence('alice', 'online')])
+          // …then a live update putting him back before the window elapses.
+          ..upsert(presence('bob', 'idle'));
+        await pastGrace();
+        expect(accordPresenceStatus(stateOf(c, _keyA), 'bob'), 'idle');
+      },
+    );
   });
 
   group('offline smoothing (#210)', () {
@@ -155,8 +153,11 @@ void main() {
       await pastGrace();
 
       expect(accordPresenceStatus(stateOf(c, _keyA), 'alice'), 'online');
-      expect(seen, everyElement('online'),
-          reason: 'the offline flip should never have reached a listener');
+      expect(
+        seen,
+        everyElement('online'),
+        reason: 'the offline flip should never have reached a listener',
+      );
     });
 
     test('coming online is never delayed', () {
@@ -165,16 +166,18 @@ void main() {
       expect(accordPresenceStatus(stateOf(c, _keyA), 'alice'), 'online');
     });
 
-    test('a repeated offline does not push the transition further out',
-        () async {
-      final c = makeContainer();
-      ctl(c, _keyA).upsert(presence('alice', 'online'));
-      ctl(c, _keyA).upsert(presence('alice', 'offline'));
-      await Future<void>.delayed(_grace ~/ 2);
-      ctl(c, _keyA).upsert(presence('alice', 'offline'));
-      await pastGrace();
-      expect(accordPresenceStatus(stateOf(c, _keyA), 'alice'), 'offline');
-    });
+    test(
+      'a repeated offline does not push the transition further out',
+      () async {
+        final c = makeContainer();
+        ctl(c, _keyA).upsert(presence('alice', 'online'));
+        ctl(c, _keyA).upsert(presence('alice', 'offline'));
+        await Future<void>.delayed(_grace ~/ 2);
+        ctl(c, _keyA).upsert(presence('alice', 'offline'));
+        await pastGrace();
+        expect(accordPresenceStatus(stateOf(c, _keyA), 'alice'), 'offline');
+      },
+    );
 
     test('an offline for someone already offline applies immediately', () {
       final c = makeContainer();
@@ -200,7 +203,10 @@ void main() {
       // accordserver broadcasts presence with a bare user_id…
       ctl(c, _keyA).upsert(presence('123', 'online'), homeDomain: _domainA);
       // …while a member seen through a federated space carries `id@domain`.
-      expect(accordPresenceStatus(stateOf(c, _keyA), '123@$_domainA'), 'online');
+      expect(
+        accordPresenceStatus(stateOf(c, _keyA), '123@$_domainA'),
+        'online',
+      );
       expect(accordPresenceStatus(stateOf(c, _keyA), '123'), 'online');
     });
 
@@ -209,16 +215,19 @@ void main() {
       ctl(c, _keyA).upsert(presence('123', 'online'), homeDomain: _domainA);
       // Snowflakes are only unique per home server — a `localPart` fallback
       // would report this remote user as online off our own user's presence.
-      expect(accordPresenceStatus(stateOf(c, _keyA), '123@b.example'),
-          'offline');
+      expect(
+        accordPresenceStatus(stateOf(c, _keyA), '123@b.example'),
+        'offline',
+      );
     });
 
     test('a qualified broadcast is stored under the same key', () {
       final c = makeContainer();
-      ctl(c, _keyA)
-          .upsert(presence('123@b.example', 'dnd'), homeDomain: _domainA);
-      expect(
-          accordPresenceStatus(stateOf(c, _keyA), '123@b.example'), 'dnd');
+      ctl(
+        c,
+        _keyA,
+      ).upsert(presence('123@b.example', 'dnd'), homeDomain: _domainA);
+      expect(accordPresenceStatus(stateOf(c, _keyA), '123@b.example'), 'dnd');
       expect(accordPresenceStatus(stateOf(c, _keyA), '123'), 'offline');
     });
 
@@ -244,7 +253,10 @@ void main() {
     test('seed qualifies too', () {
       final c = makeContainer();
       ctl(c, _keyA).seed([presence('123', 'online')], homeDomain: _domainA);
-      expect(accordPresenceStatus(stateOf(c, _keyA), '123@$_domainA'), 'online');
+      expect(
+        accordPresenceStatus(stateOf(c, _keyA), '123@$_domainA'),
+        'online',
+      );
     });
   });
 
@@ -337,29 +349,40 @@ void main() {
         serverKey: _keyA,
         homeDomain: _domainA,
       );
-      expect(accordPresenceStatus(stateOf(c, _keyA), '123@$_domainA'), 'online');
+      expect(
+        accordPresenceStatus(stateOf(c, _keyA), '123@$_domainA'),
+        'online',
+      );
     });
 
     test('two connections READYing in sequence keep their own presences', () {
       final c = makeContainer();
       final ref = c.read(_refProvider);
-      seedPresencesFromReady(ref, ready([readyEntry('alice', 'online')]),
-          serverKey: _keyA);
-      seedPresencesFromReady(ref, ready([readyEntry('carol', 'dnd')]),
-          serverKey: _keyB);
+      seedPresencesFromReady(
+        ref,
+        ready([readyEntry('alice', 'online')]),
+        serverKey: _keyA,
+      );
+      seedPresencesFromReady(
+        ref,
+        ready([readyEntry('carol', 'dnd')]),
+        serverKey: _keyB,
+      );
       expect(accordPresenceStatus(stateOf(c, _keyA), 'alice'), 'online');
       expect(accordPresenceStatus(stateOf(c, _keyB), 'carol'), 'dnd');
     });
 
-    test('an empty presences array clears the server (everyone offline)',
-        () async {
-      final c = makeContainer();
-      final ref = c.read(_refProvider);
-      ctl(c, _keyA).seed([presence('alice', 'online')]);
-      seedPresencesFromReady(ref, ready(const []), serverKey: _keyA);
-      await pastGrace();
-      expect(stateOf(c, _keyA).byUser, isEmpty);
-    });
+    test(
+      'an empty presences array clears the server (everyone offline)',
+      () async {
+        final c = makeContainer();
+        final ref = c.read(_refProvider);
+        ctl(c, _keyA).seed([presence('alice', 'online')]);
+        seedPresencesFromReady(ref, ready(const []), serverKey: _keyA);
+        await pastGrace();
+        expect(stateOf(c, _keyA).byUser, isEmpty);
+      },
+    );
 
     test('a missing presences field leaves the previous seed alone', () {
       final c = makeContainer();
@@ -377,16 +400,18 @@ void main() {
     });
 
     test('custom status returns the first non-blank activity name', () {
-      final map = PresenceMap(byUser: {
-        'alice': AccordPresence(
-          userId: 'alice',
-          status: 'online',
-          activities: [
-            AccordActivity(name: '  ', type: 'custom'),
-            AccordActivity(name: ' Deploying ', type: 'custom'),
-          ],
-        ),
-      });
+      final map = PresenceMap(
+        byUser: {
+          'alice': AccordPresence(
+            userId: 'alice',
+            status: 'online',
+            activities: [
+              AccordActivity(name: '  ', type: 'custom'),
+              AccordActivity(name: ' Deploying ', type: 'custom'),
+            ],
+          ),
+        },
+      );
       expect(accordCustomStatus(map, 'alice'), 'Deploying');
     });
   });

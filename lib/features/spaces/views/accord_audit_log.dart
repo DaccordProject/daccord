@@ -62,7 +62,7 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog>
     if (client == null) return;
     _liveSub = client.onAuditLogCreate.listen((data) {
       // The gateway may scope the event with a space id; only prepend ours.
-      final spaceId = (data['space_id'] ?? data['guild_id'])?.toString();
+      final spaceId = data['space_id']?.toString();
       if (spaceId != null && spaceId != widget.spaceId) return;
       final entry = AccordAuditLogEntry.fromJson(data);
       if (entry.id.isNotEmpty && items.any((e) => e.id == entry.id)) return;
@@ -116,9 +116,14 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog>
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
-    final members = ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId));
-    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
-    final ensureUser = ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure;
+    final serverKey = ref.readActiveServerKey() ?? '';
+    final members = ref.watch(
+      accordMembersControllerProvider(serverKey, widget.spaceId),
+    );
+    final users = ref.watch(accordUsersControllerProvider(serverKey));
+    final ensureUser = ref
+        .read(accordUsersControllerProvider(serverKey).notifier)
+        .ensure;
 
     // Distinct action types present, for the filter dropdown.
     final actionTypes = <String>{

@@ -30,7 +30,7 @@ The Accord server backend is [`accordserver`](https://github.com/DaccordProject/
 - **State management:** Riverpod 3 (`flutter_riverpod`, `riverpod_annotation` with codegen → `*.g.dart`).
 - **Models / serialization:** primarily provided by `accordkit` (`Accord*` types). The handful of client-local models (server config, session, device profile, space folders, settings) hand-roll `fromJson`/`toJson` — they're small and Hive-backed, so codegen serializers aren't used. The only generated files in `lib/` are Riverpod's `*.g.dart` files.
 - **Routing:** `go_router`.
-- **Local storage:** `hive_ce` — boxes opened in `setupHive()`: `auth`, `last-location`, `added-accounts`, `space-cache`, `window-state`, `pending-uploads` (per-connection AutoMod-held upload IDs), plus the per-profile `accord-session` and `accord-settings`.
+- **Local storage:** `hive_ce` — boxes opened in `setupHive()`: `auth`, `space-cache`, `window-state`, `pending-uploads` (per-connection AutoMod-held upload IDs), plus the per-profile `accord-session` and `accord-settings`.
 - **Networking:** `accordkit` (vendored in-tree at `packages/accordkit`, maintained here). **The firebridge → accordkit swap is complete** — `packages/firebridge` and `firebridge_extensions` no longer exist and nothing in `lib/` imports them (a few doc comments still mention "firebridge" to describe what a controller replaced). Do not try to re-add firebridge.
 - **Voice/video/screen share:** `livekit_client` (a local fork at `packages/livekit_client`, see #68) over WebRTC; credentials fetched via accordkit's `client.voice`. See `lib/features/voice/`.
 - **Sound effects:** `audioplayers`, with `audioplayers_linux` as a local fork at `packages/audioplayers_linux` whose `create` returns an error instead of aborting the app when GStreamer lacks `playbin` (`gstreamer1.0-plugins-base`); `SoundManager` then falls silent. See its `FORK.md`.
@@ -152,7 +152,7 @@ flutter build ios     --release --no-tree-shake-icons --no-codesign -v
 ```
 
 CI lives in `.github/workflows/` and is Daccord-native (no OpenBonfire infra):
-- `ci.yml` — blocking jobs cover root codegen/analyze/tests, vendored `accordkit`, the full `markdown_viewer` suite, and LiveKit's Android native unit tests. Broader server/UI scenarios remain advisory. The `build` job is a Web (JavaScript)/Android/Linux/Windows matrix.
+- `ci.yml` — blocking jobs cover root codegen/analyze/tests, vendored `accordkit`, the full `markdown_viewer` suite, and LiveKit's Android native unit tests. Broader server/UI scenarios remain advisory. The manual `build` job covers Web (JavaScript), Android, unsigned iOS, Linux, macOS and Windows.
 - Every workflow builds with the exact Flutter beta in `FLUTTER_VERSION`, mirrored in `.fvmrc`; analyze also runs the latest stable. Bump the pin deliberately after smoke-testing a desktop build — an unpinned beta once shipped a broken Linux renderer.
 - The blocking `linux-render` job (and a step in the release's Linux build) runs `dist/verify-linux-render.sh`: it launches the release bundle under Xvfb and fails unless every window quadrant is painted, on both the blit and the NVIDIA-style fallback compositor paths. Widget/integration tests can't see engine rendering faults.
 - CI also evaluates the Mac upload lane against Fastlane's directory validator (`bundle exec ruby fastlane/test/mac_upload_metadata_test.rb`); upload-only lanes must scope metadata and screenshots to their platform folders.
@@ -240,3 +240,24 @@ Developer Mode. Existing releases predating this gate must not be submitted with
 marker-based recipes. Do not advertise catalogue install commands before acceptance.
 Collapsed rail folders reuse the size-aware space icon renderer for their first
 four resolved members; keep normal and drag previews consistent.
+
+## Curated experiences
+
+`packages/experience_runtime` is the portable bounded WASM host. Guest instructions
+and capabilities are allowlisted; broader Wasm/WASI output must fail closed.
+`tools/experiences/build_reference.py` reproducibly builds reference packages.
+See `docs/experiences/architecture.md` for ABI and lifecycle requirements. Run
+`dart test` in the runtime package for changes to validation or execution.
+
+The Arcade lives in `lib/features/experiences`; never put games in the channel
+list or pass SDK tokens/sockets to guests. `client.experiences` and
+`ExperienceLiveSession` reconcile server-owned revisions for both modes. The
+root tests cover package signatures, isolated turn alerts and responsive WASM
+frames; CI also gates native/browser runtime tests and reproducible packages.
+Run `flutter test test/features/experiences` after changing the trusted host.
+
+The coordinated master-server workflow runs immutable community/client fixtures
+with `tools/experiences/run_fixture.py` and the actual client game API/host.
+It runs in the private master repository so that source stays private. The
+client's runtime gate tests Dart VM, browser JavaScript and browser Dart WASM.
+See `docs/experiences/validation.md` to reproduce the full stack locally.

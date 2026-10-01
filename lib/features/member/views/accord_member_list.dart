@@ -1,7 +1,5 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
-import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
@@ -24,9 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// The right-hand member roster for the Accord home view. Groups the space's
 /// cached members under their highest hoisted role (ungrouped members fall into
 /// a trailing "Members" section), tinting each name by its highest colored
-/// role. The Accord analogue of Bonfire's firebridge `MemberList`/
-/// `MemberScrollView`, but driven by the simpler [AccordMembersController]
-/// cache rather than Discord's lazy member-list sync ranges.
+/// role. Driven by the [AccordMembersController] cache.
 class AccordMemberList extends ConsumerWidget {
   const AccordMemberList({super.key, required this.spaceId});
 
@@ -57,7 +53,9 @@ class _Roster extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final members = ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId));
+    final members = ref.watch(
+      accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId),
+    );
     // One selector for everything read off the cached space, so a rebuild
     // only walks spacesControllerProvider's list once instead of twice.
     final spaceInfo = ref.watch(
@@ -78,13 +76,27 @@ class _Roster extends ConsumerWidget {
       // The roster fetch itself failed (timeout / non-2xx / network) — surface
       // a retry instead of spinning forever. onRetry clears the failed flag
       // itself, then invalidates the controller to re-run `_load`.
-      if (ref.watch(membersLoadFailedProvider(ref.readActiveServerKey() ?? '', spaceId))) {
+      if (ref.watch(
+        membersLoadFailedProvider(ref.readActiveServerKey() ?? '', spaceId),
+      )) {
         return ServerUnreachable(
           title: "Couldn't load members",
           message: 'Something went wrong fetching the member list.',
           onRetry: () {
-            ref.read(membersLoadFailedProvider(ref.readActiveServerKey() ?? '', spaceId).notifier).set(false);
-            ref.invalidate(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId));
+            ref
+                .read(
+                  membersLoadFailedProvider(
+                    ref.readActiveServerKey() ?? '',
+                    spaceId,
+                  ).notifier,
+                )
+                .set(false);
+            ref.invalidate(
+              accordMembersControllerProvider(
+                ref.readActiveServerKey() ?? '',
+                spaceId,
+              ),
+            );
           },
         );
       }
@@ -96,12 +108,7 @@ class _Roster extends ConsumerWidget {
       );
       if (connectionStatus.isUnreachable) {
         return ServerUnreachable(
-          onRetry: () {
-            final auth = ref.read(accordAuthProvider);
-            if (auth is AccordAuthLoggedIn) {
-              auth.client.ensureConnected();
-            }
-          },
+          onRetry: () => ref.accordClient?.ensureConnected(),
         );
       }
       return const LoadingView();
@@ -160,8 +167,8 @@ const int _offlinePosition = -2;
 
 /// Buckets online [members] under their highest hoisted role (falling back to a
 /// "Members" group); all offline members collapse into a single trailing
-/// "Offline" section (Discord-style). Sections sort by role position descending,
-/// then "Members", then "Offline" last; members within a section sort by name.
+/// "Offline" section. Sections sort by role position descending, then
+/// "Members", then "Offline" last; members within a section sort by name.
 List<_RosterSection> _buildSections(
   List<AccordMember> members,
   List<AccordRole> roles,
@@ -207,12 +214,12 @@ List<_RosterSection> _buildSections(
   if (defaultSection.members.isNotEmpty) sections.add(defaultSection);
   if ((offlineSection.count ?? 0) > 0) sections.add(offlineSection);
 
+  final sortNames = {
+    for (final member in members)
+      member: accordMemberName(member).toLowerCase(),
+  };
   for (final section in sections) {
-    section.members.sort(
-      (a, b) => accordMemberName(
-        a,
-      ).toLowerCase().compareTo(accordMemberName(b).toLowerCase()),
-    );
+    section.members.sort((a, b) => sortNames[a]!.compareTo(sortNames[b]!));
   }
   return sections;
 }

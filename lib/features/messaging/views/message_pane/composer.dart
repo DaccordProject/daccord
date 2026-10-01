@@ -1,7 +1,7 @@
 part of 'message_pane.dart';
 
 /// Linux: the channel the composer uses as an ordering barrier with the GTK
-/// embedder before a plain-Enter send (#376).
+/// embedder before a plain-Enter send.
 ///
 /// Nothing on the platform side handles it, so `fl_engine.cc` answers it with
 /// an empty reply straight away, on the platform thread, in order with the key
@@ -69,13 +69,9 @@ class _ComposerState extends ConsumerState<_Composer> {
   static const _typingInterval = Duration(seconds: 8);
   static final _broadcastMention = RegExp(r'@(everyone|here)\b');
 
-  /// Mention-popup state. `_mentionQuery == null` means the popup is hidden;
-  /// otherwise it's the lowercase text after the active `@`, and
-  /// `[_mentionStart, _mentionEnd)` is the range in `_controller.text` that
-  /// the picked handle replaces (covers the `@` and the query).
-  String? _mentionQuery;
-  int _mentionStart = -1;
-  int _mentionEnd = -1;
+  /// The `@` mention being typed, or null when the popup is hidden. A picked
+  /// handle replaces its `[start, end)` range of `_controller.text`.
+  ({int start, int end, String query})? _mention;
 
   /// Captured once so `dispose()` can persist the draft without touching `ref`,
   /// which Riverpod tears down before `dispose()` runs. Safe because
@@ -109,15 +105,16 @@ class _ComposerState extends ConsumerState<_Composer> {
       return KeyEventResult.ignored;
     }
     final mods = HardwareKeyboard.instance;
-    if (_nativeNewlines) {
+    if (composerUsesNativeNewlines) {
       if (_awaitingNativeEdits) {
         // A plain-Enter send is waiting for GTK's earlier edits. Keys must not
         // reach GTK now, or their updates would be computed on the draft that
         // is about to be cleared. Keep their text and replay it after.
-        _bufferWhileAwaiting(event, mods);
+        final text = bufferedKeyText(event, mods);
+        if (text != null) _typedWhileAwaiting.write(text);
         return KeyEventResult.handled;
       }
-      if (_isPlainEnter(event, mods) && !_isComposing) {
+      if (isPlainEnter(event, mods) && !_isComposing) {
         // Held Enter repeats are swallowed: they must neither resend nor
         // fall through to the embedder as newlines.
         if (event is KeyDownEvent) _sendAfterNativeEdits();
@@ -125,9 +122,10 @@ class _ComposerState extends ConsumerState<_Composer> {
       }
       // Shift+Enter (and Enter with any other modifier, or during a
       // composition) goes to GTK's input method and then the embedder, which
-      // inserts the newline itself. See [_nativeNewlines].
-    } else if (_isShiftEnterChord(event, mods) && !_isComposing) {
-      _insertNewline();
+      // inserts the newline itself. See [composerUsesNativeNewlines].
+    } else if (isShiftEnterChord(event, mods) && !_isComposing) {
+      _insertAtCursor('\n');
+      _onChanged(_controller.text);
       return KeyEventResult.handled;
     }
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
@@ -140,35 +138,6 @@ class _ComposerState extends ConsumerState<_Composer> {
     return KeyEventResult.handled;
   }
 
-  /// Whether [event] is Shift+Enter (either Enter key, no other modifiers).
-  ///
-  /// The field's `textInputAction` is `send` so mobile keyboards show a Send
-  /// key. The desktop embedders (Linux `fl_text_input_handler.cc`, Windows
-  /// `text_input_plugin.cc`, macOS `FlutterTextInputPlugin.mm`) only insert a
-  /// newline for Enter when the action is `newline`, and they ignore Shift, so
-  /// a plain TextField sends on Shift+Enter (#376). On Windows and macOS the
-  /// composer handles the chord itself, which stops it from ever reaching the
-  /// embedder's text input plugin. Linux works differently: see
-  /// [_nativeNewlines].
-  bool _isShiftEnterChord(KeyEvent event, HardwareKeyboard mods) =>
-      _isEnterKey(event) &&
-      mods.isShiftPressed &&
-      !mods.isControlPressed &&
-      !mods.isMetaPressed &&
-      !mods.isAltPressed;
-
-  /// Whether [event] is Enter (either Enter key) with no modifiers held.
-  bool _isPlainEnter(KeyEvent event, HardwareKeyboard mods) =>
-      _isEnterKey(event) &&
-      !mods.isShiftPressed &&
-      !mods.isControlPressed &&
-      !mods.isMetaPressed &&
-      !mods.isAltPressed;
-
-  static bool _isEnterKey(KeyEvent event) =>
-      event.logicalKey == LogicalKeyboardKey.enter ||
-      event.logicalKey == LogicalKeyboardKey.numpadEnter;
-
   /// Whether the IME has reported a composition. Enter is left to the IME
   /// then, because it commits the candidate.
   bool get _isComposing {
@@ -176,40 +145,10 @@ class _ComposerState extends ConsumerState<_Composer> {
     return composing.isValid && !composing.isCollapsed;
   }
 
-  /// Linux: the field uses `TextInputAction.newline`, and the roles are
-  /// inverted compared with Windows and macOS (#376, review of #384).
-  ///
-  /// - **Shift+Enter** is never handled here. GTK's input method sees it first
-  ///   (`fl_text_input_handler_filter_keypress`). If the IM is composing, even
-  ///   when Dart sees no composing range (Ctrl+Shift+U hex entry, a pending
-  ///   IBus key), it commits. Otherwise the embedder inserts `\n` into its own
-  ///   model, and that edit is queued in order with any keys typed after it.
-  ///   A `newline` action on a multiline field does nothing in Dart: no
-  ///   unfocus, no `onSubmitted`, and no text-input connection restart.
-  ///   So there is nothing to race and no queued update is dropped.
-  /// - **Plain Enter** (no modifiers, no reported composition) is claimed by
-  ///   the key handler, and the send waits for GTK to deliver every edit
-  ///   queued before it: see [_sendAfterNativeEdits].
-  ///
-  /// Why not the `send` action with a Shift+Enter flag, as before:
-  /// `EditableText._finalizeEditing` always schedules a text-input connection
-  /// restart for `send`, and GTK updates still queued for the old client are
-  /// discarded, so keys typed right after Shift+Enter were lost.
-  ///
-  /// Known limitations:
-  /// - A plain Enter during a composition that GTK hasn't reported to Dart
-  ///   sends instead of committing.
-  /// - An input method that commits text asynchronously (IBus in async mode)
-  ///   can deliver a key typed just before Enter after the send barrier.
-  /// - Enter with Ctrl or Alt held inserts a newline here, where it sends on
-  ///   Windows and macOS.
-  static bool get _nativeNewlines =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
-
   void _onSubmitted() {
     // EditableText unfocuses on a `send` action just before onSubmitted runs;
     // the field is enabled, so asking for focus straight back lands in the
-    // same frame. (Not reached on Linux: see [_nativeNewlines].)
+    // same frame. (Not reached on Linux: see [composerUsesNativeNewlines].)
     _focusNode.requestFocus();
     _send();
   }
@@ -222,21 +161,21 @@ class _ComposerState extends ConsumerState<_Composer> {
   final StringBuffer _typedWhileAwaiting = StringBuffer();
 
   /// Linux plain Enter: sends only once GTK has delivered every edit for keys
-  /// typed before the Enter (review of #384, r4102862858).
+  /// typed before the Enter.
   ///
   /// Key events reach Dart before GTK's text update for them, so with
   /// `x Return` typed fast the Enter arrives while the `x` update is still
-  /// queued. Reading the draft straight away sent `hi` and left `x` behind.
+  /// queued, and reading the draft straight away would leave `x` behind.
   /// A round trip on [composerNativeInputBarrierChannel] is answered only
   /// after those queued updates, so the draft is complete when it returns.
   ///
   /// Keys pressed in that window (about a millisecond) are claimed and
-  /// buffered by [_bufferWhileAwaiting]. If they reached GTK, it would apply
-  /// them to the draft being sent, and the late update would bring that
-  /// draft back after the clear. [_send] then reads and clears the draft
-  /// synchronously, and the buffered text is inserted into the cleared field.
-  /// That field edit reaches GTK before any later key does. The text-input
-  /// connection is never restarted.
+  /// buffered by the key handler. If they reached GTK, it would apply them to
+  /// the draft being sent, and the late update would bring that draft back
+  /// after the clear. [_send] then reads and clears the draft synchronously,
+  /// and the buffered text is inserted into the cleared field. That field edit
+  /// reaches GTK before any later key does. The text-input connection is never
+  /// restarted.
   Future<void> _sendAfterNativeEdits() async {
     _awaitingNativeEdits = true;
     try {
@@ -258,32 +197,6 @@ class _ComposerState extends ConsumerState<_Composer> {
     }
   }
 
-  /// Keeps the text of a key claimed while [_awaitingNativeEdits].
-  ///
-  /// Shift+Enter keeps its newline. Plain Enter is dropped because the draft
-  /// is already being sent. Shortcuts and non-printing keys are dropped too.
-  void _bufferWhileAwaiting(KeyEvent event, HardwareKeyboard mods) {
-    if (mods.isControlPressed || mods.isMetaPressed || mods.isAltPressed) {
-      return;
-    }
-    if (_isEnterKey(event)) {
-      if (mods.isShiftPressed) _typedWhileAwaiting.write('\n');
-      return;
-    }
-    final character = event.character;
-    if (character == null || character.isEmpty) return;
-    if (character.runes.any((r) => r < 0x20 || r == 0x7f)) return;
-    _typedWhileAwaiting.write(character);
-  }
-
-  /// Inserts a line break at the caret, replacing any selection, and runs the
-  /// usual change handling (mention popup, typing indicator) that a
-  /// programmatic edit would otherwise skip.
-  void _insertNewline() {
-    _insertAtCursor('\n');
-    _onChanged(_controller.text);
-  }
-
   /// Handles a clipboard paste: an image becomes a pending attachment; very
   /// large text prompts to attach it as a `.txt` file; otherwise the text is
   /// inserted inline. Ports the reference composer's paste handling.
@@ -291,29 +204,24 @@ class _ComposerState extends ConsumerState<_Composer> {
     Uint8List? image;
     try {
       image = await Pasteboard.image;
-    } catch (_) {
-      image = null;
-    }
+    } catch (_) {}
     if (!mounted) return;
     if (image != null && image.isNotEmpty) {
-      final bytes = image;
       // The clipboard image isn't necessarily a PNG; sniff the bytes so the
       // name matches the content.
       _addFiles([
         PendingAttachment.fromBytes(
-          name: pastedImageFilename(bytes),
-          bytes: bytes,
+          name: pastedImageFilename(image),
+          bytes: image,
         ),
       ]);
       return;
     }
 
-    String text = '';
+    var text = '';
     try {
       text = await Pasteboard.text ?? '';
-    } catch (_) {
-      text = '';
-    }
+    } catch (_) {}
     if (!mounted || text.isEmpty) return;
 
     if (text.length > _largePasteThreshold) {
@@ -447,87 +355,35 @@ class _ComposerState extends ConsumerState<_Composer> {
       return;
     }
     _lastTypingSent = now;
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
-    client?.messages.typing(widget.channelId);
+    ref.accordClient?.messages.typing(widget.channelId);
   }
 
-  /// Decides whether an `@` autocomplete is in progress and updates the
-  /// popup state accordingly. Mirrors the reference composer's
-  /// `_find_mention_trigger`: scan backwards from the cursor to the nearest
-  /// `@` that's at line start or follows a non-word char; everything between
-  /// it and the cursor is the query. A space (or no `@` before whitespace)
-  /// dismisses the popup. The popup itself is only built when `_mentionQuery`
-  /// is non-null AND there are candidates to show.
+  /// Shows, updates or hides the mention popup for the caret position. The
+  /// popup itself is only built when there are candidates to show.
   void _updateMentionState(String text) {
-    final selection = _controller.value.selection;
-    if (!selection.isValid ||
-        !selection.isCollapsed ||
-        widget.spaceId == null) {
-      _clearMentionState();
-      return;
-    }
-    final caret = selection.baseOffset;
-    var i = caret - 1;
-    while (i >= 0) {
-      final ch = text[i];
-      if (ch == '@') {
-        if (i > 0 && _isMentionWordChar(text[i - 1])) {
-          _clearMentionState();
-          return;
-        }
-        final query = text.substring(i + 1, caret).toLowerCase();
-        setState(() {
-          _mentionQuery = query;
-          _mentionStart = i;
-          _mentionEnd = caret;
-        });
-        return;
-      }
-      if (ch == ' ' || ch == '\t' || ch == '\n') {
-        _clearMentionState();
-        return;
-      }
-      i--;
-    }
-    _clearMentionState();
+    final mention = widget.spaceId == null
+        ? null
+        : findMentionTrigger(text, _controller.value.selection);
+    if (mention == null && _mention == null) return;
+    setState(() => _mention = mention);
   }
 
-  void _clearMentionState() {
-    if (_mentionQuery == null) return;
-    setState(() {
-      _mentionQuery = null;
-      _mentionStart = -1;
-      _mentionEnd = -1;
-    });
-  }
-
-  static bool _isMentionWordChar(String ch) {
-    if (ch.isEmpty) return false;
-    final code = ch.codeUnitAt(0);
-    if (code >= 0x30 && code <= 0x39) return true; // 0-9
-    if (code >= 0x41 && code <= 0x5A) return true; // A-Z
-    if (code >= 0x61 && code <= 0x7A) return true; // a-z
-    if (code == 0x5F) return true; // _
-    return code > 0x7F; // non-ASCII letter-likes
-  }
-
-  /// Replaces the active `@query` range with `@handle ` and dismisses the
-  /// popup. Mirrors the reference's `_on_mention_picked`.
+  /// Replaces the active `@query` with `@handle ` and dismisses the popup.
+  /// Mirrors the reference's `_on_mention_picked`.
   void _pickMention(String handle) {
-    if (_mentionStart < 0 || _mentionEnd < 0) return;
-    final text = _controller.text;
-    if (_mentionEnd > text.length) return;
-    final insert = '@$handle ';
-    final next = text.replaceRange(_mentionStart, _mentionEnd, insert);
-    _controller.value = TextEditingValue(
-      text: next,
-      selection: TextSelection.collapsed(offset: _mentionStart + insert.length),
+    final mention = _mention;
+    if (mention == null || mention.end > _controller.text.length) return;
+    _controller.value = insertAtSelection(
+      TextEditingValue(
+        text: _controller.text,
+        selection: TextSelection(
+          baseOffset: mention.start,
+          extentOffset: mention.end,
+        ),
+      ),
+      '@$handle ',
     );
-    _clearMentionState();
+    setState(() => _mention = null);
     _focusNode.requestFocus();
   }
 
@@ -535,15 +391,13 @@ class _ComposerState extends ConsumerState<_Composer> {
   ///
   /// No `allowedExtensions` filter: the Accord server enforces no type
   /// allow-list on message attachments (only size and count — see
-  /// `AccordServerLimits`), so filtering here would make the client stricter
-  /// than the protocol and hide legitimate files. Unrecognised types attach and
-  /// upload; they simply don't preview inline.
+  /// `AccordServerLimits`), so filtering here would hide legitimate files.
+  /// Unrecognised types attach and upload; they just don't preview inline.
   ///
-  /// The picker call is guarded because it can throw rather than return null —
-  /// Windows' legacy `GetOpenFileNameW` path in particular fails outright on a
-  /// cloud placeholder or an over-MAX_PATH selection. Unguarded, that threw out
-  /// of an unawaited `onPressed` callback and the user saw the attach button do
-  /// nothing at all.
+  /// The picker can throw rather than return null (Windows' legacy
+  /// `GetOpenFileNameW` fails on a cloud placeholder or an over-MAX_PATH
+  /// selection); unguarded, that escapes the unawaited `onPressed` and the
+  /// attach button appears to do nothing.
   Future<void> _pickFiles() async {
     final FilePickerResult? result;
     try {
@@ -562,88 +416,21 @@ class _ComposerState extends ConsumerState<_Composer> {
     _addFiles([for (final file in result.files) PendingAttachment(file)]);
   }
 
-  /// Attaches the files dragged onto the composer. Directories aren't
-  /// attachable, and files are size-checked before being read so a dropped
-  /// 4 GB video is rejected rather than pulled into memory first.
   Future<void> _onDrop(DropDoneDetails details) async {
     setState(() => _dragging = false);
     if (_sending) return;
-    final picked = <PendingAttachment>[];
-    final rejections = <String>[];
-    final maxBytes = ref
-        .read(serverLimitsControllerProvider)
-        .maxAttachmentBytes;
-    for (final item in details.files) {
-      // `DropItemDirectory` only comes back on macOS and web; Linux and Windows
-      // share a handler that types every dropped path as a file, so the path
-      // itself has to be checked or a folder reads as an unreadable file.
-      if (item is DropItemDirectory || isDroppedDirectory(item.path)) {
-        rejections.add(
-          '${item.name} is a folder — drop the files inside it instead.',
-        );
-        continue;
-      }
-      // macOS sandbox: a file dragged in from outside the container is only
-      // readable while its security-scoped bookmark is held open.
-      final bookmark = item.extraAppleBookmark;
-      final scoped = await _startScopedAccess(bookmark);
-      try {
-        final size = await item.length();
-        if (size > maxBytes) {
-          rejections.add(
-            oversizeAttachmentMessage(item.name, size, maxBytes: maxBytes),
-          );
-          continue;
-        }
-        final bytes = await item.readAsBytes();
-        picked.add(
-          PendingAttachment.fromBytes(
-            name: item.name,
-            bytes: bytes,
-            path: item.path.isEmpty ? null : item.path,
-            // Drag-and-drop is the one path where the platform tells us what
-            // the file is; prefer that over guessing from the extension.
-            platformMimeType: item.mimeType,
-          ),
-        );
-      } catch (_) {
-        rejections.add(unreadableAttachmentMessage(item.name));
-      } finally {
-        if (scoped) await _stopScopedAccess(bookmark!);
-      }
-    }
+    final dropped = await readDroppedFiles(
+      details.files,
+      maxBytes: ref.read(serverLimitsControllerProvider).maxAttachmentBytes,
+    );
     if (!mounted) return;
-    _addFiles(picked, alsoRejected: rejections);
+    _addFiles(dropped.accepted, alsoRejected: dropped.rejections);
   }
 
-  Future<bool> _startScopedAccess(Uint8List? bookmark) async {
-    if (bookmark == null || bookmark.isEmpty) return false;
-    try {
-      return await DesktopDrop.instance.startAccessingSecurityScopedResource(
-        bookmark: bookmark,
-      );
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<void> _stopScopedAccess(Uint8List bookmark) async {
-    try {
-      await DesktopDrop.instance.stopAccessingSecurityScopedResource(
-        bookmark: bookmark,
-      );
-    } catch (_) {
-      // Access lapses with the drop anyway; nothing useful to tell the user.
-    }
-  }
-
-  /// Attaches every file in [files] that passes screening, and reports the ones
-  /// that don't, along with any [alsoRejected] lines the caller screened out
-  /// itself. Unreadable, oversize and over-the-count files used to be dropped
-  /// in silence, which is indistinguishable from the attach button doing
-  /// nothing.
-  ///
-  /// Screened against the connected server's own limits, not compiled-in ones.
+  /// Attaches every file in [files] that passes the connected server's
+  /// limits, and reports the ones that don't, along with any [alsoRejected]
+  /// lines the caller screened out itself. A file dropped in silence would
+  /// look like the attach button doing nothing.
   void _addFiles(
     Iterable<PendingAttachment> files, {
     List<String> alsoRejected = const [],
@@ -672,19 +459,8 @@ class _ComposerState extends ConsumerState<_Composer> {
     _insertAtCursor(pick.composerText);
   }
 
-  /// Inserts [text] at the current cursor position (replacing any selection),
-  /// keeping focus and placing the caret after the inserted text.
   void _insertAtCursor(String text) {
-    final value = _controller.value;
-    final selection = value.selection;
-    final base = selection.isValid ? selection : null;
-    final start = base?.start ?? value.text.length;
-    final end = base?.end ?? value.text.length;
-    final next = value.text.replaceRange(start, end, text);
-    _controller.value = TextEditingValue(
-      text: next,
-      selection: TextSelection.collapsed(offset: start + text.length),
-    );
+    _controller.value = insertAtSelection(_controller.value, text);
     _focusNode.requestFocus();
   }
 
@@ -700,11 +476,7 @@ class _ComposerState extends ConsumerState<_Composer> {
     // Enter/Send during a cooldown does nothing; the countdown says why.
     if (_sendBlocked) return;
 
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
+    final client = ref.accordClient;
     if (client == null) return;
 
     final controller = ref.read(
@@ -729,15 +501,10 @@ class _ComposerState extends ConsumerState<_Composer> {
       _sending = true;
       _error = null;
       _attachments.clear();
-      _mentionQuery = null;
+      _mention = null;
     });
 
-    // A throw here (rather than a returned error string) would otherwise escape
-    // an unawaited callback: the composer would stay stuck with `_sending`
-    // true — no spinner, no message, buttons dead — and the user's text and
-    // attachments would be gone. Anything that goes wrong has to end up in
-    // `_error` where it's on screen.
-    final SendFailure? error;
+    SendFailure? error;
     try {
       error = await controller.sendWithAttachments(
         client,
@@ -746,17 +513,10 @@ class _ComposerState extends ConsumerState<_Composer> {
         replyTo: replyTo,
       );
     } catch (e) {
+      // Escaping this unawaited callback would leave the composer stuck
+      // sending, with the user's text and attachments gone.
       debugPrint('Send failed: $e');
-      if (mounted) {
-        setState(() {
-          _sending = false;
-          _error = 'Failed to send: $e';
-          _attachments.insertAll(0, attachments);
-        });
-        restoreFailedSend(_controller, text);
-        _saveDraft(widget.channelId, _controller.text);
-      }
-      return;
+      error = SendFailure('Failed to send: $e');
     }
     if (!mounted) return;
     if (error == null) {
@@ -808,9 +568,6 @@ class _ComposerState extends ConsumerState<_Composer> {
         : widget.channelName != null
         ? 'Message #${widget.channelName}'
         : 'Message';
-    final unauthorizedBroadcast =
-        !widget.canMentionEveryone &&
-        _broadcastMention.hasMatch(_controller.text);
     final now = DateTime.now();
     final cooldown = _cooldown != null && _cooldown!.isActive(now)
         ? _cooldown
@@ -917,18 +674,25 @@ class _ComposerState extends ConsumerState<_Composer> {
                     ],
                   ),
                 ),
-              if (unauthorizedBroadcast)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "You don't have permission to mention @everyone or @here in this channel.",
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall!.copyWith(color: colors.yellow),
-                    ),
-                  ),
+              if (!widget.canMentionEveryone)
+                // Follows the text itself: pastes and programmatic edits don't
+                // otherwise rebuild the composer.
+                ValueListenableBuilder(
+                  valueListenable: _controller,
+                  builder: (context, value, _) =>
+                      _broadcastMention.hasMatch(value.text)
+                      ? Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              "You don't have permission to mention @everyone or @here in this channel.",
+                              style: Theme.of(context).textTheme.bodySmall!
+                                  .copyWith(color: colors.yellow),
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
               if (cooldownLine != null)
                 Padding(
@@ -955,10 +719,10 @@ class _ComposerState extends ConsumerState<_Composer> {
                     ],
                   ),
                 ),
-              if (_mentionQuery != null && widget.spaceId != null)
+              if (_mention != null && widget.spaceId != null)
                 _MentionPopup(
                   spaceId: widget.spaceId!,
-                  query: _mentionQuery!,
+                  query: _mention!.query,
                   allowBroadcast: widget.canMentionEveryone,
                   onPick: _pickMention,
                 ),
@@ -994,7 +758,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                       // in _send() are what stop a double-send.
                       minLines: 1,
                       maxLines: 6,
-                      textInputAction: _nativeNewlines
+                      textInputAction: composerUsesNativeNewlines
                           ? TextInputAction.newline
                           : TextInputAction.send,
                       onChanged: _onChanged,

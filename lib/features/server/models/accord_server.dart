@@ -1,11 +1,8 @@
 import 'package:accordkit/accordkit.dart';
 
-/// Connection details for a single Accord server.
-///
-/// Bonfire hard-coded `discord.com`; Daccord can point at any Accord instance,
-/// so every connection carries its own base/gateway/CDN URLs. Gateway and CDN
-/// URLs are normally derived from the base URL by convention
-/// (`ws(s)://<host>/ws`, `<base>/cdn`) via [AccordServer.fromBaseUrl].
+/// Connection details for a single Accord server: its own base/gateway/CDN
+/// URLs. Gateway and CDN URLs are normally derived from the base URL by
+/// convention (`ws(s)://<host>/ws`, `<base>/cdn`) via [AccordServer.fromBaseUrl].
 class AccordServer {
   final String baseUrl;
   final String gatewayUrl;
@@ -27,7 +24,7 @@ class AccordServer {
 
   /// Derives gateway/CDN URLs from a single [rawBaseUrl] using Accord
   /// conventions. Accepts bare hosts (`my.server`), assuming `https`.
-  factory AccordServer.fromBaseUrl(String rawBaseUrl, {String? name}) {
+  factory AccordServer.fromBaseUrl(String rawBaseUrl) {
     final base = normalizeBaseUrl(rawBaseUrl);
     final uri = Uri.parse(base);
     final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
@@ -36,7 +33,7 @@ class AccordServer {
       baseUrl: base,
       gatewayUrl: gateway,
       cdnUrl: '$base/cdn',
-      name: name ?? uri.host,
+      name: uri.host,
     );
   }
 

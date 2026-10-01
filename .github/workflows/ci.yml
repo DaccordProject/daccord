@@ -57,7 +57,7 @@ on:
   workflow_dispatch:
     inputs:
       build_artifacts:
-        description: Build Web, Android, Linux, and Windows smoke-test artifacts
+        description: Build Web, Android, iOS, Linux, macOS, and Windows smoke-test artifacts
         type: boolean
         default: true
       livekit_sfu:
@@ -231,6 +231,45 @@ jobs:
       - name: Test
         working-directory: packages/accordkit
         run: dart test
+
+  experience-runtime:
+    name: Bounded WASM host (native and browser)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d
+        with:
+          sdk: stable
+      - run: dart pub get
+        working-directory: packages/experience_runtime
+      - run: dart analyze
+        working-directory: packages/experience_runtime
+      - run: dart test
+        working-directory: packages/experience_runtime
+      - run: dart test --platform chrome --compiler dart2js,dart2wasm
+        working-directory: packages/experience_runtime
+      - name: Reference packages are reproducible
+        run: |
+          python3 tools/experiences/build_reference.py --test-fixture test/features/experiences/reference_fixture.dart
+          git diff --exit-code -- tools/experiences/packages test/features/experiences/reference_fixture.dart
+
+  experience-widgets:
+    name: Arcade browser widgets (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [javascript, wasm]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - name: Verify the signed guest, rendering, input and lifecycle in Chromium
+        run: flutter test --platform chrome ${{ matrix.mode == 'wasm' && '--wasm' || '' }} test/features/experiences --reporter expanded
 
   markdown-viewer:
     name: Vendored markdown_viewer
@@ -699,6 +738,16 @@ jobs:
             os: ubuntu-latest
             artifact: daccord-web
             path: build/web/
+          - name: macOS
+            platform: macos
+            os: macos-15
+            artifact: daccord-macos
+            path: build/macos/Build/Products/Release/*.app/
+          - name: iOS (unsigned)
+            platform: ios
+            os: macos-15
+            artifact: daccord-ios-unsigned
+            path: build/ios/iphoneos/*.app/
           - name: Android
             platform: android
             os: ubuntu-latest
@@ -771,6 +820,12 @@ jobs:
         run: choco install nasm -y
         shell: powershell
 
+      - name: Select latest stable Xcode (Apple builds)
+        if: matrix.platform == 'macos' || matrix.platform == 'ios'
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: latest-stable
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -812,6 +867,8 @@ jobs:
           build_once() {
             case "${{ matrix.platform }}" in
               web)     flutter build web     --no-tree-shake-icons --release ;;
+              macos)   flutter build macos --no-tree-shake-icons ;;
+              ios)     flutter build ios --no-codesign --no-tree-shake-icons ;;
               android) flutter build apk     --no-tree-shake-icons --flavor github ;;
               linux)   flutter build linux ;;
               windows) flutter build windows ;;

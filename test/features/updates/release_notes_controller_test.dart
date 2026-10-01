@@ -72,15 +72,18 @@ void main() {
       );
     });
 
-    test('a prerelease → stable change on the same core counts as an update', () {
-      expect(
-        releaseNotesTrigger(
-          lastSeenVersion: '1.2.0-beta.1',
-          currentVersion: '1.2.0',
-        ),
-        ReleaseNotesTrigger.updated,
-      );
-    });
+    test(
+      'a prerelease → stable change on the same core counts as an update',
+      () {
+        expect(
+          releaseNotesTrigger(
+            lastSeenVersion: '1.2.0-beta.1',
+            currentVersion: '1.2.0',
+          ),
+          ReleaseNotesTrigger.updated,
+        );
+      },
+    );
 
     test('a downgrade shows nothing', () {
       expect(
@@ -128,28 +131,30 @@ void main() {
       expect(requests, 0);
     });
 
-    test('version increased: fetches the running tag and returns the notes',
-        () async {
-      kAppVersion = '1.3.0';
-      Hive.box('accord-settings').put('release-notes-seen-version', '1.2.0');
-      Uri? requested;
-      ReleaseNotesController.debugHttpClient = MockClient((req) async {
-        requested = req.url;
-        return http.Response(
-          _releaseJson('v1.3.0', '## Fixed\\n- things'),
-          200,
-        );
-      });
-      final c = _container();
-      final release = await _notifier(c).maybeLoadOnStartup();
-      expect(release, isNotNull);
-      expect(release!.version, '1.3.0');
-      expect(release.notes, contains('Fixed'));
-      // Notes come from the *running* tag, not `releases/latest`.
-      expect(requested.toString(), endsWith('/releases/tags/v1.3.0'));
-      // Marker stamped → a second launch on the same build shows nothing.
-      expect(_notifier(c).lastSeenVersion, '1.3.0');
-    });
+    test(
+      'version increased: fetches the running tag and returns the notes',
+      () async {
+        kAppVersion = '1.3.0';
+        Hive.box('accord-settings').put('release-notes-seen-version', '1.2.0');
+        Uri? requested;
+        ReleaseNotesController.debugHttpClient = MockClient((req) async {
+          requested = req.url;
+          return http.Response(
+            _releaseJson('v1.3.0', '## Fixed\\n- things'),
+            200,
+          );
+        });
+        final c = _container();
+        final release = await _notifier(c).maybeLoadOnStartup();
+        expect(release, isNotNull);
+        expect(release!.version, '1.3.0');
+        expect(release.notes, contains('Fixed'));
+        // Notes come from the *running* tag, not `releases/latest`.
+        expect(requested.toString(), endsWith('/releases/tags/v1.3.0'));
+        // Marker stamped → a second launch on the same build shows nothing.
+        expect(_notifier(c).lastSeenVersion, '1.3.0');
+      },
+    );
 
     test('is a no-op the second time it runs in one session', () async {
       kAppVersion = '1.3.0';
@@ -162,21 +167,23 @@ void main() {
       expect(await _notifier(c).maybeLoadOnStartup(), isNull);
     });
 
-    test('downgrade: no notes, but the marker follows the running build',
-        () async {
-      kAppVersion = '1.1.0';
-      Hive.box('accord-settings').put('release-notes-seen-version', '2.0.0');
-      var requests = 0;
-      ReleaseNotesController.debugHttpClient = MockClient((_) async {
-        requests++;
-        return http.Response(_releaseJson('v1.1.0', 'notes'), 200);
-      });
-      final c = _container();
-      expect(await _notifier(c).maybeLoadOnStartup(), isNull);
-      expect(requests, 0);
-      // Restamped, so upgrading forward again re-shows that release's notes.
-      expect(_notifier(c).lastSeenVersion, '1.1.0');
-    });
+    test(
+      'downgrade: no notes, but the marker follows the running build',
+      () async {
+        kAppVersion = '1.1.0';
+        Hive.box('accord-settings').put('release-notes-seen-version', '2.0.0');
+        var requests = 0;
+        ReleaseNotesController.debugHttpClient = MockClient((_) async {
+          requests++;
+          return http.Response(_releaseJson('v1.1.0', 'notes'), 200);
+        });
+        final c = _container();
+        expect(await _notifier(c).maybeLoadOnStartup(), isNull);
+        expect(requests, 0);
+        // Restamped, so upgrading forward again re-shows that release's notes.
+        expect(_notifier(c).lastSeenVersion, '1.1.0');
+      },
+    );
 
     test('unknown running version: neither shows nor stamps', () async {
       kAppVersion = '0.0.0';
@@ -231,7 +238,7 @@ void main() {
       expect((await _notifier(c).loadNotesForCurrentVersion())?.notes, 'notes');
       await _notifier(c).loadNotesForCurrentVersion();
       expect(requests, 1);
-      expect(c.read(releaseNotesControllerProvider).hasNotes, isTrue);
+      expect(c.read(releaseNotesControllerProvider).release?.notes, 'notes');
       await _notifier(c).loadNotesForCurrentVersion(force: true);
       expect(requests, 2);
     });

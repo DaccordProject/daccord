@@ -154,7 +154,7 @@ void main() {
   // join() arms the AFK monitor, which installs input hooks on the binding.
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  tearDown(() => soundManager.setVoiceSessionActive(false));
+  tearDown(() => soundManager.voiceSessionActive = false);
 
   test(
     'relay-only preference reaches initial join and gateway reconnect',

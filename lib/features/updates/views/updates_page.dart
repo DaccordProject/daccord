@@ -10,7 +10,7 @@ import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:bonfire/shared/utils/external_url.dart';
 
 /// Opens the Updates page (current version, manual check, and the available
 /// release with a link to download). Ports the reference client's
@@ -195,10 +195,7 @@ class UpdatesScreen extends ConsumerWidget {
                         return FilledButton.icon(
                           onPressed: target.isEmpty
                               ? null
-                              : () => launchUrl(
-                                  Uri.parse(target),
-                                  mode: LaunchMode.externalApplication,
-                                ),
+                              : () => openTrustedUrl(target),
                           icon: const Icon(Icons.download),
                           label: Text(
                             assetUrl != null ? 'Download' : 'View release',

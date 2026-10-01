@@ -1,7 +1,5 @@
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
@@ -67,11 +65,7 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
   }
 
   Future<List<AccordMessage>> _load() async {
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
+    final client = ref.accordClient;
     if (client == null) return const [];
     final result = await client.messages.listPins(widget.channelId);
     final data = result.data;
@@ -80,11 +74,7 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
   }
 
   Future<void> _unpin(AccordMessage message) async {
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
+    final client = ref.accordClient;
     if (client == null) return;
     final error = await ref
         .read(

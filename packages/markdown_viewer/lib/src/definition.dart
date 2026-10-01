@@ -9,7 +9,7 @@ enum MarkdownAlternating { odd, even }
 /// Enumeration of list types.
 enum MarkdownListType { ordered, unordered }
 
-/// Signature for callbacks used by [MarkdownWidget] when the user taps a link.
+/// Signature for callbacks used by [MarkdownViewer] when the user taps a link.
 typedef MarkdownTapLinkCallback = void Function(
   String? href,
   String? title,

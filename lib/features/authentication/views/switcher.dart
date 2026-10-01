@@ -9,8 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 /// Lists the locally saved Accord accounts and lets the user switch between
-/// them, add another, or remove one. The Accord analogue of Bonfire's
-/// Discord-token account switcher.
+/// them, add another, or remove one.
 class AccountSwitcherScreen extends ConsumerStatefulWidget {
   const AccountSwitcherScreen({super.key});
 
@@ -36,7 +35,7 @@ class _AccountSwitcherScreenState extends ConsumerState<AccountSwitcherScreen> {
   String? get _activeKey {
     final state = ref.read(accordAuthProvider);
     if (state is AccordAuthLoggedIn) {
-      return '${state.session.userId}@${state.session.server.baseUrl}';
+      return state.session.key;
     }
     return null;
   }
@@ -73,10 +72,7 @@ class _AccountSwitcherScreenState extends ConsumerState<AccountSwitcherScreen> {
               ),
               const SizedBox(height: 24),
               if (accounts == null)
-                const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: LoadingView(),
-                )
+                const Padding(padding: EdgeInsets.all(24), child: LoadingView())
               else if (accounts.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -90,8 +86,7 @@ class _AccountSwitcherScreenState extends ConsumerState<AccountSwitcherScreen> {
                 for (final account in accounts)
                   _AccountTile(
                     session: account,
-                    active: '${account.userId}@${account.server.baseUrl}' ==
-                        _activeKey,
+                    active: account.key == _activeKey,
                     onTap: () => _switchTo(account),
                     onRemove: () => _remove(account),
                   ),
@@ -109,8 +104,9 @@ class _AccountSwitcherScreenState extends ConsumerState<AccountSwitcherScreen> {
                   icon: const Icon(Icons.add, color: Colors.white),
                   label: Text(
                     'Add account',
-                    style: theme.textTheme.titleSmall!
-                        .copyWith(color: Colors.white),
+                    style: theme.textTheme.titleSmall!.copyWith(
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -144,8 +140,6 @@ class _AccountTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onRemove;
 
-  String get _initial => accordInitial(session.username);
-
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
@@ -165,9 +159,10 @@ class _AccountTile extends StatelessWidget {
           onTap: onTap,
           leading: CircleAvatar(
             backgroundColor: colors.primary,
-            child: Text(_initial,
-                style: theme.textTheme.titleSmall!
-                    .copyWith(color: Colors.white)),
+            child: Text(
+              accordInitial(session.username),
+              style: theme.textTheme.titleSmall!.copyWith(color: Colors.white),
+            ),
           ),
           title: Text(session.username, style: theme.textTheme.bodyLarge),
           subtitle: Text(

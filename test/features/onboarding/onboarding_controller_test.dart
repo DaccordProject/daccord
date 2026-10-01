@@ -118,13 +118,6 @@ void main() {
       // A new container is a new launch reading the same box.
       expect(_notifier(_container()).hasSeenTour, isTrue);
     });
-
-    test('clearSeen re-arms the tour', () {
-      final controller = _notifier(_container());
-      controller.markSeen();
-      controller.clearSeen();
-      expect(controller.hasSeenTour, isFalse);
-    });
   });
 
   group('startup gating', () {
@@ -204,8 +197,7 @@ void main() {
         expect(controller.existingUserAtLaunch, isFalse);
         expect(controller.startupTrigger, OnboardingTrigger.firstLaunch);
         // ...but a launch that starts with the session already there is old.
-        controller.resetStartupGuard();
-        expect(controller.existingUserAtLaunch, isTrue);
+        expect(_notifier(_container()).existingUserAtLaunch, isTrue);
       },
     );
   });

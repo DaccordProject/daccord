@@ -12,11 +12,9 @@ class McpServer {
     required String Function() tokenGetter,
     required List<String> Function() allowedGroupsGetter,
     required void Function(McpActivity) onActivity,
-    String appVersion = '0.0.0',
   });
 
   bool get isListening => false;
-  int get port => 0;
 
   Future<bool> start(int port) async => false;
 

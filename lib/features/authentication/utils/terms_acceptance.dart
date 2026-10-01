@@ -25,9 +25,3 @@ Future<void> recordAppTermsAcceptance() async {
   if (!Hive.isBoxOpen(_termsBoxName)) return;
   await Hive.box(_termsBoxName).put(_termsVersionKey, appTermsVersion);
 }
-
-/// Clears the record, so the gate shows again. Used by tests.
-Future<void> clearAppTermsAcceptance() async {
-  if (!Hive.isBoxOpen(_termsBoxName)) return;
-  await Hive.box(_termsBoxName).delete(_termsVersionKey);
-}

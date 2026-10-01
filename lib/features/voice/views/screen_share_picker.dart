@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bonfire/features/voice/controllers/voice.dart';
+import 'package:bonfire/shared/components/dialog_title_bar.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,12 +11,9 @@ import 'package:universal_platform/universal_platform.dart';
 /// Shows a desktop screen/window source picker (Screen and Window tabs with
 /// live thumbnails). Returns the chosen source, or null if cancelled.
 ///
-/// This is our own picker rather than LiveKit's bundled `ScreenSelectDialog`:
-/// that SDK widget subscribes to flutter_webrtc's thumbnail stream and calls
-/// `setState` on a `StatefulBuilder` from the callback without a `mounted`
-/// guard or cancelling on dispose, so a late thumbnail event after the dialog
-/// is dismissed throws "setState() called after dispose()". Our dialog cancels
-/// its subscriptions in `dispose()` and guards every `setState` with `mounted`.
+/// Not LiveKit's bundled `ScreenSelectDialog`: it calls `setState` from
+/// flutter_webrtc's thumbnail stream without a `mounted` guard or cancelling on
+/// dispose, so a late thumbnail throws "setState() called after dispose()".
 Future<rtc.DesktopCapturerSource?> showScreenShareSourcePicker(
   BuildContext context,
 ) {
@@ -76,19 +74,24 @@ class _ScreenShareSourceDialogState extends State<_ScreenShareSourceDialog>
   void initState() {
     super.initState();
 
-    _subscriptions.add(rtc.desktopCapturer.onAdded.stream.listen((source) {
-      if (!mounted) return;
-      setState(() => _sources[source.id] = source);
-    }));
-    _subscriptions.add(rtc.desktopCapturer.onRemoved.stream.listen((source) {
-      if (!mounted) return;
-      setState(() => _sources.remove(source.id));
-    }));
-    _subscriptions
-        .add(rtc.desktopCapturer.onThumbnailChanged.stream.listen((_) {
-      if (!mounted) return;
-      setState(() {});
-    }));
+    _subscriptions.add(
+      rtc.desktopCapturer.onAdded.stream.listen((source) {
+        if (!mounted) return;
+        setState(() => _sources[source.id] = source);
+      }),
+    );
+    _subscriptions.add(
+      rtc.desktopCapturer.onRemoved.stream.listen((source) {
+        if (!mounted) return;
+        setState(() => _sources.remove(source.id));
+      }),
+    );
+    _subscriptions.add(
+      rtc.desktopCapturer.onThumbnailChanged.stream.listen((_) {
+        if (!mounted) return;
+        setState(() {});
+      }),
+    );
 
     _loadSources();
   }
@@ -106,8 +109,9 @@ class _ScreenShareSourceDialogState extends State<_ScreenShareSourceDialog>
 
   void _onTabChanged() {
     if (_tabs.indexIsChanging) return;
-    final type =
-        _tabs.index == 0 ? rtc.SourceType.Screen : rtc.SourceType.Window;
+    final type = _tabs.index == 0
+        ? rtc.SourceType.Screen
+        : rtc.SourceType.Window;
     if (type == _sourceType) return;
     _sourceType = type;
     _loadSources();
@@ -115,8 +119,9 @@ class _ScreenShareSourceDialogState extends State<_ScreenShareSourceDialog>
 
   Future<void> _loadSources() async {
     try {
-      final sources =
-          await rtc.desktopCapturer.getSources(types: [_sourceType]);
+      final sources = await rtc.desktopCapturer.getSources(
+        types: [_sourceType],
+      );
       if (!mounted) return;
       setState(() {
         _sources
@@ -153,23 +158,11 @@ class _ScreenShareSourceDialogState extends State<_ScreenShareSourceDialog>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
-              child: Row(
-                children: [
-                  Icon(Icons.screen_share_outlined,
-                      size: 20, color: colors.dirtyWhite),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('Choose what to share',
-                        style: theme.textTheme.titleMedium),
-                  ),
-                  IconButton(
-                    tooltip: 'Close',
-                    onPressed: _cancel,
-                    icon: Icon(Icons.close, size: 20, color: colors.gray),
-                  ),
-                ],
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 12, 0),
+              child: DialogTitleBar(
+                'Choose what to share',
+                icon: Icons.screen_share_outlined,
               ),
             ),
             TabBar(
@@ -184,13 +177,16 @@ class _ScreenShareSourceDialogState extends State<_ScreenShareSourceDialog>
                   ? Center(
                       child: Text(
                         'No sources available',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: colors.gray),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.gray,
+                        ),
                       ),
                     )
                   : GridView.count(
                       padding: const EdgeInsets.all(16),
-                      crossAxisCount: _sourceType == rtc.SourceType.Screen ? 2 : 3,
+                      crossAxisCount: _sourceType == rtc.SourceType.Screen
+                          ? 2
+                          : 3,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
                       childAspectRatio: 1.4,

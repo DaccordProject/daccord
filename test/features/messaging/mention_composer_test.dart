@@ -154,6 +154,20 @@ void main() {
     expect(find.byTooltip('Send'), findsOneWidget);
   });
 
+  testWidgets('the hint follows text set without a mention at the caret', (
+    tester,
+  ) async {
+    await _pump(tester);
+
+    await tester.enterText(_composer, 'Hello @everyone ');
+    await tester.pump();
+    expect(find.text(_permissionHint), findsOneWidget);
+
+    await tester.enterText(_composer, 'Hello');
+    await tester.pump();
+    expect(find.text(_permissionHint), findsNothing);
+  });
+
   testWidgets('channel overwrite grants broadcast mention permission', (
     tester,
   ) async {

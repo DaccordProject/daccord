@@ -8,78 +8,48 @@ part of 'release_notes_controller.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Shows the release notes for the build the user is *now* running, once, after
-/// an update is applied (#183).
+/// Shows the release notes for the running build once after an update. The
+/// staged [AppRelease] dies with the old process, so this fetches the running
+/// tag ([kGithubReleaseByTagUrl]), which also covers updates applied outside
+/// the app.
 ///
-/// The updater already fetches notes for the release it's about to install, but
-/// the one-click flow (stage in the background → tap → relaunch) means most
-/// users never read them, and the staged [AppRelease] dies with the old process.
-/// So this fetches the notes for the running tag instead
-/// ([kGithubReleaseByTagUrl]) — which also covers updates applied outside the
-/// app (package manager, Play Store, a fresh download).
+/// The seen marker lives in the `accord-settings` box under [_seenKey], not in
+/// `AccordSettings`: settings are exportable between devices, and a carried
+/// marker would suppress (or fake) notes on the receiving one.
 ///
-/// **Persistence.** The last version we showed notes for lives in the existing
-/// `accord-settings` Hive box under its own [_seenKey] (no new box). It is
-/// deliberately *not* part of `AccordSettings`: settings are exportable /
-/// importable between devices, and carrying a "seen" marker across machines
-/// would suppress (or fake) notes on the receiving one.
-///
-/// **App Store / Play builds.** [kAppStoreBuild] disables the *updater*
-/// (downloading and running executable code outside the store); reading a
-/// release's markdown body is not that, so notes still show on those builds —
-/// the user updated through the store and still deserves to know what changed.
-/// Nothing here can install anything, and when the fetch fails or the release
-/// has no body nothing is shown at all (never a broken/empty sheet).
+/// Notes still show on store builds: [kAppStoreBuild] forbids installing code,
+/// and reading a release body installs nothing. A failed fetch or empty body
+/// shows nothing.
 
 @ProviderFor(ReleaseNotesController)
 final releaseNotesControllerProvider = ReleaseNotesControllerProvider._();
 
-/// Shows the release notes for the build the user is *now* running, once, after
-/// an update is applied (#183).
+/// Shows the release notes for the running build once after an update. The
+/// staged [AppRelease] dies with the old process, so this fetches the running
+/// tag ([kGithubReleaseByTagUrl]), which also covers updates applied outside
+/// the app.
 ///
-/// The updater already fetches notes for the release it's about to install, but
-/// the one-click flow (stage in the background → tap → relaunch) means most
-/// users never read them, and the staged [AppRelease] dies with the old process.
-/// So this fetches the notes for the running tag instead
-/// ([kGithubReleaseByTagUrl]) — which also covers updates applied outside the
-/// app (package manager, Play Store, a fresh download).
+/// The seen marker lives in the `accord-settings` box under [_seenKey], not in
+/// `AccordSettings`: settings are exportable between devices, and a carried
+/// marker would suppress (or fake) notes on the receiving one.
 ///
-/// **Persistence.** The last version we showed notes for lives in the existing
-/// `accord-settings` Hive box under its own [_seenKey] (no new box). It is
-/// deliberately *not* part of `AccordSettings`: settings are exportable /
-/// importable between devices, and carrying a "seen" marker across machines
-/// would suppress (or fake) notes on the receiving one.
-///
-/// **App Store / Play builds.** [kAppStoreBuild] disables the *updater*
-/// (downloading and running executable code outside the store); reading a
-/// release's markdown body is not that, so notes still show on those builds —
-/// the user updated through the store and still deserves to know what changed.
-/// Nothing here can install anything, and when the fetch fails or the release
-/// has no body nothing is shown at all (never a broken/empty sheet).
+/// Notes still show on store builds: [kAppStoreBuild] forbids installing code,
+/// and reading a release body installs nothing. A failed fetch or empty body
+/// shows nothing.
 final class ReleaseNotesControllerProvider
     extends $NotifierProvider<ReleaseNotesController, ReleaseNotesState> {
-  /// Shows the release notes for the build the user is *now* running, once, after
-  /// an update is applied (#183).
+  /// Shows the release notes for the running build once after an update. The
+  /// staged [AppRelease] dies with the old process, so this fetches the running
+  /// tag ([kGithubReleaseByTagUrl]), which also covers updates applied outside
+  /// the app.
   ///
-  /// The updater already fetches notes for the release it's about to install, but
-  /// the one-click flow (stage in the background → tap → relaunch) means most
-  /// users never read them, and the staged [AppRelease] dies with the old process.
-  /// So this fetches the notes for the running tag instead
-  /// ([kGithubReleaseByTagUrl]) — which also covers updates applied outside the
-  /// app (package manager, Play Store, a fresh download).
+  /// The seen marker lives in the `accord-settings` box under [_seenKey], not in
+  /// `AccordSettings`: settings are exportable between devices, and a carried
+  /// marker would suppress (or fake) notes on the receiving one.
   ///
-  /// **Persistence.** The last version we showed notes for lives in the existing
-  /// `accord-settings` Hive box under its own [_seenKey] (no new box). It is
-  /// deliberately *not* part of `AccordSettings`: settings are exportable /
-  /// importable between devices, and carrying a "seen" marker across machines
-  /// would suppress (or fake) notes on the receiving one.
-  ///
-  /// **App Store / Play builds.** [kAppStoreBuild] disables the *updater*
-  /// (downloading and running executable code outside the store); reading a
-  /// release's markdown body is not that, so notes still show on those builds —
-  /// the user updated through the store and still deserves to know what changed.
-  /// Nothing here can install anything, and when the fetch fails or the release
-  /// has no body nothing is shown at all (never a broken/empty sheet).
+  /// Notes still show on store builds: [kAppStoreBuild] forbids installing code,
+  /// and reading a release body installs nothing. A failed fetch or empty body
+  /// shows nothing.
   ReleaseNotesControllerProvider._()
     : super(
         from: null,
@@ -108,30 +78,20 @@ final class ReleaseNotesControllerProvider
 }
 
 String _$releaseNotesControllerHash() =>
-    r'3efb6903312c385d3de8d355a35849b73e991077';
+    r'69fea23bd74af2c19d876e4e7fec00a2bd8f99eb';
 
-/// Shows the release notes for the build the user is *now* running, once, after
-/// an update is applied (#183).
+/// Shows the release notes for the running build once after an update. The
+/// staged [AppRelease] dies with the old process, so this fetches the running
+/// tag ([kGithubReleaseByTagUrl]), which also covers updates applied outside
+/// the app.
 ///
-/// The updater already fetches notes for the release it's about to install, but
-/// the one-click flow (stage in the background → tap → relaunch) means most
-/// users never read them, and the staged [AppRelease] dies with the old process.
-/// So this fetches the notes for the running tag instead
-/// ([kGithubReleaseByTagUrl]) — which also covers updates applied outside the
-/// app (package manager, Play Store, a fresh download).
+/// The seen marker lives in the `accord-settings` box under [_seenKey], not in
+/// `AccordSettings`: settings are exportable between devices, and a carried
+/// marker would suppress (or fake) notes on the receiving one.
 ///
-/// **Persistence.** The last version we showed notes for lives in the existing
-/// `accord-settings` Hive box under its own [_seenKey] (no new box). It is
-/// deliberately *not* part of `AccordSettings`: settings are exportable /
-/// importable between devices, and carrying a "seen" marker across machines
-/// would suppress (or fake) notes on the receiving one.
-///
-/// **App Store / Play builds.** [kAppStoreBuild] disables the *updater*
-/// (downloading and running executable code outside the store); reading a
-/// release's markdown body is not that, so notes still show on those builds —
-/// the user updated through the store and still deserves to know what changed.
-/// Nothing here can install anything, and when the fetch fails or the release
-/// has no body nothing is shown at all (never a broken/empty sheet).
+/// Notes still show on store builds: [kAppStoreBuild] forbids installing code,
+/// and reading a release body installs nothing. A failed fetch or empty body
+/// shows nothing.
 
 abstract class _$ReleaseNotesController extends $Notifier<ReleaseNotesState> {
   ReleaseNotesState build();

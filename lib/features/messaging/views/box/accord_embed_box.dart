@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/server_timestamp.dart';
 import 'package:bonfire/features/messaging/utils/youtube_video.dart';
 import 'package:bonfire/features/messaging/views/youtube_preview.dart';
 import 'package:bonfire/features/messaging/views/box/accord_markdown_box.dart';
@@ -35,7 +36,7 @@ class AccordEmbedBox extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
 
-    final author = _asMap(embed.author);
+    final author = asMap(embed.author);
     final authorName = _str(author?['name']);
     final authorUrl = _str(author?['url']);
     final authorIcon = _trustedImage(_str(author?['icon_url']));
@@ -242,7 +243,7 @@ class _EmbedFields extends StatelessWidget {
 
     var i = 0;
     while (i < fields.length) {
-      final field = _asMap(fields[i]);
+      final field = asMap(fields[i]);
       if (field == null) {
         i++;
         continue;
@@ -251,7 +252,7 @@ class _EmbedFields extends StatelessWidget {
       if (inline) {
         final cells = <Widget>[];
         while (i < fields.length && cells.length < 3) {
-          final f = _asMap(fields[i]);
+          final f = asMap(fields[i]);
           if (f == null || f['inline'] != true) break;
           cells.add(Expanded(child: cell(f)));
           i++;
@@ -308,12 +309,6 @@ class _LinkText extends StatelessWidget {
   }
 }
 
-Map<String, dynamic>? _asMap(Object? value) {
-  if (value is Map<String, dynamic>) return value;
-  if (value is Map) return Map<String, dynamic>.from(value);
-  return null;
-}
-
 String? _str(Object? value) {
   if (value is String && value.isNotEmpty) return value;
   return null;
@@ -323,13 +318,13 @@ String? _str(Object? value) {
 /// object depending on the server.
 String? _imageUrl(Object? value) {
   if (value is String) return value.isEmpty ? null : value;
-  return _str(_asMap(value)?['url']);
+  return _str(asMap(value)?['url']);
 }
 
 /// Footer is either a string or a `{text, icon_url}` object.
 String? _footerText(Object? value) {
   if (value is String) return value.isEmpty ? null : value;
-  return _str(_asMap(value)?['text']);
+  return _str(asMap(value)?['text']);
 }
 
 /// Embed color is an RGB integer (no alpha); returns null when absent.
@@ -355,7 +350,7 @@ String _joinFooter(String? footer, String? timestamp) {
 String? _formatTimestamp(Object? value) {
   final s = _str(value);
   if (s == null) return null;
-  final dt = DateTime.tryParse(s);
+  final dt = parseServerTimestamp(s);
   if (dt == null) return null;
   final local = dt.toLocal();
   String pad(int n) => n.toString().padLeft(2, "0");

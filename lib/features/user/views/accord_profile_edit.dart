@@ -4,7 +4,6 @@ import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
@@ -16,7 +15,6 @@ import 'package:bonfire/shared/components/image_crop_dialog.dart';
 import 'package:bonfire/shared/components/ticker_aware_circle_avatar.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -54,8 +52,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
 
   /// Bytes of a freshly-picked avatar awaiting save. When non-null, save uses
   /// it as a data URI; otherwise the current server-side avatar is unchanged.
-  List<int>? _newAvatarBytes;
-  String? _newAvatarFilename;
+  Uint8List? _newAvatarBytes;
 
   /// The chosen imageless-avatar background color (stored as the user's
   /// `accent_color`). `null` means "transparent" — the avatar falls back to the
@@ -79,11 +76,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
   }
 
   AccordClient? get _client => widget.serverKey == null
-      ? ref.read(
-          accordAuthProvider.select(
-            (s) => s is AccordAuthLoggedIn ? s.client : null,
-          ),
-        )
+      ? ref.accordClient
       : ref.read(accordAuthProvider.notifier).clientForKey(widget.serverKey!);
 
   @override
@@ -122,30 +115,28 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
       // Only seed the shared user cache when editing the active server (the
       // cache belongs to it); a background server's user shouldn't leak in.
       if (_isActiveServer) {
-        ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).upsert(data);
+        ref
+            .read(
+              accordUsersControllerProvider(
+                ref.readActiveServerKey() ?? '',
+              ).notifier,
+            )
+            .upsert(data);
       }
     }
     setState(() => _loaded = true);
   }
 
   Future<void> _pickAvatar() async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      withData: true,
-    );
-    final file = picked?.files.firstOrNull;
-    if (file?.bytes == null || !mounted) return;
-    final cropped = await showImageCropDialog(
+    final cropped = await pickAndCropImage(
       context,
-      imageBytes: file!.bytes!,
       aspectRatio: 1,
       circular: true,
       title: 'Crop avatar',
     );
-    if (cropped == null) return;
+    if (cropped == null || !mounted) return;
     setState(() {
       _newAvatarBytes = cropped;
-      _newAvatarFilename = 'avatar.png';
       // An uploaded image hides the colored fallback, so reset the picker to
       // transparent — the chosen color only applies to imageless avatars.
       _accentColor = null;
@@ -165,19 +156,15 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
       // null clears the accent server-side, falling back to the auto color.
       'accent_color': _accentColor == null ? null : (_accentColor! & 0xFFFFFF),
     };
-    if (_newAvatarBytes != null) {
-      body['avatar'] = AccordCDN.buildDataUri(
-        _toUint8(_newAvatarBytes!),
-        _newAvatarFilename ?? 'avatar.png',
-      );
+    final avatarBytes = _newAvatarBytes;
+    if (avatarBytes != null) {
+      body['avatar'] = AccordCDN.buildDataUri(avatarBytes, 'avatar.png');
     }
     final result = await client.users.updateMe(body);
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(
-        () => _error = result.errorOr('Failed to save profile'),
-      );
+      setState(() => _error = result.errorOr('Failed to save profile'));
       return;
     }
     final updated = result.data;
@@ -185,7 +172,13 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     // server — those caches belong to it. A per-server edit of a background
     // connection just persists server-side and takes effect when it's active.
     if (updated is AccordUser && _isActiveServer) {
-      ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).upsert(updated);
+      ref
+          .read(
+            accordUsersControllerProvider(
+              ref.readActiveServerKey() ?? '',
+            ).notifier,
+          )
+          .upsert(updated);
       // The member caches hold their own AccordUser per member; propagate the
       // change so message authors and the roster update, not just surfaces that
       // read the global user cache.
@@ -217,7 +210,9 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
         _loadedUser ??
         (_isActiveServer && session != null
             ? ref.watch(
-                accordUsersControllerProvider(ref.readActiveServerKey() ?? '').select((m) => m[session.userId]),
+                accordUsersControllerProvider(
+                  ref.readActiveServerKey() ?? '',
+                ).select((m) => m[session.userId]),
               )
             : null);
     final avatarUrl = me == null
@@ -277,7 +272,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                         radius: 40,
                         backgroundColor: previewBg,
                         foregroundImage: _newAvatarBytes != null
-                            ? MemoryImage(_toUint8(_newAvatarBytes!))
+                            ? MemoryImage(_newAvatarBytes!)
                             : (avatarUrl != null
                                   ? CachedNetworkImageProvider(avatarUrl)
                                   : null),
@@ -393,10 +388,3 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     );
   }
 }
-
-// MemoryImage needs a Uint8List; FilePicker returns one from `bytes`, but it's
-// typed as List<int> through accordkit helpers — cast/copy on the boundary.
-Uint8List _toUint8(List<int> bytes) =>
-    bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
-
-/// A selectable avatar-background swatch. The [transparent] variant marks the

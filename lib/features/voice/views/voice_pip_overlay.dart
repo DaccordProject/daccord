@@ -15,16 +15,12 @@ import 'package:livekit_client/livekit_client.dart' show VideoTrack;
 
 /// A small, draggable picture-in-picture window that floats over the app while
 /// connected to a voice channel that has active video, but only when the user
-/// has navigated away from that channel. Tapping it jumps back to the call.
-/// Ports the reference client's PiP (`main_window_voice_view.gd`
-/// `maybe_spawn_pip` / `video_pip.gd`): it only appears when there is video to
-/// show, and clicking it reopens the voice view.
+/// has navigated away from that channel. Tapping it jumps back to the call
+/// (reference: `video_pip.gd`).
 ///
-/// Covers DM/group-DM calls too (`spaceId == null`), which used to be excluded
-/// outright (#136) — those reopen by pushing the full-screen call view rather
-/// than through [onOpen], since a DM channel can't be opened as a space
-/// channel. An audio-only call shows no PiP either way: there's no video to
-/// preview.
+/// DM/group-DM calls (`spaceId == null`) reopen by pushing the full-screen
+/// call view rather than through [onOpen], since a DM channel can't be opened
+/// as a space channel.
 ///
 /// Designed to be dropped directly into a [Stack] (it returns a [Positioned]).
 class VoicePipOverlay extends ConsumerStatefulWidget {
@@ -81,8 +77,7 @@ class _VoicePipOverlayState extends ConsumerState<VoicePipOverlay> {
 
     final size = MediaQuery.of(context).size;
     final pos = _clamp(
-      _pos ??
-          Offset(size.width - _w - _margin, size.height - _h - _margin * 2),
+      _pos ?? Offset(size.width - _w - _margin, size.height - _h - _margin * 2),
       size,
     );
 
@@ -114,9 +109,13 @@ class _VoicePipOverlayState extends ConsumerState<VoicePipOverlay> {
                       tooltip: 'Disconnect',
                       iconSize: 16,
                       visualDensity: VisualDensity.compact,
-                      constraints:
-                          const BoxConstraints(minWidth: 28, minHeight: 28),
-                      onPressed: () => _hangUp(channelId, spaceId),
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                      onPressed: () => ref
+                          .read(callControllerProvider.notifier)
+                          .hangUp(channelId, spaceId),
                       icon: Icon(Icons.call_end, color: colors.red),
                     ),
                   ),
@@ -124,8 +123,11 @@ class _VoicePipOverlayState extends ConsumerState<VoicePipOverlay> {
                 const Positioned(
                   left: 4,
                   bottom: 4,
-                  child: Icon(Icons.open_in_full,
-                      size: 14, color: Colors.white70),
+                  child: Icon(
+                    Icons.open_in_full,
+                    size: 14,
+                    color: Colors.white70,
+                  ),
                 ),
               ],
             ),
@@ -135,9 +137,7 @@ class _VoicePipOverlayState extends ConsumerState<VoicePipOverlay> {
     );
   }
 
-  /// Reopens the call the PiP is previewing. A space voice channel routes
-  /// through the host's channel opener; a DM call has no space to open, so it
-  /// pushes the full-screen call view directly (#136).
+  /// Reopens the call the PiP is previewing.
   void _open(String channelId, String? spaceId) {
     if (spaceId != null) {
       widget.onOpen(channelId, spaceId);
@@ -149,20 +149,6 @@ class _VoicePipOverlayState extends ConsumerState<VoicePipOverlay> {
       spaceId: null,
       channelName: _dmTitle(channelId),
     );
-  }
-
-  /// Hangs up from the PiP. Matches the in-call control bar: a DM call that's
-  /// still ringing has to send `call/cancel` so the callee stops ringing,
-  /// rather than just dropping out of the room (#140).
-  void _hangUp(String channelId, String? spaceId) {
-    final ringingDmCall =
-        spaceId == null &&
-        ref.read(callControllerProvider).outgoingChannelId == channelId;
-    if (ringingDmCall) {
-      ref.read(callControllerProvider.notifier).cancelOutgoing();
-    } else {
-      ref.read(voiceControllerProvider.notifier).leave();
-    }
   }
 
   /// The DM/group-DM channel's display name: its custom name if it has one,
@@ -194,10 +180,7 @@ class _VoicePipOverlayState extends ConsumerState<VoicePipOverlay> {
   Offset _clamp(Offset p, Size screen) {
     final maxX = (screen.width - _w - _margin).clamp(_margin, double.infinity);
     final maxY = (screen.height - _h - _margin).clamp(_margin, double.infinity);
-    return Offset(
-      p.dx.clamp(_margin, maxX),
-      p.dy.clamp(_margin, maxY),
-    );
+    return Offset(p.dx.clamp(_margin, maxX), p.dy.clamp(_margin, maxY));
   }
 
   /// The first available video track to preview: our own screen-share or

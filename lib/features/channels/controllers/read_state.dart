@@ -1,13 +1,13 @@
 import 'dart:async';
 
+import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/channels/utils/message_position.dart';
 import 'package:bonfire/features/notifications/services/notification.dart';
-export 'package:bonfire/features/channels/utils/message_position.dart';
-
-import 'package:accordkit/accordkit.dart';
-import 'package:flutter/foundation.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+export 'package:bonfire/features/channels/utils/message_position.dart';
 
 part 'read_state.g.dart';
 
@@ -62,9 +62,9 @@ class ReadEntry {
   final String? lastMessageId;
   final String? lastReadMessageId;
 
-  ReadEntry copyWith({String? spaceId, int? mentions}) => ReadEntry(
+  ReadEntry copyWith({int? mentions}) => ReadEntry(
     channelId: channelId,
-    spaceId: spaceId ?? this.spaceId,
+    spaceId: spaceId,
     mentions: mentions ?? this.mentions,
     lastMessageId: lastMessageId,
     lastReadMessageId: lastReadMessageId,
@@ -161,7 +161,7 @@ class ReadStateSnapshot {
 /// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
 /// servers don't clobber each other.
 ///
-/// Three things feed it:
+/// Four things feed it:
 ///  * the gateway READY handler [hydrate]s the server's authoritative unread
 ///    list on every (re)connect — this is what survives a cold start and what
 ///    lights up *background* servers;
@@ -356,21 +356,6 @@ class ReadStateController extends _$ReadStateController {
       unawaited(dismissReadNotifications(serverKey: serverKey, channelId: id));
     }
     state = ReadStateSnapshot(entries: entries);
-  }
-
-  void clear() {
-    for (final timer in _retries.values) {
-      timer.cancel();
-    }
-    _retries.clear();
-    _pending.clear();
-    _sending.clear();
-    _latest.clear();
-    _received.clear();
-    _readThrough.clear();
-    _syncedThrough.clear();
-    _mentionIds.clear();
-    state = const ReadStateSnapshot();
   }
 }
 

@@ -42,14 +42,6 @@ class HiddenMessagesController extends _$HiddenMessagesController {
     await _persist();
   }
 
-  /// Restores [messageId]. Nothing in the UI calls this yet — it exists so a
-  /// mistaken report is recoverable rather than permanent.
-  Future<void> unhide(String messageId) async {
-    if (!state.contains(messageId)) return;
-    state = {...state}..remove(messageId);
-    await _persist();
-  }
-
   Future<void> _persist() async =>
       await _box?.put(hiddenMessagesKey, state.toList());
 }

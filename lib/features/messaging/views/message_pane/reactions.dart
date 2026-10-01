@@ -138,17 +138,18 @@ class _ReactorsDialogState extends ConsumerState<_ReactorsDialog> {
   }
 
   Future<void> _load() async {
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
+    final client = ref.accordClient;
     if (client == null) {
       setState(() => _users = const []);
       return;
     }
     final users = await ref
-        .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId).notifier)
+        .read(
+          accordMessagesControllerProvider(
+            ref.readActiveServerKey() ?? '',
+            widget.channelId,
+          ).notifier,
+        )
         .reactionUsers(
           client,
           widget.messageId,
@@ -172,10 +173,7 @@ class _ReactorsDialogState extends ConsumerState<_ReactorsDialog> {
       content: SizedBox(
         width: 300,
         child: users == null
-            ? const SizedBox(
-                height: 80,
-                child: LoadingView(),
-              )
+            ? const SizedBox(height: 80, child: LoadingView())
             : users.isEmpty
             ? Padding(
                 padding: const EdgeInsets.all(16),

@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/features/messaging/utils/composer_input.dart';
 import 'package:bonfire/features/messaging/views/message_media_gate.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -7,16 +8,15 @@ import 'package:dart_markdown/dart_markdown.dart' as md;
 import 'package:flutter/material.dart';
 import 'package:markdown_viewer/markdown_viewer.dart';
 
-/// Resolved lookup tables + tap callbacks for rendering Accord's inline tokens
-/// (`@user` / `@role` / `@everyone` / `#channel` chips, custom `:emoji:`,
-/// `||spoiler||`, `__underline__`) as markdown syntax extensions.
+/// Resolved lookup tables for Accord's inline tokens (`@user` / `@role` /
+/// `@everyone` / `#channel` chips, custom `:emoji:`, `||spoiler||`,
+/// `__underline__`).
 ///
 /// All maps are keyed by the **lowercased** handle/name so resolution is
 /// case-insensitive. Anything not present here simply renders as plain text —
 /// an unresolved `#channel` or `@user` is left verbatim rather than chipped.
-/// Pass empty maps (the default) in contexts without a space (e.g. DMs); the
-/// protocol-agnostic tokens (`@everyone`/`@here`, spoiler, underline, markdown)
-/// still apply.
+/// Without a space (e.g. DMs) the maps stay empty; the protocol-agnostic
+/// tokens (`@everyone`/`@here`, spoiler, underline, markdown) still apply.
 class AccordMarkupContext {
   const AccordMarkupContext({
     this.userByHandle = const {},
@@ -24,8 +24,6 @@ class AccordMarkupContext {
     this.channelByName = const {},
     this.emojiByName = const {},
     this.cdnUrl,
-    this.onTapUser,
-    this.onTapChannel,
   });
 
   final Map<String, AccordMember> userByHandle;
@@ -33,36 +31,37 @@ class AccordMarkupContext {
   final Map<String, AccordChannel> channelByName;
   final Map<String, AccordEmoji> emojiByName;
   final String? cdnUrl;
-  final void Function(String userId)? onTapUser;
-  final void Function(String channelId)? onTapChannel;
 }
 
-/// Builds the syntax extensions + element builders that teach
-/// [AccordMarkdownBox]'s `markdown_viewer` stack to render Accord's inline
-/// tokens *alongside* standard markdown (rather than replacing it).
+/// The syntax extensions that teach [AccordMarkdownBox]'s `markdown_viewer`
+/// stack to render Accord's inline tokens *alongside* standard markdown.
 ///
 /// Custom inline syntaxes are evaluated before the built-in emphasis syntaxes,
 /// so `__text__` becomes an underline (matching the reference client) instead
 /// of bold, and `:emoji:` / `@mention` / `#channel` chip up when they resolve.
-({List<md.Syntax> syntaxes, List<MarkdownElementBuilder> builders})
-buildAccordMarkup(AccordMarkupContext ctx) {
-  return (
-    syntaxes: <md.Syntax>[
-      _SpoilerSyntax(),
-      _UnderlineSyntax(),
-      _EmojiSyntax(ctx),
-      _MentionSyntax(ctx),
-      _ChannelSyntax(ctx),
-    ],
-    builders: <MarkdownElementBuilder>[
-      _SpoilerBuilder(),
-      _UnderlineBuilder(),
-      _EmojiBuilder(ctx.cdnUrl),
-      _MentionBuilder(ctx.onTapUser),
-      _ChannelBuilder(ctx.onTapChannel),
-    ],
-  );
-}
+List<md.Syntax> accordMarkupSyntaxes([
+  AccordMarkupContext ctx = const AccordMarkupContext(),
+]) => [
+  _SpoilerSyntax(),
+  _UnderlineSyntax(),
+  _EmojiSyntax(ctx),
+  _MentionSyntax(ctx),
+  _ChannelSyntax(ctx),
+];
+
+/// The element builders for [accordMarkupSyntaxes]' elements. Mention and
+/// channel chips are tappable when [onTapUser] / [onTapChannel] are given.
+List<MarkdownElementBuilder> accordMarkupBuilders({
+  String? cdnUrl,
+  void Function(String userId)? onTapUser,
+  void Function(String channelId)? onTapChannel,
+}) => [
+  _SpoilerBuilder(),
+  _UnderlineBuilder(),
+  _EmojiBuilder(cdnUrl),
+  _MentionBuilder(onTapUser),
+  _ChannelBuilder(onTapChannel),
+];
 
 // ---------------------------------------------------------------------------
 // Syntaxes
@@ -128,7 +127,7 @@ class _EmojiSyntax extends md.InlineSyntax {
   md.InlineObject? parse(md.InlineParser parser, Match match) {
     final emoji = ctx.emojiByName[match[1]!.toLowerCase()];
     if (emoji == null) return null;
-    final url = _emojiUrl(emoji, ctx.cdnUrl);
+    final url = accordEmojiUrl(emoji, ctx.cdnUrl);
     final markers = parser.consumeBy(match[0]!.length);
     return md.InlineElement(
       'accordEmoji',
@@ -154,7 +153,7 @@ class _MentionSyntax extends md.InlineSyntax {
   @override
   md.InlineObject? parse(md.InlineParser parser, Match match) {
     final pos = parser.position;
-    if (pos > 0 && _isWordCharCode(parser.charAt(pos - 1))) return null;
+    if (pos > 0 && isMentionWordChar(parser.charAt(pos - 1))) return null;
 
     String label;
     Color color;
@@ -174,7 +173,7 @@ class _MentionSyntax extends md.InlineSyntax {
       } else {
         final member = ctx.userByHandle[lower];
         if (member == null) return null;
-        label = '@${_memberLabel(member, handle)}';
+        label = '@${accordUserName(member.user, fallback: handle)}';
         color = _mentionColor;
         userId = member.user?.id;
       }
@@ -207,7 +206,7 @@ class _ChannelSyntax extends md.InlineSyntax {
   @override
   md.InlineObject? parse(md.InlineParser parser, Match match) {
     final pos = parser.position;
-    if (pos > 0 && _isWordCharCode(parser.charAt(pos - 1))) return null;
+    if (pos > 0 && isMentionWordChar(parser.charAt(pos - 1))) return null;
 
     final channel = ctx.channelByName[match[1]!.toLowerCase()];
     if (channel == null) return null;
@@ -250,7 +249,11 @@ class _MentionBuilder extends MarkdownElementBuilder {
         ? () => onTapUser!(userId)
         : null;
     return _inlineWidget(
-      _Chip(label: a['label'] ?? '', color: _decodeColor(a['color']), onTap: tap),
+      _Chip(
+        label: a['label'] ?? '',
+        color: _decodeColor(a['color']),
+        onTap: tap,
+      ),
     );
   }
 }
@@ -274,7 +277,11 @@ class _ChannelBuilder extends MarkdownElementBuilder {
         ? () => onTapChannel!(channelId)
         : null;
     return _inlineWidget(
-      _Chip(label: a['label'] ?? '', color: _decodeColor(a['color']), onTap: tap),
+      _Chip(
+        label: a['label'] ?? '',
+        color: _decodeColor(a['color']),
+        onTap: tap,
+      ),
     );
   }
 }
@@ -320,7 +327,7 @@ class _SpoilerBuilder extends MarkdownElementBuilder {
 /// a [textStyle] with an underline decoration is enough.
 class _UnderlineBuilder extends MarkdownElementBuilder {
   _UnderlineBuilder()
-      : super(textStyle: const TextStyle(decoration: TextDecoration.underline));
+    : super(textStyle: const TextStyle(decoration: TextDecoration.underline));
 
   @override
   List<String> get matchTypes => const ['accordUnderline'];
@@ -337,11 +344,8 @@ class _UnderlineBuilder extends MarkdownElementBuilder {
 /// merge pass detects the `WidgetSpan` and lays these out in a `Wrap` rather
 /// than trying to cast it into a `List<TextSpan>` (which would throw).
 Widget _inlineWidget(Widget child) => RichText(
-      text: WidgetSpan(
-        alignment: PlaceholderAlignment.middle,
-        child: child,
-      ),
-    );
+  text: WidgetSpan(alignment: PlaceholderAlignment.middle, child: child),
+);
 
 class _Chip extends StatelessWidget {
   const _Chip({required this.label, required this.color, this.onTap});
@@ -361,9 +365,9 @@ class _Chip extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
     if (onTap == null) return chip;
@@ -465,26 +469,4 @@ String _encodeColor(Color color) => color.toARGB32().toString();
 Color _decodeColor(String? encoded) {
   if (encoded == null) return _mentionColor;
   return Color(int.tryParse(encoded) ?? _mentionColor.toARGB32());
-}
-
-String _memberLabel(AccordMember member, String fallback) {
-  final display = member.user?.displayName;
-  if (display != null && display.isNotEmpty) return display;
-  final username = member.user?.username;
-  if (username != null && username.isNotEmpty) return username;
-  return fallback;
-}
-
-/// Resolves [emoji] to an absolute image URL via the shared, federation-aware
-/// resolver (remote emoji resolve against their home CDN). Null when neither an
-/// `imageUrl` nor an id is available.
-String? _emojiUrl(AccordEmoji emoji, String? cdnUrl) =>
-    accordEmojiUrl(emoji, cdnUrl);
-
-bool _isWordCharCode(int c) {
-  if (c >= 0x30 && c <= 0x39) return true; // 0-9
-  if (c >= 0x41 && c <= 0x5A) return true; // A-Z
-  if (c >= 0x61 && c <= 0x7A) return true; // a-z
-  if (c == 0x5F) return true; // _
-  return c > 0x7F; // non-ASCII (treat as word char)
 }

@@ -3,6 +3,7 @@ import 'package:bonfire/features/admin/views/admin_list_scaffold.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/self_loading_list.dart';
 import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
@@ -25,48 +26,28 @@ class AdminSpacesTab extends ConsumerStatefulWidget {
   ConsumerState<AdminSpacesTab> createState() => _AdminSpacesTabState();
 }
 
-class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
-  List<AccordSpace>? _spaces;
-  String? _error;
-  bool _busy = false;
+class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab>
+    with SelfLoadingListState<AccordSpace, AdminSpacesTab> {
   String _query = '';
 
   AccordClient? get _client => ref.accordClient;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
+  bool get canLoad => _client != null;
+
+  @override
+  Future<(List<AccordSpace>?, String?)> fetchItems() async {
+    final result = await _client!.adminApi.listSpaces(query: {'limit': 200});
+    if (!result.ok) return (null, result.errorOr('Failed to load spaces'));
+    final data = result.data;
+    return (data is List ? data.cast<AccordSpace>() : <AccordSpace>[], null);
   }
 
   List<AccordSpace> get _filtered {
-    final all = _spaces ?? const <AccordSpace>[];
+    final all = items ?? const <AccordSpace>[];
     final q = _query.trim().toLowerCase();
     if (q.isEmpty) return all;
     return all.where((s) => s.name.toLowerCase().contains(q)).toList();
-  }
-
-  Future<void> _load() async {
-    final client = _client;
-    if (client == null) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    final result = await client.adminApi.listSpaces(query: {'limit': 200});
-    if (!mounted) return;
-    if (!result.ok) {
-      setState(() {
-        _busy = false;
-        _error = result.errorOr('Failed to load spaces');
-      });
-      return;
-    }
-    final data = result.data;
-    setState(() {
-      _busy = false;
-      _spaces = data is List ? data.cast<AccordSpace>() : <AccordSpace>[];
-    });
   }
 
   /// Opens [space] in the rail using the admin's own connection — no public
@@ -93,13 +74,12 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
     if (name == null || name.trim().isEmpty) return;
     final client = _client;
     if (client == null) return;
-    setState(() => _busy = true);
+    setState(() => loading = true);
     final result = await client.spaces.create({'name': name.trim()});
     if (!mounted) return;
-    setState(() => _busy = false);
+    setState(() => loading = false);
     if (!result.ok) {
-      setState(() =>
-          _error = result.errorOr('Failed to create space'));
+      setState(() => error = result.errorOr('Failed to create space'));
       return;
     }
     final created = result.data;
@@ -107,40 +87,38 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
       final normalized = await normalizeNewSpaceEveryoneRole(client, created);
       if (!mounted) return;
       if (normalized != null && !normalized.ok) {
-        setState(() {
-          _busy = false;
-          _error = normalized.errorOr(
+        setState(
+          () => error = normalized.errorOr(
             'Space created, but its default mention permission could not be secured',
-          );
-        });
+          ),
+        );
         return;
       }
     }
-    _load();
+    load();
   }
 
   Future<void> _delete(AccordSpace space) async {
-    final ok = await _confirm(
-      'Delete space',
-      "Delete '${space.name}'? This cannot be undone.",
-      'Delete',
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Delete space',
+      message: "Delete '${space.name}'? This cannot be undone.",
+      confirmLabel: 'Delete',
+      danger: true,
     );
     if (ok != true) return;
     final client = _client;
     if (client == null) return;
-    setState(() => _busy = true);
+    setState(() => loading = true);
     final result = await client.spaces.delete(space.id);
     if (!mounted) return;
-    if (!result.ok) {
-      setState(() {
-        _busy = false;
-        _error = result.errorOr('Failed to delete space');
-      });
-      return;
-    }
     setState(() {
-      _busy = false;
-      _spaces?.removeWhere((s) => s.id == space.id);
+      loading = false;
+      if (result.ok) {
+        items?.removeWhere((s) => s.id == space.id);
+      } else {
+        error = result.errorOr('Failed to delete space');
+      }
     });
   }
 
@@ -155,43 +133,29 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
     if (newOwnerId == null || newOwnerId.trim().isEmpty) return;
     final client = _client;
     if (client == null) return;
-    setState(() => _busy = true);
-    final result = await client.adminApi
-        .updateSpace(space.id, {'owner_id': newOwnerId.trim()});
+    setState(() => loading = true);
+    final result = await client.adminApi.updateSpace(space.id, {
+      'owner_id': newOwnerId.trim(),
+    });
     if (!mounted) return;
-    if (!result.ok) {
-      setState(() {
-        _busy = false;
-        _error = result.errorOr('Failed to transfer ownership');
-      });
-      return;
-    }
     final updated = result.data;
     setState(() {
-      _busy = false;
-      if (updated is AccordSpace) {
-        final i = _spaces?.indexWhere((s) => s.id == space.id) ?? -1;
-        if (i >= 0) _spaces![i] = updated;
+      loading = false;
+      if (!result.ok) {
+        error = result.errorOr('Failed to transfer ownership');
+      } else if (updated is AccordSpace) {
+        final i = items?.indexWhere((s) => s.id == space.id) ?? -1;
+        if (i >= 0) items![i] = updated;
       }
     });
   }
 
-  Future<bool?> _confirm(String title, String message, String action) {
-    return showConfirmDialog(
-      context,
-      title: title,
-      message: message,
-      confirmLabel: action,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final spaces = _spaces;
     final list = _filtered;
     return AdminListScaffold(
-      error: _error,
-      loading: _busy && spaces == null,
+      error: error,
+      loading: loading && items == null,
       isEmpty: list.isEmpty,
       emptyMessage: 'No spaces found.',
       header: Padding(
@@ -211,13 +175,13 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
             ),
             const SizedBox(width: 8),
             FilledButton.icon(
-              onPressed: _busy ? null : _create,
+              onPressed: loading ? null : _create,
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Create'),
             ),
             IconButton(
               tooltip: 'Refresh',
-              onPressed: _busy ? null : _load,
+              onPressed: loading ? null : load,
               icon: const Icon(Icons.refresh, size: 18),
             ),
           ],
@@ -229,7 +193,7 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
         separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, i) => _SpaceRow(
           space: list[i],
-          busy: _busy,
+          busy: loading,
           onOpen: () => _open(list[i]),
           onDelete: () => _delete(list[i]),
           onTransfer: () => _transfer(list[i]),

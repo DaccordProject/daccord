@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/dialog_title_bar.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/shared/utils/self_loading_list.dart';
@@ -170,27 +171,16 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                children: [
-                  Icon(Icons.graphic_eq, size: 20, color: colors.dirtyWhite),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Soundboard',
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ),
+              DialogTitleBar(
+                'Soundboard',
+                icon: Icons.graphic_eq,
+                actions: [
                   if (widget.canManage)
                     IconButton(
                       tooltip: 'Add sound',
                       onPressed: _busy ? null : _add,
                       icon: Icon(Icons.add, size: 20, color: colors.dirtyWhite),
                     ),
-                  IconButton(
-                    tooltip: 'Close',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(Icons.close, size: 20, color: colors.gray),
-                  ),
                 ],
               ),
               const SizedBox(height: 8),

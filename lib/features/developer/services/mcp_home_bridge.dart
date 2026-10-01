@@ -1,15 +1,9 @@
 /// Web-safe bridge between the MCP tools layer and the live [AccordHomeScreen].
 ///
-/// Navigation tools (the `navigate` group) need to drive UI that only the home
-/// screen owns — selecting a space/channel tab, opening dialogs, toggling the
-/// member list. The home screen registers a set of handler closures here when it
-/// mounts and clears them when it unmounts. A reader callback exposes the home
-/// screen's latest rendered state to the `read` group's `get_current_state` tool
-/// without duplicating it.
-///
-/// This file deliberately has no `dart:io`/Flutter-widget dependency beyond the
-/// closures it stores, so it is safe to import on web (where the MCP server
-/// itself is a no-op).
+/// While mounted, the home screen registers the navigation handlers the
+/// `navigate` tools invoke and a reader for its rendered state (the `read`
+/// group's `get_current_state`). No `dart:io` or widget dependency, so it is
+/// safe to import on web.
 library;
 
 /// A navigation handler. Receives an argument map (already enriched by the tools
@@ -36,25 +30,19 @@ class McpHomeBridge {
       _stateReader?.call() ??
       (spaceId: null, channelId: null, memberListVisible: true);
 
-  /// True once the home screen has registered its handlers.
-  bool get isMounted => _handlers.isNotEmpty;
-
-  /// Registers (or replaces) all navigation handlers. Called by the home screen
-  /// in `initState`.
+  /// Registers (or replaces) all navigation handlers.
   void registerAll(Map<String, McpNavHandler> handlers) {
     _handlers
       ..clear()
       ..addAll(handlers);
   }
 
-  /// Uses the home screen's latest rendered state without keeping a second,
-  /// independently-mutated copy in this bridge.
+  /// Reads the home screen's latest rendered state rather than keeping a copy.
   void setStateReader(McpHomeStateReader reader) {
     _stateReader = reader;
   }
 
-  /// Clears every handler and the state reader. Called by the home screen in
-  /// `dispose`.
+  /// Clears every handler and the state reader.
   void clear() {
     _handlers.clear();
     _stateReader = null;

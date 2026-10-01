@@ -389,32 +389,6 @@ void main() {
     });
   });
 
-  group('PluginsApi', () {
-    test('listPlugins filters by type', () async {
-      rest = mockRest(log: log, responder: (_) => jsonData([]));
-      await PluginsApi(rest).listPlugins('7', type: 'activity');
-      expect(req.url.queryParameters['type'], 'activity');
-    });
-
-    test('getSource uses raw request', () async {
-      rest = mockRest(
-          log: log,
-          responder: (_) => http.Response.bytes(utf8.encode('-- lua'), 200));
-      final result = await PluginsApi(rest).getSource('1');
-      expect(req.url.path, '/api/v1/plugins/1/source');
-      expect(utf8.decode(result.data as Uint8List), '-- lua');
-    });
-
-    test('leaderboardSubmit posts score', () async {
-      rest = mockRest(log: log, responder: (_) => jsonData(null));
-      await PluginsApi(rest)
-          .leaderboardSubmit('1', 'board', 42.0, metadata: {'k': 'v'});
-      expect(req.url.path, '/api/v1/plugins/1/leaderboards/board/submit');
-      expect(req.jsonBody!['score'], 42.0);
-      expect(req.jsonBody!['metadata'], {'k': 'v'});
-    });
-  });
-
   group('DirectoryApi', () {
     test('browse builds master-server path with params', () async {
       // DirectoryApi targets the master server, so its rest base URL is the
@@ -441,9 +415,8 @@ void main() {
     });
 
     test('client.directory does not double-prefix the API base path', () async {
-      // Regression: DirectoryApi used to prepend AccordConfig.apiBasePath on
-      // top of AccordClient's already-versioned rest base URL, so every
-      // client.directory call hit /api/v1/api/v1/directory (#306).
+      // AccordClient's rest base URL is already versioned; DirectoryApi must
+      // not prepend AccordConfig.apiBasePath again.
       final requests = <Uri>[];
       final client = AccordClient(
         baseUrl: 'https://instance.test',
