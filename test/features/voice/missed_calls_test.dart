@@ -32,15 +32,17 @@ class _FakeVoiceController extends VoiceController {
   }
 }
 
-AccordCallSignal _ring(String channelId,
-        {String caller = 'u2', bool video = false}) =>
-    AccordCallSignal(
-      type: 'ring',
-      channelId: channelId,
-      callerId: caller,
-      participants: const ['u1', 'u2'],
-      metadata: {'video': video},
-    );
+AccordCallSignal _ring(
+  String channelId, {
+  String caller = 'u2',
+  bool video = false,
+}) => AccordCallSignal(
+  type: 'ring',
+  channelId: channelId,
+  callerId: caller,
+  participants: const ['u1', 'u2'],
+  metadata: {'video': video},
+);
 
 AccordCallSignal _cancel(String channelId) =>
     AccordCallSignal(type: 'cancel', channelId: channelId, userId: 'u2');
@@ -77,11 +79,9 @@ void main() {
     });
 
     test('records a miss keyed by channel', () {
-      ctl().record(
-          channelId: 'dm1', callerId: 'u2', serverKey: 'u1@s', video: true);
+      ctl().record(channelId: 'dm1', callerId: 'u2', video: true);
       final entry = missed()['dm1']!;
       expect(entry.callerId, 'u2');
-      expect(entry.serverKey, 'u1@s');
       expect(entry.video, isTrue);
       expect(entry.count, 1);
       expect(entry.label, 'Missed call');
@@ -129,7 +129,6 @@ void main() {
       expect(container.read(callControllerProvider).incoming, isNull);
       final entry = missed()['dm1']!;
       expect(entry.callerId, 'u2');
-      expect(entry.serverKey, 'u1@s');
       expect(entry.video, isTrue);
       expect(entry.count, 1);
     });
@@ -212,16 +211,18 @@ void main() {
       expect(missed()['dm1']!.label, 'Missed call (2)');
     });
 
-    test('answering a later call clears the earlier missed indicator',
-        () async {
-      call().handleRing(_ring('dm1'), 'u1@s', me);
-      call().handleCancelOrEnd(_cancel('dm1'));
-      expect(missed().keys, ['dm1']);
+    test(
+      'answering a later call clears the earlier missed indicator',
+      () async {
+        call().handleRing(_ring('dm1'), 'u1@s', me);
+        call().handleCancelOrEnd(_cancel('dm1'));
+        expect(missed().keys, ['dm1']);
 
-      call().handleRing(_ring('dm1'), 'u1@s', me);
-      await call().acceptIncoming();
-      expect(missed(), isEmpty);
-    });
+        call().handleRing(_ring('dm1'), 'u1@s', me);
+        await call().acceptIncoming();
+        expect(missed(), isEmpty);
+      },
+    );
 
     test('a ring for the call we are already in is ignored', () async {
       // Already connected to dm1's voice: the ring is our own call's echo.

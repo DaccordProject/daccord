@@ -29,32 +29,6 @@ void main() {
     });
   });
 
-  group('isUnintentionalDisconnect', () {
-    test(
-      'unintentional only when neither intentional nor client-initiated',
-      () {
-        expect(
-          isUnintentionalDisconnect(intentional: false, clientInitiated: false),
-          isTrue,
-        );
-      },
-    );
-
-    test('intentional teardown is never unintentional', () {
-      expect(
-        isUnintentionalDisconnect(intentional: true, clientInitiated: false),
-        isFalse,
-      );
-    });
-
-    test('client-initiated leave is never unintentional', () {
-      expect(
-        isUnintentionalDisconnect(intentional: false, clientInitiated: true),
-        isFalse,
-      );
-    });
-  });
-
   group('shouldAutoReconnect', () {
     test('reconnects on an unintentional drop while connected, once', () {
       expect(
@@ -95,25 +69,6 @@ void main() {
           intentional: false,
           stillConnected: false,
           alreadyAttempted: false,
-        ),
-        isFalse,
-      );
-    });
-  });
-
-  group('shouldEmitStateChange', () {
-    test('fires only on an actual change', () {
-      expect(
-        shouldEmitStateChange(
-          VoiceSessionState.connecting,
-          VoiceSessionState.connected,
-        ),
-        isTrue,
-      );
-      expect(
-        shouldEmitStateChange(
-          VoiceSessionState.connected,
-          VoiceSessionState.connected,
         ),
         isFalse,
       );

@@ -1,18 +1,14 @@
 import 'package:bonfire/features/authentication/models/app_terms.dart';
-import 'package:bonfire/features/onboarding/views/onboarding_help.dart'
-    show openOnboardingHelpUrl;
 import 'package:bonfire/shared/app_info.dart';
+import 'package:bonfire/shared/utils/external_url.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 
-/// The app's own terms gate, shown before the signed-out flow can be used.
-///
-/// App Store Review Guideline 1.2 requires an EULA to be presented *before* a
-/// user registers or signs in; a server's own Terms of Service can't satisfy
-/// that (it is optional, per-instance, and only readable once authenticated —
-/// see #289), so this gate is unconditional and lives ahead of the credentials
-/// form rather than inside it.
+/// The app's own terms gate, shown before the signed-out flow can be used. It
+/// is unconditional and sits ahead of the credentials form, not inside it:
+/// App Review 1.2 wants the EULA before registering *or* signing in (see
+/// `app_terms.dart`).
 class TermsGateView extends StatelessWidget {
   const TermsGateView({super.key, required this.onAccept});
 
@@ -49,7 +45,7 @@ class TermsGateView extends StatelessWidget {
         Align(
           alignment: Alignment.center,
           child: TextButton.icon(
-            onPressed: () => openOnboardingHelpUrl(kDaccordPrivacyPolicyUrl),
+            onPressed: () => openTrustedUrl(kDaccordPrivacyPolicyUrl),
             icon: const Icon(Icons.privacy_tip_outlined, size: 18),
             label: const Text('Privacy Policy'),
           ),
@@ -189,8 +185,7 @@ Future<void> showAppTermsDialog(BuildContext context) {
                 overflowSpacing: 8,
                 children: [
                   TextButton.icon(
-                    onPressed: () =>
-                        openOnboardingHelpUrl(kDaccordPrivacyPolicyUrl),
+                    onPressed: () => openTrustedUrl(kDaccordPrivacyPolicyUrl),
                     icon: const Icon(Icons.privacy_tip_outlined, size: 18),
                     label: const Text('Privacy Policy'),
                   ),

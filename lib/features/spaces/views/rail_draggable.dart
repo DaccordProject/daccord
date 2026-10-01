@@ -35,7 +35,7 @@ bool get railDragsImmediately => switch (defaultTargetPlatform) {
 /// timeout as [LongPressDraggable]'s delayed drag recogniser, and being the
 /// inner listener its timer fires first and *always* wins the arena — so a
 /// long press showed the space's name and the drag (and with it the menu)
-/// never started (#327). The name is shown as the sheet's title instead.
+/// never started. The name is shown as the sheet's title instead.
 class RailDraggable<T extends Object> extends StatefulWidget {
   const RailDraggable({
     super.key,

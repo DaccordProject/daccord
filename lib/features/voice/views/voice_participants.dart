@@ -7,6 +7,7 @@ import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
+import 'package:bonfire/features/voice/utils/participant_display.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:collection/collection.dart';
@@ -22,121 +23,128 @@ class VoiceParticipantList extends ConsumerWidget {
     super.key,
     required this.channelId,
     required this.spaceId,
-    this.indent = 28,
   });
 
   final String channelId;
   final String? spaceId;
-  final double indent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final states = ref.watch(voiceStatesControllerProvider(ref.readActiveServerKey() ?? '')
-        .select((cache) => voiceStatesFor(cache, channelId)));
-    if (states.isEmpty) return const SizedBox.shrink();
+    final bucket = ref.watch(
+      voiceStatesControllerProvider(
+        ref.readActiveServerKey() ?? '',
+      ).select((cache) => cache[channelId]),
+    );
+    if (bucket == null || bucket.isEmpty) return const SizedBox.shrink();
 
     // Speaking highlights only apply while we're connected to this channel —
     // the speaking set is derived from our own LiveKit room.
-    final speaking = ref.watch(voiceControllerProvider.select((v) =>
-        v.channelId == channelId ? v.speakingUserIds : const <String>{}));
+    final speaking = ref.watch(
+      voiceControllerProvider.select(
+        (v) => v.channelId == channelId ? v.speakingUserIds : const <String>{},
+      ),
+    );
 
-    // AFK, for #112. Remote members are read from presence (`idle`) — the
-    // Accord voice state carries no AFK field, so an idle presence is the only
-    // away signal that crosses the wire. Our own row uses the voice
-    // controller's flag directly so it flips the instant we go away, without
-    // waiting on the presence round-trip.
+    // The Accord voice state carries no AFK field, so remote members are read
+    // from presence (`idle`). Our own row uses the voice controller's flag so it
+    // flips immediately, without waiting on the presence round-trip.
     final presences = ref.watch(activePresencesProvider);
-    final selfAfk = ref.watch(voiceControllerProvider
-        .select((v) => v.channelId == channelId && v.isAfk));
+    final selfAfk = ref.watch(
+      voiceControllerProvider.select(
+        (v) => v.channelId == channelId && v.isAfk,
+      ),
+    );
     final selfUserId = ref.watchUserId();
 
     final members = spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId!));
-    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
+        : ref.watch(
+            accordMembersControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              spaceId!,
+            ),
+          );
+    final users = ref.watch(
+      accordUsersControllerProvider(ref.readActiveServerKey() ?? ''),
+    );
     final roles = spaceId == null
         ? const <AccordRole>[]
-        : ref.watch(spacesControllerProvider.select((s) =>
-                s?.firstWhereOrNull((sp) => sp.id == spaceId)?.roles)) ??
-            const <AccordRole>[];
+        : ref.watch(
+                spacesControllerProvider.select(
+                  (s) => s?.firstWhereOrNull((sp) => sp.id == spaceId)?.roles,
+                ),
+              ) ??
+              const <AccordRole>[];
     final cdnUrl = ref.watchCdnUrl();
 
-    final sorted = [...states]..sort((a, b) => _nameFor(a.userId, members, users)
-        .toLowerCase()
-        .compareTo(_nameFor(b.userId, members, users).toLowerCase()));
+    final rows =
+        [
+          for (final vs in bucket.values)
+            (
+              voiceState: vs,
+              display: participantDisplay(
+                vs.userId,
+                members: members,
+                users: users,
+                cdnUrl: cdnUrl,
+              ),
+            ),
+        ]..sort(
+          (a, b) => a.display.name.toLowerCase().compareTo(
+            b.display.name.toLowerCase(),
+          ),
+        );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final vs in sorted)
+        for (final row in rows)
           _ParticipantRow(
-            voiceState: vs,
-            member: members?[vs.userId],
-            user: users[vs.userId],
+            voiceState: row.voiceState,
+            display: row.display,
+            member: members?[row.voiceState.userId],
             roles: roles,
-            cdnUrl: cdnUrl,
-            speaking: speaking.contains(vs.userId),
-            afk: (selfAfk && vs.userId == selfUserId) ||
-                accordPresenceStatus(presences, vs.userId) == 'idle',
-            indent: indent,
+            speaking: speaking.contains(row.voiceState.userId),
+            afk:
+                (selfAfk && row.voiceState.userId == selfUserId) ||
+                accordPresenceStatus(presences, row.voiceState.userId) ==
+                    'idle',
           ),
       ],
     );
   }
 }
 
-String _nameFor(
-  String userId,
-  Map<String, AccordMember>? members,
-  Map<String, AccordUser> users,
-) {
-  final member = members?[userId];
-  if (member != null) return accordMemberName(member, fallback: userId);
-  return accordUserName(users[userId], fallback: userId);
-}
-
 class _ParticipantRow extends StatelessWidget {
   const _ParticipantRow({
     required this.voiceState,
+    required this.display,
     required this.member,
-    required this.user,
     required this.roles,
-    required this.cdnUrl,
     required this.speaking,
     required this.afk,
-    required this.indent,
   });
 
   final AccordVoiceState voiceState;
+  final ParticipantDisplay display;
   final AccordMember? member;
-  final AccordUser? user;
   final List<AccordRole> roles;
-  final String? cdnUrl;
   final bool speaking;
 
   /// Away from keyboard: dims the row and adds a moon badge.
   final bool afk;
-  final double indent;
 
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
-    final name = member != null
-        ? accordMemberName(member, fallback: voiceState.userId)
-        : accordUserName(user, fallback: voiceState.userId);
-    final avatarUrl = member != null
-        ? accordMemberAvatarUrl(member, cdnUrl)
-        : accordAvatarUrl(user, cdnUrl);
-    final avatarBg = accordAvatarColor(member?.user ?? user, voiceState.userId);
     final colorRole = member == null ? null : memberColorRole(member!, roles);
     final nameColor =
         (colorRole == null ? null : accordRoleColor(colorRole.color)) ??
-            colors.dirtyWhite;
-    final initial = accordInitial(name);
+        colors.dirtyWhite;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(indent, 1, 8, 1),
+      padding: const EdgeInsets.fromLTRB(28, 1, 8, 1),
       child: Row(
         children: [
           Opacity(
@@ -154,10 +162,10 @@ class _ParticipantRow extends StatelessWidget {
               ),
               padding: const EdgeInsets.all(1),
               child: AccordMemberAvatar(
-                avatarUrl: avatarUrl,
-                initial: initial,
+                avatarUrl: display.avatarUrl,
+                initial: accordInitial(display.name),
                 radius: 9,
-                backgroundColor: avatarBg,
+                backgroundColor: display.color,
                 initialStyle: const TextStyle(fontSize: 9),
               ),
             ),
@@ -165,7 +173,7 @@ class _ParticipantRow extends StatelessWidget {
           const SizedBox(width: 6),
           Expanded(
             child: Text(
-              name,
+              display.name,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall!.copyWith(
                 color: afk ? nameColor.withValues(alpha: 0.5) : nameColor,
@@ -204,11 +212,10 @@ class _ParticipantRow extends StatelessWidget {
   }
 
   Widget _flag(String text, Color color) => Padding(
-        padding: const EdgeInsets.only(left: 4),
-        child: Text(
-          text,
-          style: TextStyle(
-              fontSize: 11, color: color, fontWeight: FontWeight.bold),
-        ),
-      );
+    padding: const EdgeInsets.only(left: 4),
+    child: Text(
+      text,
+      style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold),
+    ),
+  );
 }

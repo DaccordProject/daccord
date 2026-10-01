@@ -2,17 +2,15 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:flutter/material.dart';
 
-/// How a voice participant (or voice text-panel author) is presented: display
-/// name, avatar image URL, and the imageless-avatar background color.
+/// How a voice participant is presented: display name, avatar image URL, and
+/// the imageless-avatar background color.
 typedef ParticipantDisplay = ({String name, String? avatarUrl, Color color});
 
-/// Resolves [userId]'s display identity for the voice surfaces, preferring the
-/// space's member entry (nickname + per-space avatar override) over the bare
-/// user from the global cache, and falling back to the raw [userId] as the
-/// name when neither cache has resolved yet. The avatar color needs a user
-/// object (for its accent color), so a member row without an embedded user
-/// falls through to the cached bare user — matching the inline triples this
-/// consolidates (voice lobby, video grid, voice text panel).
+/// Resolves [userId]'s display identity for the voice surfaces: the space
+/// member (nickname + per-space avatar) wins over the cached bare user, and the
+/// raw [userId] is the last-resort name. The avatar color needs a user object
+/// (for its accent color), so a member without an embedded user falls through
+/// to the cached bare user.
 ParticipantDisplay participantDisplay(
   String userId, {
   required Map<String, AccordMember>? members,
@@ -22,12 +20,17 @@ ParticipantDisplay participantDisplay(
   final member = members?[userId];
   final user = users?[userId];
   return (
-    name: member != null
-        ? accordMemberName(member, fallback: userId)
-        : accordUserName(user, fallback: userId),
-    avatarUrl: member != null
-        ? accordMemberAvatarUrl(member, cdnUrl)
-        : accordAvatarUrl(user, cdnUrl),
+    name: accordAuthorNameOf(
+      userId,
+      member: member,
+      user: user,
+      fallback: userId,
+    ),
+    avatarUrl: accordAuthorAvatarUrlOf(
+      member: member,
+      user: user,
+      cdnUrl: cdnUrl,
+    ),
     color: accordAvatarColor(member?.user ?? user, userId),
   );
 }

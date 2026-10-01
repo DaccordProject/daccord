@@ -95,7 +95,7 @@ void main() {
     });
 
     test('clears with visible=false when nothing is unread', () async {
-      await pushTaskbarBadge(GlobalUnread.none);
+      await pushTaskbarBadge(const GlobalUnread());
       await settle();
       if (!taskbarBadgeSupported) return;
       expect(lastArgs()['count'], 0);

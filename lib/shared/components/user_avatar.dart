@@ -6,11 +6,8 @@ import 'package:flutter/material.dart';
 
 /// Small circular user avatar: the image at [imageUrl] when available,
 /// otherwise the [accordInitial] of [name] on the theme's dark-gray disc.
-///
-/// Consolidates the identical `CircleAvatar(backgroundColor: colors.darkGray,
-/// child: Text(accordInitial(...)))` leading avatars that were hand-inlined
-/// across the DM/friends dialogs and the DM conversation list. Site-specific
-/// decoration (presence dots, group icons, badges) stays at the call sites.
+/// Site-specific decoration (presence dots, group icons, badges) stays at the
+/// call sites.
 class UserAvatar extends StatelessWidget {
   const UserAvatar(this.name, {super.key, this.imageUrl, this.radius = 16});
 

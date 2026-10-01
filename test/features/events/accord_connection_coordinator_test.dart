@@ -61,7 +61,7 @@ void main() {
       session: session,
       isActive: () => true,
     );
-    expect(coordinator.attachedServerKeys, {session.key});
+    expect((bindings, disposals), (1, 0));
 
     coordinator.attach(
       client: replacementClient,
@@ -72,7 +72,9 @@ void main() {
     expect(disposals, 1);
 
     coordinator.detach(session.key);
-    expect(coordinator.attachedServerKeys, isEmpty);
+    expect(disposals, 2);
+    // Already detached: nothing left to dispose.
+    coordinator.detach(session.key);
     expect(disposals, 2);
   });
 }

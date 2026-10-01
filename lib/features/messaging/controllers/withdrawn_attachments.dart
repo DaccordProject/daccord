@@ -39,8 +39,6 @@ class WithdrawnAttachmentsController extends _$WithdrawnAttachmentsController {
   @override
   Set<String> build(String serverKey) => const {};
 
-  bool contains(String attachmentKey) => state.contains(attachmentKey);
-
   /// Records [attachments] as withdrawn and evicts their resolved URLs from
   /// the image cache. [cdnUrl] resolves the server's relative `/cdn/...`
   /// paths to the absolute URL the widgets loaded them under. Idempotent.

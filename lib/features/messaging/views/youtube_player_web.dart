@@ -54,15 +54,17 @@ Future<void> _insertApiScript() async {
   }).toJS;
   _onApiReady = callback;
   final error = ((web.Event _) {
-    if (!ready.isCompleted)
+    if (!ready.isCompleted) {
       ready.completeError(StateError('YouTube API could not load'));
+    }
   }).toJS;
   script.addEventListener('error', error);
   web.document.head!.appendChild(script);
   try {
     await ready.future.timeout(const Duration(seconds: 20));
-    if (_youtube?.playerConstructor == null)
+    if (_youtube?.playerConstructor == null) {
       throw StateError('YouTube API unavailable');
+    }
   } catch (_) {
     _apiLoading = null;
     rethrow;

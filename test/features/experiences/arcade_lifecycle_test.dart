@@ -5,7 +5,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
-import 'package:bonfire/features/experiences/views/arcade.dart';
+import 'package:bonfire/features/experiences/views/experience_session_view.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/experiences/views/experience_canvas.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
@@ -19,6 +19,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 class _Auth extends AccordAuth {
+  @override
   final AccordClient client;
   final AccordSession session;
   _Auth(this.client, this.session);

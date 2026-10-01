@@ -6,20 +6,14 @@ import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// A live microphone-activity meter driven by the local participant's LiveKit
-/// audio level. Gives the user a visual indication that their mic is being
-/// picked up — the port of the reference client's input-level bar. When a
-/// [threshold] (raw 0–1 voice-activity threshold) is supplied, a marker is
-/// drawn at that point so the user can tune sensitivity on the settings page.
+/// A live microphone-activity meter showing that the local mic is being picked
+/// up. When a [threshold] (raw 0–1 voice-activity threshold) is supplied, a
+/// marker is drawn at that point so the user can tune sensitivity.
 ///
-/// Polls the voice controller on a short timer because LiveKit reports audio
-/// levels via active-speaker callbacks rather than a continuous stream.
+/// Polls the voice controller on a short timer: the level is a polled value,
+/// not a stream.
 class MicLevelMeter extends ConsumerStatefulWidget {
-  const MicLevelMeter({
-    super.key,
-    this.height = 6,
-    this.threshold,
-  });
+  const MicLevelMeter({super.key, this.height = 6, this.threshold});
 
   final double height;
 
@@ -71,8 +65,9 @@ class _MicLevelMeterState extends ConsumerState<MicLevelMeter> {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    final marker =
-        widget.threshold == null ? null : _displayOf(widget.threshold!);
+    final marker = widget.threshold == null
+        ? null
+        : _displayOf(widget.threshold!);
 
     return SizedBox(
       height: widget.height,

@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/authentication/utils/wait_for_sign_in.dart';
 import 'package:bonfire/features/messaging/views/box/accord_markdown_box.dart';
 import 'package:bonfire/features/updates/controllers/release_notes_controller.dart';
 import 'package:bonfire/features/updates/models/app_release.dart';
@@ -12,7 +11,7 @@ import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:bonfire/shared/utils/external_url.dart';
 
 /// Shows the "What's new" notes for [release]. Returns when the user dismisses
 /// it.
@@ -51,10 +50,7 @@ class ReleaseNotesDialog extends StatelessWidget {
       actions: [
         if (release.url.isNotEmpty)
           TextButton(
-            onPressed: () => launchUrl(
-              Uri.parse(release.url),
-              mode: LaunchMode.externalApplication,
-            ),
+            onPressed: () => openTrustedUrl(release.url),
             child: const Text('View on GitHub'),
           ),
         FilledButton(
@@ -79,7 +75,7 @@ class ReleaseNotesDialog extends StatelessWidget {
 /// Call once from a post-frame callback at startup. Never throws.
 Future<void> maybeShowReleaseNotesOnStartup(WidgetRef ref) async {
   try {
-    if (!await _waitForSignIn(ref)) return;
+    if (!await waitForSignIn(ref)) return;
     // Let the router mount its navigator before stacking a dialog on top.
     await Future<void>.delayed(const Duration(milliseconds: 800));
     final notifier = ref.read(releaseNotesControllerProvider.notifier);
@@ -90,26 +86,6 @@ Future<void> maybeShowReleaseNotesOnStartup(WidgetRef ref) async {
     await showReleaseNotesDialog(ctx, release);
   } catch (e) {
     debugPrint('Release notes startup check failed: $e');
-  }
-}
-
-/// Completes with true once the session is logged in (immediately when it
-/// already is), or false if that hasn't happened within [timeout].
-Future<bool> _waitForSignIn(
-  WidgetRef ref, {
-  Duration timeout = const Duration(minutes: 5),
-}) async {
-  if (ref.read(accordAuthProvider) is AccordAuthLoggedIn) return true;
-  final completer = Completer<bool>();
-  final sub = ref.listenManual<AccordAuthState>(accordAuthProvider, (_, next) {
-    if (next is AccordAuthLoggedIn && !completer.isCompleted) {
-      completer.complete(true);
-    }
-  });
-  try {
-    return await completer.future.timeout(timeout, onTimeout: () => false);
-  } finally {
-    sub.close();
   }
 }
 

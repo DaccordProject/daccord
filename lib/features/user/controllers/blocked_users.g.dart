@@ -11,9 +11,8 @@ part of 'blocked_users.dart';
 /// The accounts this connection has blocked, by user id.
 ///
 /// Blocking is what the report dialog offers where no moderator will see the
-/// report, and it promises the blocked account's messages stop being shown.
-/// Nothing enforced that client-side, so the message surfaces filter on this set
-/// (App Review 1.2, #290).
+/// report, and it promises the blocked account's messages stop being shown, so
+/// the message surfaces filter on this set (App Review 1.2).
 ///
 /// The server's relationship list is the source of truth: [refresh] seeds the
 /// set on gateway READY and the relationship events re-run it. The local
@@ -26,9 +25,8 @@ final blockedUsersControllerProvider = BlockedUsersControllerFamily._();
 /// The accounts this connection has blocked, by user id.
 ///
 /// Blocking is what the report dialog offers where no moderator will see the
-/// report, and it promises the blocked account's messages stop being shown.
-/// Nothing enforced that client-side, so the message surfaces filter on this set
-/// (App Review 1.2, #290).
+/// report, and it promises the blocked account's messages stop being shown, so
+/// the message surfaces filter on this set (App Review 1.2).
 ///
 /// The server's relationship list is the source of truth: [refresh] seeds the
 /// set on gateway READY and the relationship events re-run it. The local
@@ -39,9 +37,8 @@ final class BlockedUsersControllerProvider
   /// The accounts this connection has blocked, by user id.
   ///
   /// Blocking is what the report dialog offers where no moderator will see the
-  /// report, and it promises the blocked account's messages stop being shown.
-  /// Nothing enforced that client-side, so the message surfaces filter on this set
-  /// (App Review 1.2, #290).
+  /// report, and it promises the blocked account's messages stop being shown, so
+  /// the message surfaces filter on this set (App Review 1.2).
   ///
   /// The server's relationship list is the source of truth: [refresh] seeds the
   /// set on gateway READY and the relationship events re-run it. The local
@@ -98,9 +95,8 @@ String _$blockedUsersControllerHash() =>
 /// The accounts this connection has blocked, by user id.
 ///
 /// Blocking is what the report dialog offers where no moderator will see the
-/// report, and it promises the blocked account's messages stop being shown.
-/// Nothing enforced that client-side, so the message surfaces filter on this set
-/// (App Review 1.2, #290).
+/// report, and it promises the blocked account's messages stop being shown, so
+/// the message surfaces filter on this set (App Review 1.2).
 ///
 /// The server's relationship list is the source of truth: [refresh] seeds the
 /// set on gateway READY and the relationship events re-run it. The local
@@ -128,9 +124,8 @@ final class BlockedUsersControllerFamily extends $Family
   /// The accounts this connection has blocked, by user id.
   ///
   /// Blocking is what the report dialog offers where no moderator will see the
-  /// report, and it promises the blocked account's messages stop being shown.
-  /// Nothing enforced that client-side, so the message surfaces filter on this set
-  /// (App Review 1.2, #290).
+  /// report, and it promises the blocked account's messages stop being shown, so
+  /// the message surfaces filter on this set (App Review 1.2).
   ///
   /// The server's relationship list is the source of truth: [refresh] seeds the
   /// set on gateway READY and the relationship events re-run it. The local
@@ -147,9 +142,8 @@ final class BlockedUsersControllerFamily extends $Family
 /// The accounts this connection has blocked, by user id.
 ///
 /// Blocking is what the report dialog offers where no moderator will see the
-/// report, and it promises the blocked account's messages stop being shown.
-/// Nothing enforced that client-side, so the message surfaces filter on this set
-/// (App Review 1.2, #290).
+/// report, and it promises the blocked account's messages stop being shown, so
+/// the message surfaces filter on this set (App Review 1.2).
 ///
 /// The server's relationship list is the source of truth: [refresh] seeds the
 /// set on gateway READY and the relationship events re-run it. The local

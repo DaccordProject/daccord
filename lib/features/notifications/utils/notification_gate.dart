@@ -1,10 +1,8 @@
 /// Pure decision for whether an incoming message should raise a local
-/// notification. The notification analogue of [SoundManager.soundForMessage]:
-/// extracted from the gateway handler so the gating policy — which decides what
-/// users actually get pinged for — can be unit-tested without a live gateway.
+/// notification, kept out of the gateway handler so the policy can be
+/// unit-tested.
 ///
-/// Mirrors the rule the reference client applies in its message handler: only
-/// messages that mention you (directly, by role, or via a non-suppressed
+/// Only messages that mention you (directly, by role, or via a non-suppressed
 /// `@everyone`) notify, never your own messages, never the channel you're
 /// currently looking at, and only while notifications are enabled.
 class MessageNotificationGate {
@@ -39,10 +37,10 @@ class MessageNotificationGate {
   /// (`Config.get_channel_notification_level`).
   /// [spaceMuted] mirrors a per-space mute (`AccordSettings.isSpaceMuted`): when
   /// true the message's space is muted and no notification is shown, regardless
-  /// of mentions — matching the old client's "Mute Server" action.
+  /// of mentions.
   /// [isDirectMessage] is true for a DM / group-DM message (no parent space).
   /// A DM is addressed to you by definition, so it notifies without needing an
-  /// `@mention` (#326); an explicit per-channel `'mentions'` level still
+  /// `@mention`; an explicit per-channel `'mentions'` level still
   /// narrows it back to mention-only, and `'nothing'` still silences it.
   static bool shouldNotify({
     required bool notificationsEnabled,
@@ -65,8 +63,6 @@ class MessageNotificationGate {
     // explicitly-disabled stream.
     if (channelLevel == 'nothing') return false;
     if (channelLevel == 'all') return true;
-    // A direct message is inherently "for you": the default (unset) level
-    // notifies for every DM, not only mentioning ones.
     if (isDirectMessage && channelLevel == null) return true;
     return countsAsMention(
       mentionsMe: mentionsMe,

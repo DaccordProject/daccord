@@ -43,8 +43,8 @@ class AccordSession {
     this.expiresAt,
   });
 
-  /// Stable identity: user + server. Matches `AccordConnection.key` so the auth
-  /// layer and the rail registry agree on how to address a connection.
+  /// Stable identity: user + server. The auth layer and the rail registry both
+  /// address a connection by this key.
   String get key => '$userId@${server.baseUrl}';
 
   bool isExpiredAt(DateTime now) =>

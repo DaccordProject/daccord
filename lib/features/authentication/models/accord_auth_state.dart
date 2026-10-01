@@ -2,8 +2,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 
-/// State for the Accord authentication flow. The Accord analogue of Bonfire's
-/// `AuthResponse` union, typed against accordkit instead of firebridge.
+/// State for the Accord authentication flow.
 sealed class AccordAuthState {
   const AccordAuthState();
 }

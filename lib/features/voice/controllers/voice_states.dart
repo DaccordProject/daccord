@@ -4,12 +4,13 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'voice_states.g.dart';
 
 /// Per-server cache of who is in which voice channel, keyed `channel_id →
-/// {user_id → state}`. User moves scan channels and copy only affected buckets.
+/// {user_id → state}`. Updates copy only the affected buckets, so widgets
+/// `select` `cache[channelId]` to rebuild only when their channel changes.
 ///
-/// Seeded from the gateway READY payload's voice states and from
-/// `channels.fetchVoiceStates`, then kept in sync by `voice.state_update`
-/// events (all wired in `accord_event_handler.dart`). A `voice.state_update`
-/// with a null `channelId` means the user left voice entirely.
+/// Seeded from the gateway READY payload (`accord_ready_sync.dart`) and from
+/// `voice.getStatus` after a join, then kept in sync by `voice.state_update`
+/// events. A `voice.state_update` with a null `channelId` means the user left
+/// voice entirely.
 @Riverpod(keepAlive: true)
 class VoiceStatesController extends _$VoiceStatesController {
   @override
@@ -39,8 +40,7 @@ class VoiceStatesController extends _$VoiceStatesController {
     state = next;
   }
 
-  /// Replaces the full set of states for [channelId] (used to seed a channel
-  /// from `channels.fetchVoiceStates`).
+  /// Replaces the full set of states for [channelId].
   void seedChannel(String channelId, Iterable<AccordVoiceState> states) {
     final bucket = {
       for (final s in states)
@@ -54,23 +54,6 @@ class VoiceStatesController extends _$VoiceStatesController {
     }
     state = next;
   }
-
-  /// Removes [userId] from [channelId] (fallback for a peer-left signal).
-  void removeUser(String channelId, String userId) {
-    final bucket = state[channelId];
-    if (bucket == null || !bucket.containsKey(userId)) return;
-    final updated = {...bucket}..remove(userId);
-    final next = {...state};
-    if (updated.isEmpty) {
-      next.remove(channelId);
-    } else {
-      next[channelId] = updated;
-    }
-    state = next;
-  }
-
-  /// Clears the whole cache (on logout / gateway teardown).
-  void clear() => state = const {};
 }
 
 /// The voice states present in [channelId], in arbitrary order.

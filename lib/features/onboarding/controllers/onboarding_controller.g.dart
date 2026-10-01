@@ -8,7 +8,7 @@ part of 'onboarding_controller.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Owns the first-launch walkthrough's persistence and gating (#175).
+/// Owns the first-launch walkthrough's persistence and gating.
 ///
 /// **Persistence.** The seen-marker lives in the existing `accord-settings` Hive
 /// box under its own [seenKey] (no new box), exactly as the release-notes
@@ -23,7 +23,7 @@ part of 'onboarding_controller.dart';
 @ProviderFor(OnboardingController)
 final onboardingControllerProvider = OnboardingControllerProvider._();
 
-/// Owns the first-launch walkthrough's persistence and gating (#175).
+/// Owns the first-launch walkthrough's persistence and gating.
 ///
 /// **Persistence.** The seen-marker lives in the existing `accord-settings` Hive
 /// box under its own [seenKey] (no new box), exactly as the release-notes
@@ -36,7 +36,7 @@ final onboardingControllerProvider = OnboardingControllerProvider._();
 /// re-introduce it" decision later. Any non-empty value counts as seen.
 final class OnboardingControllerProvider
     extends $NotifierProvider<OnboardingController, bool> {
-  /// Owns the first-launch walkthrough's persistence and gating (#175).
+  /// Owns the first-launch walkthrough's persistence and gating.
   ///
   /// **Persistence.** The seen-marker lives in the existing `accord-settings` Hive
   /// box under its own [seenKey] (no new box), exactly as the release-notes
@@ -75,9 +75,9 @@ final class OnboardingControllerProvider
 }
 
 String _$onboardingControllerHash() =>
-    r'd188e332a41df02ffd82b279c744793761d884ed';
+    r'15f16adecaffe008272cc469a973f6503dc70b35';
 
-/// Owns the first-launch walkthrough's persistence and gating (#175).
+/// Owns the first-launch walkthrough's persistence and gating.
 ///
 /// **Persistence.** The seen-marker lives in the existing `accord-settings` Hive
 /// box under its own [seenKey] (no new box), exactly as the release-notes

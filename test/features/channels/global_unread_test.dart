@@ -83,7 +83,7 @@ void main() {
         _snapshot(const []),
         _snapshot(const []),
       ]);
-      expect(unread, GlobalUnread.none);
+      expect(unread, const GlobalUnread());
       expect(unread.isEmpty, isTrue);
     });
 
@@ -127,7 +127,7 @@ void main() {
           ],
           mutedSpaces: const ['muted'],
         );
-        expect(unread, GlobalUnread.none);
+        expect(unread, const GlobalUnread());
       });
 
       test('a channel set to `nothing` contributes to neither', () {
@@ -139,7 +139,7 @@ void main() {
           ],
           channelLevels: const {'c1': AccordSettings.channelNotifNothing},
         );
-        expect(unread, GlobalUnread.none);
+        expect(unread, const GlobalUnread());
       });
 
       test('a silenced DM contributes to neither', () {
@@ -149,7 +149,7 @@ void main() {
           ],
           channelLevels: const {'dm1': AccordSettings.channelNotifNothing},
         );
-        expect(unread, GlobalUnread.none);
+        expect(unread, const GlobalUnread());
       });
 
       test('`all` and `mentions` channels still contribute', () {
@@ -199,7 +199,7 @@ void main() {
   group('globalUnreadProvider', () {
     test('starts empty with no connections', () {
       final container = _container();
-      expect(container.read(globalUnreadProvider), GlobalUnread.none);
+      expect(container.read(globalUnreadProvider), const GlobalUnread());
     });
 
     test('sums mentions across two connected servers', () {
@@ -256,7 +256,7 @@ void main() {
       );
 
       notifier.markRead('c2');
-      expect(container.read(globalUnreadProvider), GlobalUnread.none);
+      expect(container.read(globalUnreadProvider), const GlobalUnread());
     });
 
     test('honours the mute settings live, in both directions', () {
@@ -271,7 +271,7 @@ void main() {
       container.listen(globalUnreadProvider, (_, _) {});
       _markUnread(container, key, 'c1', spaceId: 's1', mentions: 4);
 
-      expect(container.read(globalUnreadProvider), GlobalUnread.none);
+      expect(container.read(globalUnreadProvider), const GlobalUnread());
 
       // Unmuting reveals what arrived while muted immediately — the read state
       // stayed truthful, only the indicator was gated.
@@ -285,7 +285,7 @@ void main() {
       );
 
       settings.set(muted);
-      expect(container.read(globalUnreadProvider), GlobalUnread.none);
+      expect(container.read(globalUnreadProvider), const GlobalUnread());
     });
 
     test('mute overrides apply only to the owning server', () {

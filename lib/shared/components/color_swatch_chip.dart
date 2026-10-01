@@ -20,10 +20,6 @@ const avatarColorPalette = <(int, String)>[
 /// role pickers render their smaller / squared variants. A selected swatch
 /// gets a light ring and a check icon; [transparent] swaps the check for a
 /// "no color" glyph (the avatar then falls back to its auto color).
-///
-/// Consolidates the identical `_AccentSwatch`/`_ColorSwatch` widgets that were
-/// copy-pasted into the settings, profile-edit, folder-color and role-editor
-/// screens.
 class ColorSwatchChip extends StatelessWidget {
   const ColorSwatchChip({
     super.key,

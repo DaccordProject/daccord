@@ -25,11 +25,9 @@ bool? debugCanPickAudioOutputDevice;
 /// * **iOS** — neither. Enumeration only ever returns the route already in use
 ///   (plus a synthetic "Speaker" entry), and the write degrades to
 ///   `AVAudioSession.overrideOutputAudioPort`, which understands nothing but
-///   that one literal `"Speaker"` id. So the dropdown could never offer a
-///   device you were not already on, and picking "System default" wrote
-///   nothing at all — a control that looked functional and did nothing (#306).
-///   iOS owns output routing itself (Control Centre, the AirPlay picker, plugging
-///   in a headset), so there is no capability to expose here.
+///   that one literal `"Speaker"` id, so the picker could neither switch
+///   devices nor restore the default. iOS owns output routing itself (Control
+///   Centre, AirPlay, headsets).
 /// * **Web** — `setSinkId` is not wired through this path at all.
 bool get canPickAudioOutputDevice =>
     debugCanPickAudioOutputDevice ??

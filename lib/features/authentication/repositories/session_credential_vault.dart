@@ -24,17 +24,12 @@ class PlatformSessionCredentialVault implements SessionCredentialVault {
   static const _keyPrefix = 'daccord.session.v1.';
   final FlutterSecureStorage _storage;
 
-  /// Serializes vault operations across all instances in this isolate.
-  ///
-  /// The Linux backend keeps the *whole* vault in a single Secret Service item
-  /// and rewrites it wholesale on each call (read the JSON blob → patch one key
-  /// → store the blob back). Two overlapping operations therefore race on that
-  /// blob and the loser's key is silently dropped — stranding a `credentialRef`
-  /// that Hive still points at, which [AccordSessionStore] can only read as "no
-  /// session", i.e. a surprise logout. Restoring a session does exactly this:
-  /// `_makeActive` fires an un-awaited `persistActive` write that overlaps the
-  /// `listAccounts` migration pass. Chaining keeps the read-modify-write cycles
-  /// from interleaving; on the per-key backends it is simply a no-op cost.
+  /// Serializes vault operations across all instances in this isolate. The
+  /// Linux backend rewrites the whole vault (one Secret Service item) on every
+  /// call, so overlapping operations — e.g. session restore's un-awaited
+  /// `persistActive` racing the `listAccounts` migration — silently drop a key
+  /// and strand a `credentialRef` Hive still points at: a surprise logout.
+  /// On per-key backends the chaining is just a no-op cost.
   static Future<void> _queue = Future<void>.value();
 
   Future<T> _serialized<T>(Future<T> Function() operation) {

@@ -176,40 +176,40 @@ class _SpaceIcon extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
-    // Roll up this server's per-channel read state into a single rail-level
-    // indicator. Keyed by [serverKey] so each server's badge reflects its own
-    // unread; driven by the READY-hydrated + live read state (no channel fetch
-    // needed, so background servers light up without opening them).
-    final readState = ref.watch(readStateControllerProvider(serverKey));
-    // …filtered by the user's mute settings, so the rail agrees with the
-    // notification gate: a muted space (or a channel set to `nothing`) keeps
-    // its truthful read state but stays dark here. Filtering on this side
-    // rather than in `markUnread` means unmuting reveals what arrived while
-    // muted immediately, with no reconnect. Watch only the two slices that
-    // matter so an unrelated settings write (a draft keystroke) can't rebuild
-    // every rail icon.
+    // Roll up this server's READY-hydrated + live read state into one rail
+    // indicator, filtered by the user's mute settings so the rail agrees with
+    // the notification gate. Filtering here rather than in `markUnread` means
+    // unmuting reveals what arrived while muted immediately. Only the slices
+    // that matter are watched, so an unrelated settings write (a draft
+    // keystroke) or another space's read state can't rebuild every rail icon;
+    // `channelNotificationsFor` builds a fresh map, so the stored map is
+    // watched instead.
     final spaceMuted = ref.watch(
       settingsControllerProvider.select(
         (s) => s.isSpaceMuted(serverKey, space.id),
       ),
     );
-    final channelLevels = ref.watch(
-      settingsControllerProvider.select(
-        (s) => s.channelNotificationsFor(serverKey),
+    ref.watch(settingsControllerProvider.select((s) => s.channelNotifications));
+    final channelLevels = ref
+        .read(settingsControllerProvider)
+        .channelNotificationsFor(serverKey);
+    final (:unread, :mentions) = ref.watch(
+      readStateControllerProvider(serverKey).select(
+        (readState) => (
+          unread: readState.spaceShowsUnread(
+            space.id,
+            spaceMuted: spaceMuted,
+            channelLevels: channelLevels,
+          ),
+          mentions: readState.visibleMentionsInSpace(
+            space.id,
+            spaceMuted: spaceMuted,
+            channelLevels: channelLevels,
+          ),
+        ),
       ),
     );
-    final hasUnread =
-        !selected &&
-        readState.spaceShowsUnread(
-          space.id,
-          spaceMuted: spaceMuted,
-          channelLevels: channelLevels,
-        );
-    final mentions = readState.visibleMentionsInSpace(
-      space.id,
-      spaceMuted: spaceMuted,
-      channelLevels: channelLevels,
-    );
+    final hasUnread = !selected && unread;
     // Dim the icon while its server's gateway is down, so an unreachable space
     // reads as offline rather than just unselected.
     final unreachable =
@@ -418,26 +418,34 @@ class _DirectMessagesButton extends ConsumerWidget {
     final connections = ref.watch(
       connectionsControllerProvider.select((state) => state.connections),
     );
+    // The stored map, not a per-server copy, so other settings writes don't
+    // rebuild this tile.
+    ref.watch(settingsControllerProvider.select((s) => s.channelNotifications));
+    final settings = ref.read(settingsControllerProvider);
     var hasUnread = false;
     var mentions = 0;
     for (final connection in connections) {
-      final snapshot = ref.watch(readStateControllerProvider(connection.key));
-      final levels = ref.watch(
-        settingsControllerProvider.select(
-          (settings) => settings.channelNotificationsFor(connection.key),
-        ),
+      final levels = settings.channelNotificationsFor(connection.key);
+      final summary = ref.watch(
+        readStateControllerProvider(connection.key).select((snapshot) {
+          var unread = false;
+          var count = 0;
+          for (final entry in snapshot.entries.values) {
+            if (entry.spaceId != null ||
+                !UnreadIndicatorGate.countsTowardSpace(
+                  spaceMuted: false,
+                  channelLevel: levels[entry.channelId],
+                )) {
+              continue;
+            }
+            unread = true;
+            count += entry.mentions;
+          }
+          return (hasUnread: unread, mentions: count);
+        }),
       );
-      for (final entry in snapshot.entries.values) {
-        if (entry.spaceId != null ||
-            !UnreadIndicatorGate.countsTowardSpace(
-              spaceMuted: false,
-              channelLevel: levels[entry.channelId],
-            )) {
-          continue;
-        }
-        hasUnread = true;
-        mentions += entry.mentions;
-      }
+      hasUnread = hasUnread || summary.hasUnread;
+      mentions += summary.mentions;
     }
     return _RailIconTile(
       tooltip: 'Direct messages',

@@ -16,15 +16,13 @@ typedef ServerSpaceKey = ({String serverKey, String spaceId});
 
 final Set<ServerSpaceKey> activeMemberSpaces = <ServerSpaceKey>{};
 
-/// Whether the initial roster fetch for a space failed (a non-2xx response, a
-/// network error, or a timeout). Lets the roster show a retry affordance instead
-/// of spinning forever when `members.list` never yields a list. Cleared on a
-/// successful load, and by the roster's Retry button before it re-triggers
-/// `_load`; set true only after the retries are exhausted.
-///
-/// The [LoadFailed] flag for this cache — see there for the shared pattern.
-LoadFailedProvider membersLoadFailedProvider(String serverKey, String spaceId) =>
-    loadFailedProvider('members', serverKey, spaceId);
+/// The [LoadFailed] flag for a space's roster: set once the initial fetch has
+/// exhausted its retries, so the roster offers Retry instead of spinning
+/// forever. Cleared on a successful load and by the Retry button.
+LoadFailedProvider membersLoadFailedProvider(
+  String serverKey,
+  String spaceId,
+) => loadFailedProvider('members', serverKey, spaceId);
 
 /// A space's members, keyed by space ID and indexed by user ID for O(1) author
 /// resolution. Self-loads via `members.list` the first time it's watched (once
@@ -46,16 +44,13 @@ class AccordMembersController extends _$AccordMembersController {
   }
 
   Future<void> _load(AccordClient client, String spaceId) async {
-    // Retry a few times so a transient network blip or a still-warming server
-    // doesn't strand the roster on a permanent spinner. AccordRest bounds every
-    // attempt with `AccordConfig.defaultRequestTimeout`; this shorter `timeout`
-    // is kept on top of it so the roster gives up on a hung socket sooner than
-    // the transport would, and so the failure is reported here rather than
-    // leaving `state` null (a forever spinner) for the full transport deadline.
+    // Retry so a transient blip or a still-warming server doesn't strand the
+    // roster on a spinner. The 20s timeout sits under AccordRest's own
+    // per-attempt bound so a hung socket fails (and is reported) sooner.
     //
-    // Every write to `membersLoadFailedProvider` happens after the first
-    // `await` below: `build` calls `_load` synchronously, and Riverpod forbids
-    // a provider mutating another during initialization.
+    // Writes to `membersLoadFailedProvider` must stay after the first `await`:
+    // `build` calls `_load` synchronously, and Riverpod forbids a provider
+    // mutating another during initialization.
     for (var attempt = 0; attempt < 3; attempt++) {
       List<AccordMember>? list;
       try {
@@ -94,11 +89,10 @@ class AccordMembersController extends _$AccordMembersController {
     }
   }
 
-  /// The members endpoint returns only `user_id` per member — no embedded user
-  /// object — so names/avatars resolve to "Unknown" until the user is fetched.
-  /// Mirror the reference client: fill each member's [AccordMember.user] from
-  /// the global user cache, fetching any still-missing users, then refresh state
-  /// so the roster and message authors rebuild with real identities.
+  /// Fills each member's [AccordMember.user] the server didn't embed from the
+  /// user cache, fetching any still-missing users, then refreshes state so the
+  /// roster and message authors rebuild with real identities. Mirrors the
+  /// reference client.
   Future<void> _resolveUsers(
     AccordClient client,
     Map<String, AccordMember> members,
@@ -109,7 +103,7 @@ class AccordMembersController extends _$AccordMembersController {
     final missing = <String>[];
     for (final member in members.values) {
       if (member.user != null) continue;
-      final known = usersController.cached(member.userId, client: client);
+      final known = usersController.cached(member.userId);
       if (known != null) {
         member.user = known;
       } else if (member.userId.isNotEmpty) {

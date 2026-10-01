@@ -415,9 +415,8 @@ void main() {
     });
 
     test('client.directory does not double-prefix the API base path', () async {
-      // Regression: DirectoryApi used to prepend AccordConfig.apiBasePath on
-      // top of AccordClient's already-versioned rest base URL, so every
-      // client.directory call hit /api/v1/api/v1/directory (#306).
+      // AccordClient's rest base URL is already versioned; DirectoryApi must
+      // not prepend AccordConfig.apiBasePath again.
       final requests = <Uri>[];
       final client = AccordClient(
         baseUrl: 'https://instance.test',

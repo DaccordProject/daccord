@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/dialog_title_bar.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
@@ -25,7 +26,7 @@ String? extractTotpSecret(String? uri) {
 }
 
 /// Opens the account settings dialog: change password and manage two-factor
-/// authentication. The Accord analogue of Discord's "My Account" panel.
+/// authentication.
 Future<void> showAccordAccountSettings(BuildContext context) {
   return showDialog<void>(
     context: context,
@@ -51,10 +52,8 @@ class _AccountSettingsDialogState
     _loadMfaState();
   }
 
-  AccordClient? get _client => ref.accordClient;
-
   Future<void> _loadMfaState() async {
-    final client = _client;
+    final client = ref.accordClient;
     if (client == null) return;
     final result = await client.users.getMe();
     if (!mounted) return;
@@ -79,21 +78,7 @@ class _AccountSettingsDialogState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Password & Security',
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Close',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(Icons.close, size: 20, color: colors.gray),
-                  ),
-                ],
-              ),
+              const DialogTitleBar('Password & Security'),
               const SizedBox(height: 12),
               Text(
                 'PASSWORD',
@@ -116,10 +101,7 @@ class _AccountSettingsDialogState
               ),
               const SizedBox(height: 8),
               if (_mfaEnabled == null)
-                const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: LoadingView(),
-                )
+                const Padding(padding: EdgeInsets.all(8), child: LoadingView())
               else
                 _TwoFactorSection(
                   enabled: _mfaEnabled!,
@@ -146,8 +128,8 @@ class _AccountSettingsDialogState
 }
 
 /// Account-deletion section: password + type-to-confirm "DELETE", calling
-/// `users.deleteMe` then removing the account locally. Ports the reference's
-/// `user_settings_danger.gd`.
+/// `users.deleteMe` then removing the account locally. Mirrors the reference
+/// client's `user_settings_danger.gd`.
 class _DangerZoneSection extends ConsumerStatefulWidget {
   const _DangerZoneSection();
 
@@ -168,10 +150,8 @@ class _DangerZoneSectionState extends ConsumerState<_DangerZoneSection> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.accordClient;
-
   Future<void> _delete() async {
-    final client = _client;
+    final client = ref.accordClient;
     if (client == null || _busy) return;
     if (_password.text.isEmpty) {
       setState(() => _error = 'Password is required');
@@ -284,11 +264,7 @@ class _PasswordSectionState extends ConsumerState<_PasswordSection> {
   }
 
   Future<void> _submit() async {
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
+    final client = ref.accordClient;
     if (client == null) return;
     final oldPw = _old.text;
     final newPw = _new.text;
@@ -400,10 +376,8 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.accordClient;
-
   Future<void> _enable() async {
-    final client = _client;
+    final client = ref.accordClient;
     if (client == null) return;
     if (_password.text.isEmpty) {
       setState(() => _error = 'Enter your password');
@@ -428,7 +402,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
   }
 
   Future<void> _verify() async {
-    final client = _client;
+    final client = ref.accordClient;
     if (client == null) return;
     if (_code.text.trim().isEmpty) {
       setState(() => _error = 'Enter the 6-digit code');
@@ -459,7 +433,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
   }
 
   Future<void> _disable() async {
-    final client = _client;
+    final client = ref.accordClient;
     if (client == null) return;
     if (_password.text.isEmpty) {
       setState(() => _error = 'Enter your password to disable 2FA');
@@ -538,18 +512,15 @@ class _BackupCodesView extends StatelessWidget {
           ),
           child: SelectableText(
             codes.join('\n'),
-            style: theme.textTheme.bodyMedium!.copyWith(
-              fontFeatures: const [],
-            ),
+            style: theme.textTheme.bodyMedium!.copyWith(fontFeatures: const []),
           ),
         ),
         const SizedBox(height: 8),
         Align(
           alignment: Alignment.centerRight,
           child: TextButton.icon(
-            onPressed: () => Clipboard.setData(
-              ClipboardData(text: codes.join('\n')),
-            ),
+            onPressed: () =>
+                Clipboard.setData(ClipboardData(text: codes.join('\n'))),
             icon: const Icon(Icons.copy, size: 16),
             label: const Text('Copy codes'),
           ),

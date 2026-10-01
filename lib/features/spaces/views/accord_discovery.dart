@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/dialog_title_bar.dart';
 import 'package:bonfire/shared/components/self_hosting_dialog.dart';
 import 'package:bonfire/shared/components/ticker_aware_circle_avatar.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
@@ -63,32 +64,20 @@ final accordDiscoveryBrowseProvider = Provider<AccordDiscoveryBrowse>((ref) {
 
 /// Opens the discovery panel: a searchable browser of public spaces the user
 /// can join. Backed by the **master-server** directory (unauthenticated), so it
-/// works before signing in to any instance. The Accord analogue of the
-/// reference client's `discovery_panel`.
-///
-/// [onJoinRequiresAuth] lets a host (e.g. the login screen) intercept a join
-/// that needs authentication against an instance: the panel closes and the
-/// callback receives the listing's `serverUrl` + `spaceId` so the host can
-/// pre-fill its own credentials flow. When omitted, the panel falls back to
-/// opening the Add-Server dialog targeted at that instance.
-Future<void> showAccordDiscovery(
-  BuildContext context, {
-  void Function(String serverUrl, String spaceId)? onJoinRequiresAuth,
-}) {
+/// works before signing in to any instance. Mirrors the reference client's
+/// `discovery_panel`.
+Future<void> showAccordDiscovery(BuildContext context) {
   return showDialog<void>(
     context: context,
-    builder: (_) => _DiscoveryPanel(onJoinRequiresAuth: onJoinRequiresAuth),
+    builder: (_) => const _DiscoveryPanel(),
   );
 }
 
 class _DiscoveryPanel extends StatelessWidget {
-  const _DiscoveryPanel({this.onJoinRequiresAuth});
-
-  final void Function(String serverUrl, String spaceId)? onJoinRequiresAuth;
+  const _DiscoveryPanel();
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     return Dialog(
       backgroundColor: colors.foreground,
@@ -98,25 +87,9 @@ class _DiscoveryPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
-              child: Row(
-                children: [
-                  Icon(Icons.explore, size: 20, color: colors.dirtyWhite),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Discover Servers',
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Close',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(Icons.close, size: 20, color: colors.gray),
-                  ),
-                ],
-              ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 12, 8),
+              child: DialogTitleBar('Discover Servers', icon: Icons.explore),
             ),
             Expanded(
               child: AccordDiscoveryBody(
@@ -126,22 +99,15 @@ class _DiscoveryPanel extends StatelessWidget {
                   Navigator.of(context).pop();
                   showAddServerDialog(context);
                 },
-                // When a listing needs auth, close this panel and either defer
-                // to the host (e.g. the login screen pre-fills its form) or fall
-                // back to opening the Add-Server flow pre-targeted at the
-                // listing's instance + space.
+                // A listing that needs auth reopens as the Add-Server flow
+                // pre-targeted at the listing's instance + space.
                 onJoinRequiresAuth: (serverUrl, spaceId) {
                   Navigator.of(context).pop();
-                  final external = onJoinRequiresAuth;
-                  if (external != null) {
-                    external(serverUrl, spaceId);
-                  } else {
-                    showAddServerDialog(
-                      context,
-                      initialUrl: serverUrl,
-                      joinSpaceId: spaceId,
-                    );
-                  }
+                  showAddServerDialog(
+                    context,
+                    initialUrl: serverUrl,
+                    joinSpaceId: spaceId,
+                  );
                 },
               ),
             ),

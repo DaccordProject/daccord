@@ -87,13 +87,6 @@ class ThreadRepliesController extends _$ThreadRepliesController {
   /// no event replay, so anything that happened while disconnected is missing.
   Future<void> reload(AccordClient client) => _load(client);
 
-  /// Sends [content] as a reply into this thread (`thread_id` = root).
-  /// Optimistically appends the created message (the gateway echo is then
-  /// deduped by [addReply]). Returns true on success.
-  Future<bool> send(AccordClient client, String content) async {
-    return await sendDetailed(client, content) == null;
-  }
-
   Future<SendFailure?> sendDetailed(AccordClient client, String content) async {
     final trimmed = content.trim();
     if (trimmed.isEmpty) return const SendFailure('Reply is empty.');

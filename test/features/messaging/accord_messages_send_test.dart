@@ -85,7 +85,7 @@ void main() {
         ),
       );
 
-      expect(await n.send(client, 'hi'), isTrue);
+      expect(await n.sendWithAttachments(client, 'hi', []), isNull);
     });
 
     test('returns false on a server failure', () async {
@@ -96,7 +96,7 @@ void main() {
         (_) async => _errorResponse(403, 'FORBIDDEN', 'Missing permission'),
       );
 
-      expect(await n.send(client, 'hi'), isFalse);
+      expect(await n.sendWithAttachments(client, 'hi', []), isNotNull);
     });
   });
 
@@ -352,7 +352,7 @@ void main() {
         accordMessagesControllerProvider('', 'ch1').notifier,
       );
       final client = _clientWith((_) async => rateLimited(5));
-      expect(await n.send(client, 'hi'), isFalse);
+      expect(await n.sendWithAttachments(client, 'hi', []), isNotNull);
     });
   });
 }

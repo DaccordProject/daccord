@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:bonfire/features/experiences/controllers/turns.dart';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
@@ -10,6 +9,7 @@ import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/events/services/accord_message_events.dart';
 import 'package:bonfire/features/events/services/accord_ready_sync.dart';
+import 'package:bonfire/features/experiences/controllers/turns.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/controllers/forum_posts.dart';
@@ -27,12 +27,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Subscribes a freshly-built [AccordClient]'s gateway streams to Riverpod
-/// state. The Accord analogue of `handleEvents` in `event_handler.dart`.
-///
-/// In the multi-server model every connected server has its own live client and
-/// its own [handleAccordEvents] subscription. [serverKey] identifies which
-/// connection these events belong to (`userId@baseUrl`), and [isActive] reports
-/// whether this connection is the one currently driving the panes.
+/// state. Every connected server has its own client and subscription;
+/// [serverKey] identifies the connection (`userId@baseUrl`), and [isActive]
+/// reports whether it is the one currently driving the panes.
 ///
 /// Space-list events feed the per-connection cache in `ConnectionsController`
 /// for *every* server so the rail can render everyone's spaces at once. The
@@ -50,8 +47,6 @@ VoidCallback handleAccordEvents(
 }) {
   final subs = <StreamSubscription<dynamic>>[];
 
-  // ConnectionsController is the authoritative lifecycle store for every
-  // server; active consumers select their connection from it.
   void setConnection(ConnectionStatus status) => ref
       .read(connectionsControllerProvider.notifier)
       .setStatus(serverKey, status);
@@ -74,11 +69,9 @@ VoidCallback handleAccordEvents(
       setConnection(ConnectionStatus.connected);
     }),
   );
-  // A successful RESUME restores the previous session, so the server sends
-  // `resumed` and replays missed events instead of sending a new READY. The
-  // session state from the earlier READY is still valid, so the connection is
-  // ready again. Without this, it would stay `connected` until the next full
-  // re-identify, and views that wait for `ready` would spin forever.
+  // A successful RESUME replays missed events and sends `resumed` instead of a
+  // new READY. The earlier READY's state is still valid, so the connection is
+  // ready again; otherwise views waiting for `ready` would spin forever.
   subs.add(
     client.onResumed.listen((_) {
       setConnection(ConnectionStatus.ready);
@@ -101,37 +94,28 @@ VoidCallback handleAccordEvents(
   subs.add(
     client.onReady.listen((data) async {
       setConnection(ConnectionStatus.ready);
-      // Hydrate this server's read state from the authoritative unread list the
-      // gateway sends in READY. Runs for every connection (active or background)
-      // and on every reconnect — this is what persists badges across a cold
-      // start and what lights up servers the user hasn't opened yet.
+      // READY's unread list is authoritative: it persists badges across a cold
+      // start and lights up servers the user hasn't opened, so every connection
+      // hydrates from it on every (re)connect.
       hydrateReadStateFromReady(ref, data, serverKey: serverKey);
       ref
           .read(readStateControllerProvider(serverKey).notifier)
           .retryPending(client);
-      // Presence is keyed by [serverKey] like read state, so seed it for every
-      // connection too — a background server that READYs while you're looking at
-      // another one used to be left permanently showing its whole roster as
-      // offline, with no re-seed on switch (#191).
       seedPresencesFromReady(
         ref,
         data,
         serverKey: serverKey,
         homeDomain: selfDomain,
       );
-      // Blocked accounts drive the message filter that makes "their messages
-      // are hidden" true (#290), and READY doesn't carry relationships — so
-      // this connection's set is fetched here, for background connections too.
+      // Blocked accounts drive the message filter and READY doesn't carry
+      // relationships, so every connection fetches them here.
       unawaited(
         ref
             .read(blockedUsersControllerProvider(serverKey).notifier)
             .refresh(client),
       );
-      // Uploads AutoMod was still holding when we last disconnected (or when
-      // the app was last closed — they're persisted per connection) may have
-      // been decided meanwhile, and a fresh session replays nothing. Ask the
-      // server about each outstanding one, once, for every connection: they're
-      // this account's own uploads (#329).
+      // Held uploads (persisted per connection) may have been decided while we
+      // were away, and a fresh session replays nothing: ask about each once.
       unawaited(
         ref
             .read(pendingUploadsControllerProvider(serverKey).notifier)
@@ -140,11 +124,8 @@ VoidCallback handleAccordEvents(
       if (isActive()) {
         seedVoiceStatesFromReady(ref, data, serverKey: serverKey);
       }
-      // A READY after the first means the gateway re-identified on a fresh
-      // session (a resumed session replays missed events instead, and emits
-      // `resumed`, not `ready`). Nothing replays what was missed while
-      // disconnected, so re-fetch the history of every open message pane.
-      // Active server only: the open panes are its channels.
+      // A READY after the first is a re-identify on a fresh session, which
+      // replays nothing, so re-fetch every open pane (the active server's).
       if (hadReady && isActive()) {
         for (final key in [...activeMessageChannels]) {
           if (key.serverKey != serverKey) continue;
@@ -159,8 +140,6 @@ VoidCallback handleAccordEvents(
                 .reload(client),
           );
         }
-        // Open thread views and forum boards are caches of the same kind — they
-        // also missed events while disconnected, so refetch them too.
         for (final key in [...activeThreadReplies]) {
           if (key.serverKey != serverKey) continue;
           unawaited(
@@ -197,14 +176,8 @@ VoidCallback handleAccordEvents(
   );
 
   // ── Presence (every connection) ──────────────────────────────────────────
-  // Unlike the caches below, presence is keyed by [serverKey], so a background
-  // connection has its own map and can't clobber the visible one. Dropping
-  // these while inactive is what made a user who was demonstrably online read
-  // as offline after a server switch (#191) — there is no re-request path, the
-  // gateway only re-sends presence in READY.
-  // The `user_id` on the wire is bare; a member seen through a federated space
-  // is qualified. [selfDomain] is what lets the cache key both the same way
-  // (#209).
+  // Never gated on [isActive]: the gateway only re-sends presence in READY.
+  // [selfDomain] lets the cache key bare wire IDs like qualified member IDs.
   subs.add(
     client.onPresenceUpdate.listen((presence) {
       ref
@@ -231,19 +204,9 @@ VoidCallback handleAccordEvents(
   subs.add(client.onRelationshipRemove.listen((_) => refreshBlocked()));
 
   // ── User cache (profile changes) ─────────────────────────────────────────
-  // `user.update` carries a user's new avatar / display name / username, for
-  // themselves or anyone we can see. Two caches hold an `AccordUser` and both
-  // need it: the per-server user cache (message authors, popouts, and self
-  // surfaces) and
-  // each open space's member records, which embed their own copy. Mirrors what
-  // the profile editor already does after `users.updateMe`.
-  //
-  // Only `AccordMember.user` is replaced — the per-space `nickname`/`avatar`
-  // overrides live on the member itself and keep winning in
-  // `accordMemberName`/`accordMemberAvatarUrl`.
-  //
-  // NOTE: accordserver does not emit `user.update` today, so this is inert
-  // until the server broadcasts on `PATCH /users/@me` (#193).
+  // `user.update` refreshes the per-server user cache and the user embedded in
+  // each open space's member records; per-space nickname/avatar overrides stay
+  // on the member. accordserver doesn't emit it yet (#193).
   subs.add(
     client.onUserUpdate.listen((user) {
       if (user.id.isEmpty) return;
@@ -466,12 +429,9 @@ VoidCallback handleAccordEvents(
   // ── Role cache (per space) ───────────────────────────────────────────────
   // Roles live on the AccordSpace; keep its `roles` list current so the roster,
   // name colors, and permission checks reflect server-side changes live.
-  String? roleSpaceId(Map<String, dynamic> data) =>
-      data['space_id']?.toString() ?? data['guild_id']?.toString();
-
   void cacheRole(Map<String, dynamic> data) {
     if (!isActive()) return;
-    final spaceId = roleSpaceId(data);
+    final spaceId = data['space_id']?.toString();
     final raw = data['role'];
     if (spaceId == null || raw is! Map) return;
     final role = AccordRole.fromJson(Map<String, dynamic>.from(raw));
@@ -483,7 +443,7 @@ VoidCallback handleAccordEvents(
   subs.add(
     client.onRoleDelete.listen((data) {
       if (!isActive()) return;
-      final spaceId = roleSpaceId(data);
+      final spaceId = data['space_id']?.toString();
       final roleId =
           data['role_id']?.toString() ??
           (data['role'] is Map
@@ -499,7 +459,7 @@ VoidCallback handleAccordEvents(
   subs.add(
     client.onMemberLeave.listen((data) {
       if (!isActive()) return;
-      final spaceId = roleSpaceId(data);
+      final spaceId = data['space_id']?.toString();
       final userId =
           data['user_id']?.toString() ??
           (data['user'] is Map

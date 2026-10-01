@@ -12,7 +12,7 @@ part of 'read_state.dart';
 /// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
 /// servers don't clobber each other.
 ///
-/// Three things feed it:
+/// Four things feed it:
 ///  * the gateway READY handler [hydrate]s the server's authoritative unread
 ///    list on every (re)connect — this is what survives a cold start and what
 ///    lights up *background* servers;
@@ -29,7 +29,7 @@ final readStateControllerProvider = ReadStateControllerFamily._();
 /// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
 /// servers don't clobber each other.
 ///
-/// Three things feed it:
+/// Four things feed it:
 ///  * the gateway READY handler [hydrate]s the server's authoritative unread
 ///    list on every (re)connect — this is what survives a cold start and what
 ///    lights up *background* servers;
@@ -44,7 +44,7 @@ final class ReadStateControllerProvider
   /// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
   /// servers don't clobber each other.
   ///
-  /// Three things feed it:
+  /// Four things feed it:
   ///  * the gateway READY handler [hydrate]s the server's authoritative unread
   ///    list on every (re)connect — this is what survives a cold start and what
   ///    lights up *background* servers;
@@ -98,13 +98,13 @@ final class ReadStateControllerProvider
 }
 
 String _$readStateControllerHash() =>
-    r'd1d85ccbbda46d95b6a3b611fb237f10354f5479';
+    r'e60d400cbf7b0f662db53b37b113f8087ebf14b9';
 
 /// Client-side read/unread tracker, one instance per connected server (keyed by
 /// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
 /// servers don't clobber each other.
 ///
-/// Three things feed it:
+/// Four things feed it:
 ///  * the gateway READY handler [hydrate]s the server's authoritative unread
 ///    list on every (re)connect — this is what survives a cold start and what
 ///    lights up *background* servers;
@@ -136,7 +136,7 @@ final class ReadStateControllerFamily extends $Family
   /// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
   /// servers don't clobber each other.
   ///
-  /// Three things feed it:
+  /// Four things feed it:
   ///  * the gateway READY handler [hydrate]s the server's authoritative unread
   ///    list on every (re)connect — this is what survives a cold start and what
   ///    lights up *background* servers;
@@ -157,7 +157,7 @@ final class ReadStateControllerFamily extends $Family
 /// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
 /// servers don't clobber each other.
 ///
-/// Three things feed it:
+/// Four things feed it:
 ///  * the gateway READY handler [hydrate]s the server's authoritative unread
 ///    list on every (re)connect — this is what survives a cold start and what
 ///    lights up *background* servers;

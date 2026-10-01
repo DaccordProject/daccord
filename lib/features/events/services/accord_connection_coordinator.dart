@@ -56,9 +56,6 @@ class AccordConnectionCoordinator {
     _eventDisposers.clear();
   }
 
-  @visibleForTesting
-  Set<String> get attachedServerKeys => Set.unmodifiable(_eventDisposers.keys);
-
   void dispose() => detachAll();
 }
 

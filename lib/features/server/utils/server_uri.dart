@@ -157,7 +157,7 @@ class ServerUri {
     if (at <= 0 || at == payload.length - 1) return null;
     final spaceId = payload.substring(0, at);
     final authority = payload.substring(at + 1);
-    if (_hostFromAuthority(authority) == null) return null;
+    if (hostFromAuthority(authority) == null) return null;
     return ParsedServerUrl(
       route: 'federate',
       spaceId: spaceId,
@@ -190,10 +190,7 @@ class ServerUri {
       }
       payload = payload.substring(0, slugPos);
     }
-    if (payload.isEmpty) return null;
-
-    final host = _hostFromAuthority(payload);
-    if (host == null) return null;
+    if (hostFromAuthority(payload) == null) return null;
 
     return ParsedServerUrl(
       server: AccordServer.fromBaseUrl(_baseUrlFor(payload)),
@@ -210,9 +207,9 @@ class ServerUri {
     if (at <= 0) return null;
     final code = payload.substring(0, at);
     final authority = payload.substring(at + 1);
-    if (authority.isEmpty || !_isAlphanumeric(code)) return null;
-    final host = _hostFromAuthority(authority);
-    if (host == null) return null;
+    if (!_isAlphanumeric(code) || hostFromAuthority(authority) == null) {
+      return null;
+    }
     return ParsedServerUrl(
       server: AccordServer.fromBaseUrl(_baseUrlFor(authority)),
       route: 'invite',
@@ -248,18 +245,18 @@ class ServerUri {
     );
   }
 
-  /// Splits `host[:port]` and validates the host. Returns the host or null.
-  static String? _hostFromAuthority(String authority) {
-    var host = authority;
+  /// The bare host of a `host[:port]` authority, or null when the host fails
+  /// accordkit's strict [isValidHost] allowlist (so userinfo, paths and other
+  /// URL metacharacters can't smuggle an auth-bearing base URL onto another
+  /// host). Loopback is allowed — a user may point at a self-hosted dev
+  /// server; federation callers must reject it separately.
+  static String? hostFromAuthority(String authority) {
     final colon = authority.lastIndexOf(':');
-    if (colon != -1) {
-      final portStr = authority.substring(colon + 1);
-      if (int.tryParse(portStr) != null) {
-        host = authority.substring(0, colon);
-      }
-    }
-    if (host.isEmpty || !_isValidHost(host)) return null;
-    return host;
+    final host =
+        colon != -1 && int.tryParse(authority.substring(colon + 1)) != null
+        ? authority.substring(0, colon)
+        : authority;
+    return isValidHost(host) ? host : null;
   }
 
   /// Builds an `https://host[:port]` base URL from a `host[:port]` authority.
@@ -290,13 +287,6 @@ class ServerUri {
     if (s.isEmpty) return false;
     return RegExp(r'^[A-Za-z0-9]+$').hasMatch(s);
   }
-
-  /// Validates a bare host (port already split off). Uses a strict hostname
-  /// allowlist rather than a denylist so userinfo (`@`), path separators
-  /// (`/`, `\`) and other URL metacharacters can't smuggle the auth-bearing
-  /// base URL onto a different host than the one shown. Loopback is allowed
-  /// here — a user may legitimately point at a self-hosted dev server.
-  static bool _isValidHost(String host) => isValidHost(host);
 
   static String? _blankToNull(String? v) => (v == null || v.isEmpty) ? null : v;
 }

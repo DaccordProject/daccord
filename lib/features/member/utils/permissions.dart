@@ -13,7 +13,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// - the `administrator` permission implies all others (see [accordHasPermission]).
 ///
 /// Channel-level permission overwrites are not modeled here (space-level checks
-/// are all the moderation UI needs).
+/// are all the moderation UI needs; see [accordEffectiveChannelPermissions]).
+///
 /// When [previewRoleId] is set, permissions are computed as a plain member who
 /// holds only that role (plus `@everyone`), ignoring the admin/owner bypass —
 /// this drives the "preview as role" (imposter) mode.
@@ -54,34 +55,32 @@ Set<String> accordEffectivePermissions({
 /// providers. Keeping admin and role-preview handling here prevents UI
 /// call-sites from drifting as new permission gates are added.
 extension AccordPermissionWidgetRef on WidgetRef {
-  Set<String> watchAccordPermissions(AccordSpace? space, String spaceId) {
-    final currentUserId = watchUserId();
-    final members = watch(
-      accordMembersControllerProvider(readActiveServerKey() ?? '', spaceId),
-    );
-    final preview = watch(rolePreviewControllerProvider);
-    return accordEffectivePermissions(
-      space: space,
-      selfMember: currentUserId == null ? null : members?[currentUserId],
-      roles: space?.roles ?? const <AccordRole>[],
-      currentUserId: currentUserId ?? '',
-      currentUserIsAdmin: watchIsAdmin(),
-      previewRoleId: preview?.spaceId == spaceId ? preview?.roleId : null,
-    );
-  }
+  Set<String> watchAccordPermissions(AccordSpace? space, String spaceId) =>
+      _accordPermissions(space, spaceId, listen: true);
 
-  Set<String> readAccordPermissions(AccordSpace? space, String spaceId) {
-    final currentUserId = readUserId();
-    final members = read(
-      accordMembersControllerProvider(readActiveServerKey() ?? '', spaceId),
+  Set<String> readAccordPermissions(AccordSpace? space, String spaceId) =>
+      _accordPermissions(space, spaceId, listen: false);
+
+  Set<String> _accordPermissions(
+    AccordSpace? space,
+    String spaceId, {
+    required bool listen,
+  }) {
+    final currentUserId = listen ? watchUserId() : readUserId();
+    final membersProvider = accordMembersControllerProvider(
+      readActiveServerKey() ?? '',
+      spaceId,
     );
-    final preview = read(rolePreviewControllerProvider);
+    final members = listen ? watch(membersProvider) : read(membersProvider);
+    final preview = listen
+        ? watch(rolePreviewControllerProvider)
+        : read(rolePreviewControllerProvider);
     return accordEffectivePermissions(
       space: space,
       selfMember: currentUserId == null ? null : members?[currentUserId],
       roles: space?.roles ?? const <AccordRole>[],
       currentUserId: currentUserId ?? '',
-      currentUserIsAdmin: readIsAdmin(),
+      currentUserIsAdmin: listen ? watchIsAdmin() : readIsAdmin(),
       previewRoleId: preview?.spaceId == spaceId ? preview?.roleId : null,
     );
   }
@@ -165,20 +164,14 @@ int accordMyHighestRolePosition({
   required List<AccordRole> roles,
   required String currentUserId,
   bool currentUserIsAdmin = false,
-  String? previewRoleId,
 }) {
-  final previewing = previewRoleId != null;
-  if (!previewing) {
-    if (currentUserIsAdmin) return kAccordMaxRolePosition;
-    if (space != null &&
-        currentUserId.isNotEmpty &&
-        space.ownerId == currentUserId) {
-      return kAccordMaxRolePosition;
-    }
+  if (currentUserIsAdmin) return kAccordMaxRolePosition;
+  if (space != null &&
+      currentUserId.isNotEmpty &&
+      space.ownerId == currentUserId) {
+    return kAccordMaxRolePosition;
   }
-  final myRoleIds = previewing
-      ? <String>{previewRoleId}
-      : (selfMember?.roles.toSet() ?? const <String>{});
+  final myRoleIds = selfMember?.roles.toSet() ?? const <String>{};
   var highest = 0;
   var hasAdmin = false;
   for (final role in roles) {
