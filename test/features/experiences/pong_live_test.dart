@@ -145,6 +145,12 @@ void main() {
           space,
           session.id,
         );
+        final remoteSnapshots = remote.snapshots.asBroadcastStream();
+        AccordExperienceSession? remoteSnapshot;
+        final remoteEvents = remoteSnapshots.listen((snapshot) {
+          remoteSnapshot = snapshot;
+        });
+        addTearDown(remoteEvents.cancel);
         addTearDown(() => remote.close());
         await tester.pumpWidget(
           ProviderScope(
@@ -192,14 +198,14 @@ void main() {
           () => tester.widget<Slider>(find.byType(Slider)).onChanged != null,
           stage: 'enabling paddle input',
         );
-        final localInput = remote.snapshots
-            .firstWhere((s) => s.game['rects'][1] > 600)
-            .timeout(const Duration(seconds: 5));
         final slider = tester.getRect(find.byType(Slider));
         await tester.tapAt(
           Offset(slider.left + slider.width * .85, slider.center.dy),
         );
-        await localInput;
+        await until(
+          () => (remoteSnapshot?.game['rects'][1] ?? 0) > 600,
+          stage: 'delivering the local slider input to the peer',
+        );
         // Measure the complete peer input -> authoritative snapshot -> guest render
         // -> Flutter widget frame path; report samples instead of timing API calls.
         final latencies = <int>[];
@@ -223,7 +229,7 @@ void main() {
           reason: 'The local reference-game input budget is 250 ms',
         );
         final navigator = tester.state<NavigatorState>(find.byType(Navigator));
-        final paused = remote.snapshots
+        final paused = remoteSnapshots
             .firstWhere((s) => s.game['paused'] == true)
             .timeout(const Duration(seconds: 10));
         unawaited(
@@ -239,7 +245,7 @@ void main() {
           find.byType(ExperienceCanvas, skipOffstage: false),
           findsNothing,
         );
-        final resumed = remote.snapshots
+        final resumed = remoteSnapshots
             .firstWhere((s) => s.game['paused'] == false)
             .timeout(const Duration(seconds: 10));
         navigator.pop();
