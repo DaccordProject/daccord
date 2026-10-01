@@ -9,7 +9,7 @@ enum MarkdownAlternating { odd, even }
 /// Enumeration of list types.
 enum MarkdownListType { ordered, unordered }
 
-/// Signature for callbacks used by [MarkdownWidget] when the user taps a link.
+/// Signature for callbacks used by [MarkdownViewer] when the user taps a link.
 typedef MarkdownTapLinkCallback = void Function(
   String? href,
   String? title,
@@ -23,9 +23,6 @@ typedef MarkdownListItemMarkerBuilder = Widget Function(
 
 /// Signature for custom checkbox widget.
 typedef MarkdownCheckboxBuilder = Widget Function(bool checked);
-
-/// Alias name of BlockSyntax from dart_markdown package.
-typedef MdBlockSyntax = md.BlockSyntax;
 
 /// Alias name of InlineSyntax from dart_markdown package.
 typedef MdInlineSyntax = md.InlineSyntax;
@@ -42,17 +39,11 @@ typedef MdInlineElement = md.InlineElement;
 /// Alias name of Element from dart_markdown package.
 typedef MdElement = md.Element;
 
-/// Alias name of BlockElement from dart_markdown package.
-typedef MdBlockElement = md.BlockElement;
-
 /// Alias name of Text from dart_markdown package.
 typedef MdText = md.Text;
 
 /// Alias name of InlineParser from dart_markdown package.
 typedef MdInlineParser = md.InlineParser;
-
-/// Alias name of BlockParser from dart_markdown package.
-typedef MdBlockParser = md.BlockParser;
 
 /// Signature for custom image widget.
 typedef MarkdownImageBuilder = Widget Function(Uri uri, MarkdownImageInfo info);

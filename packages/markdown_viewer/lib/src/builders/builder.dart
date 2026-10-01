@@ -140,5 +140,3 @@ abstract class MarkdownElementBuilder {
     );
   }
 }
-
-typedef Attributes = Map<String, String>;
