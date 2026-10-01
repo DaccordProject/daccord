@@ -53,8 +53,16 @@ trap cleanup EXIT
 Xvfb -displayfd 3 -screen 0 1920x1080x24 -nolisten tcp 3>"$work/display" \
   2>"$work/xvfb.log" &
 xvfb_pid=$!
-for _ in $(seq 50); do [ -s "$work/display" ] && break; sleep 0.1; done
-[ -s "$work/display" ] || { cat "$work/xvfb.log" >&2; exit 1; }
+xvfb_deadline=$((SECONDS + timeout_s))
+while [ ! -s "$work/display" ] && [ $SECONDS -lt "$xvfb_deadline" ]; do
+  kill -0 "$xvfb_pid" 2>/dev/null || break
+  sleep 0.1
+done
+[ -s "$work/display" ] || {
+  echo "error: Xvfb did not provide a display within ${timeout_s}s" >&2
+  cat "$work/xvfb.log" >&2
+  exit 1
+}
 export DISPLAY=":$(cat "$work/display")"
 
 # A throwaway home (and keyring inside it) keeps the check away from any real
