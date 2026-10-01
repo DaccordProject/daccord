@@ -7,6 +7,7 @@ import base64
 import json
 import os
 from pathlib import Path
+import shutil
 import socket
 import subprocess
 import tempfile
@@ -82,6 +83,9 @@ def run(args):
             command = args.command[1:] if args.command[0] == "--" else args.command
             client_url = server_url.replace("127.0.0.1", args.client_host)
             command = [argument.replace("{server_url}", client_url) for argument in command]
+            # CreateProcess does not search PATHEXT for a bare command name.
+            # Resolve Flutter's Windows .bat launcher without a shell string.
+            command[0] = shutil.which(command[0]) or command[0]
             result = subprocess.run(command, env=dict(os.environ, ACCORD_TEST_SERVER_URL=server_url,
                                                      ACCORD_TEST_EXPERIENCES="1"), check=False)
             if result.returncode:
