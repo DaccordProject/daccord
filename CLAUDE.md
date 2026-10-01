@@ -248,3 +248,10 @@ and capabilities are allowlisted; broader Wasm/WASI output must fail closed.
 `tools/experiences/build_reference.py` reproducibly builds reference packages.
 See `docs/experiences/architecture.md` for ABI and lifecycle requirements. Run
 `dart test` in the runtime package for changes to validation or execution.
+
+The Arcade lives in `lib/features/experiences`; never put games in the channel
+list or pass SDK tokens/sockets to guests. `client.experiences` and
+`ExperienceLiveSession` reconcile server-owned revisions for both modes. The
+root tests cover package signatures, isolated turn alerts and responsive WASM
+frames; CI also gates native/browser runtime tests and reproducible packages.
+Run `flutter test test/features/experiences` after changing the trusted host.

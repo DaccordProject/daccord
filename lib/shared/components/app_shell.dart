@@ -2,6 +2,7 @@ import 'package:bonfire/features/profiles/views/profile_gate.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/voice/views/incoming_call_overlay.dart';
 import 'package:flutter/material.dart';
+import 'package:bonfire/features/experiences/views/turn_banner.dart';
 
 /// Upper bound on the combined (system × in-app) text scale. The OS can ask
 /// for far more than this at the top accessibility sizes; past roughly 2× the
@@ -56,6 +57,8 @@ Widget buildAppShell(
     ),
     // The gate wraps the banner host too: a locked profile shows neither the
     // app nor who is calling it.
-    child: ProfileGate(child: withIncomingCallOverlay(child)),
+    child: ProfileGate(
+      child: withIncomingCallOverlay(withExperienceTurns(child)),
+    ),
   );
 }

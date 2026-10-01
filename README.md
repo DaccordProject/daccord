@@ -395,3 +395,16 @@ native clients. Appearance settings can hide embeds locally; see
 Curated WASM experiences use a bounded portable host and server-owned game state.
 See [the architecture and creator SDK](docs/experiences/architecture.md) and
 [validation evidence](docs/experiences/validation.md). Runtime tests: `cd packages/experience_runtime && dart test`.
+
+Space owners manage the reviewed directory and Arcade from space settings.
+Members use the single Space Arcade entry above the channel list to create
+open/invite-only lobbies, ready up, spectate, and resume turns. Chess uses legal
+server-validated moves; Pong uses server-owned live snapshots and paddle inputs.
+The host verifies Ed25519 package signatures with `cryptography`, then runs
+`experience_runtime` without filesystem or networking access. The matching
+community server and configured directory keys are required.
+
+Validate the host on both engines with `dart test` and `dart test -p chrome`
+inside `packages/experience_runtime`; CI gates both. Run
+`flutter test test/features/experiences` for signature, turn-alert and actual
+WASM-canvas checks. Physical-device gates remain listed in the validation file.

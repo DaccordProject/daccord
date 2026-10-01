@@ -389,32 +389,6 @@ void main() {
     });
   });
 
-  group('PluginsApi', () {
-    test('listPlugins filters by type', () async {
-      rest = mockRest(log: log, responder: (_) => jsonData([]));
-      await PluginsApi(rest).listPlugins('7', type: 'activity');
-      expect(req.url.queryParameters['type'], 'activity');
-    });
-
-    test('getSource uses raw request', () async {
-      rest = mockRest(
-          log: log,
-          responder: (_) => http.Response.bytes(utf8.encode('-- lua'), 200));
-      final result = await PluginsApi(rest).getSource('1');
-      expect(req.url.path, '/api/v1/plugins/1/source');
-      expect(utf8.decode(result.data as Uint8List), '-- lua');
-    });
-
-    test('leaderboardSubmit posts score', () async {
-      rest = mockRest(log: log, responder: (_) => jsonData(null));
-      await PluginsApi(rest)
-          .leaderboardSubmit('1', 'board', 42.0, metadata: {'k': 'v'});
-      expect(req.url.path, '/api/v1/plugins/1/leaderboards/board/submit');
-      expect(req.jsonBody!['score'], 42.0);
-      expect(req.jsonBody!['metadata'], {'k': 'v'});
-    });
-  });
-
   group('DirectoryApi', () {
     test('browse builds master-server path with params', () async {
       // DirectoryApi targets the master server, so its rest base URL is the

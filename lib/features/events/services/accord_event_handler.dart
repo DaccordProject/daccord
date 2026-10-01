@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:bonfire/features/experiences/controllers/turns.dart';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
@@ -55,6 +56,18 @@ VoidCallback handleAccordEvents(
       .read(connectionsControllerProvider.notifier)
       .setStatus(serverKey, status);
 
+  subs.add(
+    client.onExperienceSession.listen((data) {
+      try {
+        final session = AccordExperienceSession.fromJson(data);
+        ref
+            .read(experienceTurnsProvider.notifier)
+            .update(serverKey, currentUserId, session);
+      } on Object catch (error) {
+        debugPrint('Invalid experience update: $error');
+      }
+    }),
+  );
   // ── Connection lifecycle ─────────────────────────────────────────────────
   subs.add(
     client.onConnected.listen((_) {
@@ -505,7 +518,9 @@ VoidCallback handleAccordEvents(
     }),
   );
 
+  final turnNotifications = ref.read(experienceTurnsProvider.notifier);
   return () {
+    turnNotifications.clearServer(serverKey);
     for (final sub in subs) {
       sub.cancel();
     }

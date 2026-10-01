@@ -13,8 +13,9 @@ class ExperienceModule {
   ExperienceModule._(this._types, this._functions, this._bodies, this._exports);
 
   factory ExperienceModule.decode(Uint8List bytes) {
-    if (bytes.length > maxBytes)
+    if (bytes.length > maxBytes) {
       throw const FormatException('Module too large');
+    }
     final r = _Reader(bytes);
     if (r.take(8).join(',') != '0,97,115,109,1,0,0,0') {
       throw const FormatException('Expected WebAssembly core v1');
@@ -36,13 +37,15 @@ class ExperienceModule {
       switch (id) {
         case 1:
           for (var i = 0; i < count; i++) {
-            if (section.byte() != 0x60)
+            if (section.byte() != 0x60) {
               throw const FormatException('Function type required');
+            }
             final params = section.uint();
             if (params > 8) throw const FormatException('Too many arguments');
             for (var p = 0; p < params; p++) {
-              if (section.byte() != 0x7f)
+              if (section.byte() != 0x7f) {
                 throw const FormatException('Only i32 supported');
+              }
             }
             final results = section.uint();
             if (results > 1 || (results == 1 && section.byte() != 0x7f)) {
@@ -51,10 +54,11 @@ class ExperienceModule {
             types.add(_Type(params, results));
           }
         case 2:
-          if (count != 3)
+          if (count != 3) {
             throw const FormatException(
               'Expected three versioned host imports',
             );
+          }
           const names = ['read_state', 'draw', 'action'];
           const signatures = [(2, 1), (7, 0), (3, 0)];
           for (var i = 0; i < count; i++) {
@@ -73,13 +77,15 @@ class ExperienceModule {
         case 3:
           for (var i = 0; i < count; i++) {
             final index = section.uint();
-            if (index >= types.length)
+            if (index >= types.length) {
               throw const FormatException('Unknown function type');
+            }
             functions.add(index);
           }
         case 7:
-          if (count != 2)
+          if (count != 2) {
             throw const FormatException('Expected render and input exports');
+          }
           for (var i = 0; i < count; i++) {
             final name = section.name();
             if (!['render', 'input'].contains(name) ||
@@ -88,8 +94,9 @@ class ExperienceModule {
               throw const FormatException('Invalid export');
             }
             final index = section.uint();
-            if (index < 3 || index >= functions.length)
+            if (index < 3 || index >= functions.length) {
               throw const FormatException('Invalid export index');
+            }
             final type = types[functions[index]];
             if (type.results != 0 ||
                 type.params != (name == 'render' ? 0 : 3)) {
@@ -102,14 +109,18 @@ class ExperienceModule {
             final body = _Reader(
               Uint8List.fromList(section.take(section.uint())),
             );
-            if (body.uint() != 0)
+            if (body.uint() != 0) {
               throw const FormatException('Local allocation is not supported');
+            }
             final instructions = <_Instruction>[];
+            var ended = false;
             while (!body.done) {
               final op = body.byte();
               if (op == 0x0b) {
-                if (!body.done)
+                ended = true;
+                if (!body.done) {
                   throw const FormatException('Trailing function bytes');
+                }
                 break;
               }
               if (![0x41, 0x20, 0x10, 0x1a, 0x6a, 0x6b, 0x6c].contains(op)) {
@@ -125,11 +136,14 @@ class ExperienceModule {
                       : ([0x20, 0x10].contains(op) ? body.uint() : 0),
                 ),
               );
-              if (instructions.length > 4096)
+              if (instructions.length > 4096) {
                 throw const FormatException('Too many instructions');
-              if (body.done)
+              }
+              if (body.done) {
                 throw const FormatException('Missing function end');
+              }
             }
+            if (!ended) throw const FormatException('Missing function end');
             bodies.add(_Body(instructions));
           }
       }
@@ -151,15 +165,18 @@ class ExperienceModule {
           case 0x41:
             stack++;
           case 0x20:
-            if (instruction.value >= type.params)
+            if (instruction.value >= type.params) {
               throw const FormatException('Invalid local index');
+            }
             stack++;
           case 0x10:
-            if (instruction.value >= own)
+            if (instruction.value >= own) {
               throw const FormatException('Recursive or forward call denied');
+            }
             final called = types[functions[instruction.value]];
-            if (stack < called.params)
+            if (stack < called.params) {
               throw const FormatException('Stack underflow');
+            }
             stack += called.results - called.params;
           case 0x1a:
             if (stack < 1) throw const FormatException('Stack underflow');
@@ -170,8 +187,9 @@ class ExperienceModule {
         }
         if (stack > 128) throw const FormatException('Stack limit exceeded');
       }
-      if (stack != type.results)
+      if (stack != type.results) {
         throw const FormatException('Invalid result stack');
+      }
     }
     return ExperienceModule._(types, functions, bodies, exports);
   }
@@ -195,8 +213,9 @@ class ExperienceModule {
     var reads = 0;
     void check() {
       if (!grantValid()) throw StateError('Experience grant revoked');
-      if (--fuel < 0)
+      if (--fuel < 0) {
         throw StateError('Experience instruction budget exceeded');
+      }
     }
 
     int? call(int function, List<int> parameters, int depth) {
@@ -205,14 +224,15 @@ class ExperienceModule {
       if (function < 3) {
         switch (function) {
           case 0:
-            if (++reads > 256 || parameters.any((v) => v < 0 || v > 1024))
+            if (++reads > 256 || parameters.any((v) => v < 0 || v > 1024)) {
               throw StateError('State read limit exceeded');
+            }
             return _i32(readState(parameters[0], parameters[1]));
           case 1:
             if (export != 'render' ||
                 drawings.length >= 128 ||
                 parameters[0] < 0 ||
-                parameters[0] > 2 ||
+                parameters[0] > 1 ||
                 parameters.skip(1).take(5).any((v) => v < 0 || v > 1024) ||
                 parameters[6].abs() > 65535) {
               throw StateError('Invalid drawing command');
@@ -221,8 +241,9 @@ class ExperienceModule {
           case 2:
             if (export != 'input' ||
                 actions.isNotEmpty ||
-                parameters.any((v) => v < 0 || v > 1024))
+                parameters.any((v) => v < 0 || v > 1024)) {
               throw StateError('Invalid action');
+            }
             actions.add(
               ExperienceAction(parameters[0], parameters[1], parameters[2]),
             );
@@ -253,7 +274,11 @@ class ExperienceModule {
               _i32(switch (instruction.op) {
                 0x6a => a + b,
                 0x6b => a - b,
-                _ => a * b,
+                _ =>
+                  (a & 65535) * (b & 65535) +
+                      (((a >> 16) * (b & 65535) + (b >> 16) * (a & 65535)) &
+                              65535) *
+                          65536,
               }),
             );
         }
@@ -314,14 +339,16 @@ class _Reader {
   _Reader(this.bytes);
   bool get done => position == bytes.length;
   int byte() {
-    if (position >= bytes.length)
+    if (position >= bytes.length) {
       throw const FormatException('Truncated module');
+    }
     return bytes[position++];
   }
 
   List<int> take(int length) {
-    if (length < 0 || length > bytes.length - position)
+    if (length < 0 || length > bytes.length - position) {
       throw const FormatException('Truncated module');
+    }
     final value = bytes.sublist(position, position + length);
     position += length;
     return value;
@@ -331,25 +358,30 @@ class _Reader {
   int sint() => _leb(true);
   int _leb(bool signed) {
     var value = 0;
+    var factor = 1;
     for (var i = 0; i < 5; i++) {
       final b = byte();
-      value |= (b & 0x7f) << (7 * i);
+      // Arithmetic preserves all 35 decoding bits in JavaScript too.
+      value += (b & 0x7f) * factor;
       if (b & 0x80 == 0) {
-        if (signed && b & 0x40 != 0) value |= -(1 << (7 * (i + 1)));
+        if (signed && b & 0x40 != 0) value -= factor * 128;
         if (signed
             ? value < -2147483648 || value > 2147483647
-            : value > 4294967295)
+            : value > 4294967295) {
           throw const FormatException('Invalid i32 LEB');
+        }
         return value;
       }
+      factor *= 128;
     }
     throw const FormatException('Invalid LEB');
   }
 
   String name() {
     final data = take(uint());
-    if (data.length > 64 || data.any((b) => b > 127 || b < 32))
+    if (data.length > 64 || data.any((b) => b > 127 || b < 32)) {
       throw const FormatException('Invalid name');
+    }
     return String.fromCharCodes(data);
   }
 }

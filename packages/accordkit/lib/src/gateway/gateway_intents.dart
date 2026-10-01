@@ -12,7 +12,7 @@ class GatewayIntents {
   static const String dmReactions = 'dm_reactions';
   static const String dmTyping = 'dm_typing';
   static const String scheduledEvents = 'scheduled_events';
-  static const String plugins = 'plugins';
+  static const String experiences = 'experiences';
   static const String relationships = 'relationships';
   static const String soundboard = 'soundboard';
 

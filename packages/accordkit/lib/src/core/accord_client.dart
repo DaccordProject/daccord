@@ -29,7 +29,7 @@ import '../rest/endpoints/federation_api.dart';
 import '../rest/endpoints/invites_api.dart';
 import '../rest/endpoints/members_api.dart';
 import '../rest/endpoints/messages_api.dart';
-import '../rest/endpoints/plugins_api.dart';
+import '../rest/endpoints/experiences_api.dart';
 import '../rest/endpoints/reactions_api.dart';
 import '../rest/endpoints/reports_api.dart';
 import '../rest/endpoints/roles_api.dart';
@@ -66,7 +66,7 @@ class AccordClient {
   late final EmojisApi emojis;
   late final SoundboardApi soundboard;
   late final ReactionsApi reactions;
-  late final PluginsApi plugins;
+  late final ExperiencesApi experiences;
   late final AuthApi auth;
   late final VoiceApi voice;
   late final AuditLogsApi auditLogs;
@@ -117,7 +117,7 @@ class AccordClient {
     emojis = EmojisApi(rest);
     soundboard = SoundboardApi(rest);
     reactions = ReactionsApi(rest);
-    plugins = PluginsApi(rest);
+    experiences = ExperiencesApi(rest);
     auth = AuthApi(rest);
     voice = VoiceApi(rest);
     auditLogs = AuditLogsApi(rest);
@@ -237,17 +237,8 @@ class AccordClient {
   Stream<AccordInvite> get onInviteCreate => gateway.onInviteCreate;
   Stream<Map<String, dynamic>> get onInviteDelete => gateway.onInviteDelete;
 
-  Stream<Map<String, dynamic>> get onPluginInstalled =>
-      gateway.onPluginInstalled;
-  Stream<Map<String, dynamic>> get onPluginUninstalled =>
-      gateway.onPluginUninstalled;
-  Stream<Map<String, dynamic>> get onPluginEvent => gateway.onPluginEvent;
-  Stream<Map<String, dynamic>> get onPluginSessionState =>
-      gateway.onPluginSessionState;
-  Stream<Map<String, dynamic>> get onPluginRoleChanged =>
-      gateway.onPluginRoleChanged;
-  Stream<Map<String, dynamic>> get onPluginLeaderboardUpdated =>
-      gateway.onPluginLeaderboardUpdated;
+  Stream<Map<String, dynamic>> get onExperienceSession => gateway.onExperienceSession;
+
 
   Stream<Map<String, dynamic>> get onEmojiCreate => gateway.onEmojiCreate;
   Stream<Map<String, dynamic>> get onEmojiUpdate => gateway.onEmojiUpdate;

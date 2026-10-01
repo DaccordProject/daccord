@@ -189,6 +189,11 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (spaceId != null && ref.watchActiveServerKey() != null)
+            SpaceArcadeEntry(
+              serverKey: ref.watchActiveServerKey()!,
+              spaceId: spaceId,
+            ),
           if (bannerUrl != null)
             CachedNetworkImage(
               imageUrl: bannerUrl,

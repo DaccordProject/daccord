@@ -416,28 +416,6 @@ void main() {
     });
   });
 
-  group('AccordPluginManifest', () {
-    test('canvas_size array and defaults', () {
-      final m = AccordPluginManifest.fromJson({
-        'id': '1',
-        'name': 'p',
-        'canvas_size': [800, 600],
-        'max_spectators': -1,
-      });
-      expect(m.canvasSize, [800, 600]);
-      expect(m.maxSpectators, -1);
-    });
-
-    test('canvas_width/height fallback', () {
-      final m = AccordPluginManifest.fromJson({
-        'id': '1',
-        'canvas_width': 320,
-        'canvas_height': 240,
-      });
-      expect(m.canvasSize, [320, 240]);
-    });
-  });
-
   group('AccordInvite', () {
     test('inviter object and guild_id alias', () {
       final i = AccordInvite.fromJson({

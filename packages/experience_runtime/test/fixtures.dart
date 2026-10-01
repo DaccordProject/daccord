@@ -22,3 +22,102 @@ Uint8List outputFlood() => base64Decode(
 Uint8List emptyBody() => base64Decode(
   'AGFzbQEAAAABGgRgAn9/AX9gB39/f39/f38AYAN/f38AYAAAAj8DCmRhY2NvcmRfdjEKcmVhZF9zdGF0ZQAACmRhY2NvcmRfdjEEZHJhdwABCmRhY2NvcmRfdjEGYWN0aW9uAAIDAwIDAgcSAgZyZW5kZXIAAwVpbnB1dAAECg8CAgALCgAgACABIAIQAgs=',
 );
+
+List<int> uint(int n) {
+  final bytes = <int>[];
+  do {
+    final byte = n & 127;
+    n >>= 7;
+    bytes.add(byte | (n == 0 ? 0 : 128));
+  } while (n != 0);
+  return bytes;
+}
+
+List<int> sint(int n) {
+  final bytes = <int>[];
+  while (true) {
+    final byte = n & 127;
+    n = (n / 128).floor();
+    final done = (n == 0 && byte & 64 == 0) || (n == -1 && byte & 64 != 0);
+    bytes.add(byte | (done ? 0 : 128));
+    if (done) return bytes;
+  }
+}
+
+Uint8List testModule({
+  List<int> render = const [],
+  List<int> input = const [0x20, 0, 0x20, 1, 0x20, 2, 0x10, 2],
+  List<List<int>> helpers = const [],
+}) {
+  List<int> name(String s) => [s.length, ...ascii.encode(s)];
+  List<int> section(int id, List<int> data) => [
+    id,
+    ...uint(data.length),
+    ...data,
+  ];
+  final bodies = [...helpers, render, input];
+  return Uint8List.fromList([
+    0,
+    97,
+    115,
+    109,
+    1,
+    0,
+    0,
+    0,
+    ...section(1, [
+      4,
+      0x60,
+      2,
+      0x7f,
+      0x7f,
+      1,
+      0x7f,
+      0x60,
+      7,
+      ...List.filled(7, 0x7f),
+      0,
+      0x60,
+      3,
+      0x7f,
+      0x7f,
+      0x7f,
+      0,
+      0x60,
+      0,
+      0,
+    ]),
+    ...section(2, [
+      3,
+      for (final item in [('read_state', 0), ('draw', 1), ('action', 2)]) ...[
+        ...name('daccord_v1'),
+        ...name(item.$1),
+        0,
+        item.$2,
+      ],
+    ]),
+    ...section(3, [
+      ...uint(bodies.length),
+      ...List.filled(bodies.length - 1, 3),
+      2,
+    ]),
+    ...section(7, [
+      2,
+      ...name('render'),
+      0,
+      ...uint(3 + helpers.length),
+      ...name('input'),
+      0,
+      ...uint(4 + helpers.length),
+    ]),
+    ...section(10, [
+      ...uint(bodies.length),
+      for (final body in bodies) ...[
+        ...uint(body.length + 2),
+        0,
+        ...body,
+        0x0b,
+      ],
+    ]),
+  ]);
+}

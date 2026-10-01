@@ -995,6 +995,7 @@ class AccordAuth extends _$AccordAuth {
               GatewayIntents.members,
               GatewayIntents.presences,
               GatewayIntents.voiceStates,
+              GatewayIntents.experiences,
             ],
     );
     _connections[key] = _Conn(client: client, session: session);

@@ -56,3 +56,15 @@ from YouTube** authorizes the official `www.youtube.com/iframe_api` script and
 media requests. History rendering alone does not load the script or player.
 The **Open in YouTube** action uses the external browser. You can hide all embed
 previews in appearance settings without changing the underlying messages.
+
+## Curated game experiences
+
+Space Arcade requests stay on the selected community server. That server checks
+the curated directory over HTTPS against operator-provisioned publication keys.
+The client verifies the exact signed package and pinned session before running
+the bounded WASM presentation/input code. Guest code has no account credentials,
+filesystem, socket, HTTP or arbitrary URL access. The host sends proposed moves
+or paddle positions; the server owns participants, turns, game state and results.
+Approval expires after five seconds and is refreshed while the game is active.
+Backgrounding, changing accounts, disabling a release or losing approval stops
+guest execution. Turn alerts remain in-app, inside the PIN gate.

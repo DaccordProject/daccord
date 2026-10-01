@@ -16,6 +16,7 @@ analyzer:
     # fork's tests are upstream's and are not run in this repo.
     - packages/accordkit/test/**
     - packages/media_kit/test/**
+    - packages/experience_runtime/test/**
 
 include: package:flutter_lints/flutter.yaml
 

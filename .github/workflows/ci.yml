@@ -232,6 +232,27 @@ jobs:
         working-directory: packages/accordkit
         run: dart test
 
+  experience-runtime:
+    name: Bounded WASM host (native and browser)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d
+        with:
+          sdk: stable
+      - run: dart pub get
+        working-directory: packages/experience_runtime
+      - run: dart analyze
+        working-directory: packages/experience_runtime
+      - run: dart test
+        working-directory: packages/experience_runtime
+      - run: dart test --platform chrome
+        working-directory: packages/experience_runtime
+      - name: Reference packages are reproducible
+        run: |
+          python3 tools/experiences/build_reference.py
+          git diff --exit-code -- tools/experiences/packages
+
   markdown-viewer:
     name: Vendored markdown_viewer
     runs-on: ubuntu-latest
