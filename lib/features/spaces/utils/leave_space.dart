@@ -35,20 +35,24 @@ Future<void> leaveSpace(
 
   final client = ref.read(accordAuthProvider.notifier).clientForKey(serverKey);
   if (client == null) return;
+  // The route can close while leaving; cache updates belong to its app scope.
+  final container = ProviderScope.containerOf(context, listen: false);
   onBusy?.call(true);
   final result = await client.members.leaveMe(space.id, deleteData: deleteData);
-  if (!context.mounted) return;
-  onBusy?.call(false);
+  if (context.mounted) onBusy?.call(false);
   if (!result.ok) {
-    showErrorSnack(context, result, prefix: 'Failed to leave');
+    if (context.mounted) {
+      showErrorSnack(context, result, prefix: 'Failed to leave');
+    }
     return;
   }
-  ref
+  container
       .read(connectionsControllerProvider.notifier)
       .removeSpace(serverKey, space.id);
-  if (ref.read(connectionsControllerProvider).activeKey == serverKey) {
-    ref.read(spacesControllerProvider.notifier).removeSpace(space.id);
+  if (container.read(connectionsControllerProvider).activeKey == serverKey) {
+    container.read(spacesControllerProvider.notifier).removeSpace(space.id);
   }
+  if (!context.mounted) return;
   showInfoSnack(
     context,
     deleteData
