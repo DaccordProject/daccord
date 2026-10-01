@@ -21,21 +21,20 @@ String _paragraphText(WidgetTester tester) {
 }
 
 Widget _host(Widget child) => MaterialApp(
-      theme: buildAppTheme(AppThemePreset.dark),
-      home: Scaffold(body: child),
-    );
+  theme: buildAppTheme(AppThemePreset.dark),
+  home: Scaffold(body: child),
+);
 
 void main() {
   testWidgets(
     'renders markdown and a channel chip together; chip is tappable',
     (tester) async {
       String? tapped;
-      final markup = buildAccordMarkup(
+      final markup = accordMarkupSyntaxes(
         AccordMarkupContext(
           channelByName: {
             'general': AccordChannel(id: 'c1', name: 'general', type: 'text'),
           },
-          onTapChannel: (id) => tapped = id,
         ),
       );
 
@@ -43,8 +42,10 @@ void main() {
         _host(
           AccordMarkdownBox(
             content: 'see **bold** in #general now',
-            syntaxExtensions: markup.syntaxes,
-            elementBuilders: markup.builders,
+            syntaxExtensions: markup,
+            elementBuilders: accordMarkupBuilders(
+              onTapChannel: (id) => tapped = id,
+            ),
           ),
         ),
       );
@@ -63,36 +64,35 @@ void main() {
     },
   );
 
-  testWidgets(
-    'chips @everyone but leaves email-like @ handles as plain text',
-    (tester) async {
-      final markup = buildAccordMarkup(const AccordMarkupContext());
+  testWidgets('chips @everyone but leaves email-like @ handles as plain text', (
+    tester,
+  ) async {
+    final markup = accordMarkupSyntaxes(const AccordMarkupContext());
 
-      await tester.pumpWidget(
-        _host(
-          AccordMarkdownBox(
-            content: 'mail me at email@host then ping @everyone',
-            syntaxExtensions: markup.syntaxes,
-            elementBuilders: markup.builders,
-          ),
+    await tester.pumpWidget(
+      _host(
+        AccordMarkdownBox(
+          content: 'mail me at email@host then ping @everyone',
+          syntaxExtensions: markup,
+          elementBuilders: accordMarkupBuilders(),
         ),
-      );
-      await tester.pump();
+      ),
+    );
+    await tester.pump();
 
-      expect(find.text('@everyone'), findsOneWidget);
-      expect(_paragraphText(tester), contains('email@host'));
-    },
-  );
+    expect(find.text('@everyone'), findsOneWidget);
+    expect(_paragraphText(tester), contains('email@host'));
+  });
 
   testWidgets('unresolved #channel stays plain text (no chip)', (tester) async {
-    final markup = buildAccordMarkup(const AccordMarkupContext());
+    final markup = accordMarkupSyntaxes(const AccordMarkupContext());
 
     await tester.pumpWidget(
       _host(
         AccordMarkdownBox(
           content: 'look at #nowhere please',
-          syntaxExtensions: markup.syntaxes,
-          elementBuilders: markup.builders,
+          syntaxExtensions: markup,
+          elementBuilders: accordMarkupBuilders(),
         ),
       ),
     );

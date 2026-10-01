@@ -70,7 +70,7 @@ final class TypingControllerProvider
   }
 }
 
-String _$typingControllerHash() => r'e650dd9acc3f53b003d0c2d86a80038c11c9f318';
+String _$typingControllerHash() => r'1c5ffa24d0e3bd42bd0d46d8d86b738b19a6e768';
 
 /// The set of users currently typing in a channel, keyed by channel ID. Each
 /// user is held for [_typingTimeout] after their last event, then expires.

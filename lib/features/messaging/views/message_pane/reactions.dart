@@ -138,11 +138,7 @@ class _ReactorsDialogState extends ConsumerState<_ReactorsDialog> {
   }
 
   Future<void> _load() async {
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
+    final client = ref.accordClient;
     if (client == null) {
       setState(() => _users = const []);
       return;

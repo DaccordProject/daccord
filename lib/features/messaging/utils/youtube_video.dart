@@ -31,8 +31,9 @@ class YouTubeVideo {
       // Avoid ambiguous duplicate identifiers/timestamps. Only validated ID
       // and time survive normalization; playlists, redirects and player
       // parameters supplied by message metadata never reach the iframe.
-      if (['v', 'start', 't'].any((key) => (query[key]?.length ?? 0) > 1))
+      if (['v', 'start', 't'].any((key) => (query[key]?.length ?? 0) > 1)) {
         return null;
+      }
       String? id;
       if (host == 'youtu.be' && segments.length == 1) {
         id = segments.single;
@@ -46,8 +47,9 @@ class YouTubeVideo {
           id = segments.last;
         }
       }
-      if (id == null || !RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(id))
+      if (id == null || !RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(id)) {
         return null;
+      }
       final time =
           uri.queryParameters['start'] ??
           uri.queryParameters['t'] ??

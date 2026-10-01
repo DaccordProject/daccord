@@ -27,7 +27,6 @@ class EmojiPick {
 
   /// The reaction token the REST API expects: the bare unicode char for
   /// built-ins, or `name:id` for custom emoji.
-  String get reactionToken => isCustom ? '$name:$id' : char;
 
   /// The text inserted into the composer: the char for built-ins, or a
   /// `:name:` shortcode for custom emoji.
@@ -85,7 +84,13 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
   List<AccordEmoji> get _customEmoji {
     final spaceId = widget.spaceId;
     if (spaceId == null) return const [];
-    return ref.watch(accordEmojisControllerProvider(ref.readActiveServerKey() ?? '', spaceId)) ?? const [];
+    return ref.watch(
+          accordEmojisControllerProvider(
+            ref.readActiveServerKey() ?? '',
+            spaceId,
+          ),
+        ) ??
+        const [];
   }
 
   void _pick(EmojiPick pick) {
@@ -284,8 +289,10 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
               source: url,
               trustedBaseUrl: _cdnUrl,
               allowExternalConsent: false,
-              blockedPlaceholder:
-                  Text(':${emoji.name}:', style: const TextStyle(fontSize: 9)),
+              blockedPlaceholder: Text(
+                ':${emoji.name}:',
+                style: const TextStyle(fontSize: 9),
+              ),
               builder: (_, safeUrl) => CachedNetworkImage(
                 imageUrl: safeUrl,
                 width: 26,

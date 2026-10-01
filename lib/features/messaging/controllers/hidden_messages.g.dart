@@ -63,7 +63,7 @@ final class HiddenMessagesControllerProvider
 }
 
 String _$hiddenMessagesControllerHash() =>
-    r'5677ed030d1d42ca7e891d72706e7c0989d3873b';
+    r'86a3e41cfaf2b24e585a1b43679214a3cebb6b87';
 
 /// Messages the user has reported and therefore no longer wants to see.
 ///

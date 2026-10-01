@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:bonfire/features/messaging/utils/dropped_entity.dart';
+import 'package:bonfire/features/messaging/utils/dropped_entity_io.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
