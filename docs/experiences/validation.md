@@ -15,11 +15,11 @@ checks remain release gates for the overall plugin-system issues.
 | Community server | Full SQLite/PostgreSQL suites, lint and Docker CI passed on the final implementation; PRs #90/#91 merged, issue #88 closed; special moves and draw rules also pass |
 | Directory to chess/live Pong | Real master + community server + client SDK/signature/guest host test passed, including three fresh runs with the final chess engine; the private master CI stack gate also passed; server integration covers authenticated sockets and reconnect |
 | Flutter Web application | Both JavaScript and WASM release compilations passed; all 7 Arcade widget/signature/alert tests also pass in Chromium in both Flutter modes; published Web artifacts remain JavaScript |
-| Desktop/mobile smoke builds | Android, Linux and Windows passed; Apple jobs use the release Xcode selection and a scoped AVFoundation header workaround |
-| Linux application | Pending |
+| Desktop/mobile smoke builds | Web JavaScript, Android, Linux, Windows, macOS and unsigned iOS builds passed; Apple jobs use the release Xcode selection and a scoped AVFoundation header workaround |
+| Linux application | All 7 signed-package, canvas, input, alert and lifecycle host checks passed as a native Linux application, alongside the existing app-shell, render and two-client checks |
 | Android device | Pending physical-device run |
 | iOS physical device | Requires a physical device and macOS signing environment |
-| macOS / Windows application | Pending platform build evidence |
+| macOS / Windows application | Release builds passed; interactive application and latency matrix still pending |
 
 Run `dart test` and `dart test -p chrome` in `packages/experience_runtime`,
 `flutter test test/features/experiences` from the client root, and
@@ -65,3 +65,15 @@ then disable the game. Record RTT, time from input to displayed snapshot and
 frame timing on desktop, mobile and both Web modes. The server has a 50 ms
 snapshot cadence and the host coalesces inputs at 20 Hz; the target end-to-end
 input budget in the authoring contract still requires those measurements.
+
+Final client validation is recorded in [client CI run 36853448421](https://github.com/DaccordProject/daccord/actions/runs/36853448421).
+The native UI job explicitly runs `integration_test/arcade_host_test.dart`;
+the browser jobs run all 7 feature checks in both Flutter compiler modes.
+[Coordinated stack run 36853534240](https://github.com/DaccordProject/accordmasterserver/actions/runs/36853534240)
+passed against client `ae84e0884528c7fd7c7aebcffdd339a0424b8c6d` and community
+server `001c215653ad3718c48730dfa53251bcf433d20b`.
+All six smoke-build jobs passed in [platform build run 36852480998](https://github.com/DaccordProject/daccord/actions/runs/36852480998).
+That earlier run's browser harness and transient Maven failures were corrected
+and passed in the final client CI; the individual platform build results are
+the compilation evidence. These results do not complete the physical-device
+or end-to-end Pong latency gates.
