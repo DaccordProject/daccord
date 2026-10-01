@@ -311,28 +311,6 @@ void main() {
         AccordServerLimits.fallback,
       );
     });
-
-    test('applies and reverts settings applied directly', () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-      final controller =
-          container.read(serverLimitsControllerProvider.notifier);
-
-      controller.applySettings(const {
-        'max_attachment_size': 1048576,
-        'max_attachments_per_message': 2,
-      });
-      final tightened = container.read(serverLimitsControllerProvider);
-      expect(tightened.maxAttachmentBytes, 1048576);
-      expect(tightened.maxAttachmentsPerMessage, 2);
-
-      // A later failure must not leave stale limits in place.
-      controller.applySettings(null);
-      expect(
-        container.read(serverLimitsControllerProvider),
-        AccordServerLimits.fallback,
-      );
-    });
   });
 
   group('server-driven limits reach the screening', () {

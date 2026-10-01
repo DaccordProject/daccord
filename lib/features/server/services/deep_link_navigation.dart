@@ -2,6 +2,7 @@ import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// A destination held while authentication, the owning server, or its space
@@ -108,24 +109,14 @@ DeepLinkResolution resolveDeepLinkDestination(
 ) {
   final targetBaseUrl = pending.serverBaseUrl;
   if (targetBaseUrl != null) {
-    AccordConnection? owner = connections.active;
-    if (owner != null &&
-        !AccordServer.sameEndpoint(
-          owner.session.server.baseUrl,
-          targetBaseUrl,
-        )) {
-      owner = null;
-    }
-    for (final connection in connections.connections) {
-      if (owner != null) break;
-      if (AccordServer.sameEndpoint(
-        connection.session.server.baseUrl,
-        targetBaseUrl,
-      )) {
-        owner = connection;
-        break;
-      }
-    }
+    // Prefer the active connection when several accounts share the server.
+    final owner = [?connections.active, ...connections.connections]
+        .firstWhereOrNull(
+          (c) => AccordServer.sameEndpoint(
+            c.session.server.baseUrl,
+            targetBaseUrl,
+          ),
+        );
     if (owner == null) return const DeepLinkWaiting();
     // A successful REST join has already hydrated this exact space; opening
     // it need not wait for a background gateway to reach READY.

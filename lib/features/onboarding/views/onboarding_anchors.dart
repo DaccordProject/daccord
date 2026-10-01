@@ -1,7 +1,7 @@
 import 'package:bonfire/features/onboarding/models/onboarding_step.dart';
 import 'package:flutter/material.dart';
 
-/// Live registry of the widgets the first-launch tour can spotlight (#175).
+/// Live registry of the widgets the first-launch tour can spotlight.
 ///
 /// A plain global (mirroring `mcpHomeBridge`) rather than a Riverpod provider on
 /// purpose: registration happens in `initState`/`dispose` of widgets deep inside
@@ -33,8 +33,6 @@ class OnboardingAnchorRegistry {
   /// Every candidate key for [id], most recently registered last.
   List<GlobalKey> keysFor(OnboardingAnchorId id) =>
       _keys[id] ?? const <GlobalKey>[];
-
-  bool get isEmpty => _keys.isEmpty;
 
   @visibleForTesting
   void clear() => _keys.clear();
@@ -97,27 +95,14 @@ class _OnboardingAnchorState extends State<OnboardingAnchor> {
       KeyedSubtree(key: _key, child: widget.child);
 }
 
-/// Widget type names probed for when an id has no registered [OnboardingAnchor].
-///
-/// This is a **fallback**, not the mechanism: the tour is meant to be anchored
-/// by feature modules opting in. Until those one-line wraps land (they live in
-/// files this module deliberately does not edit), matching on the private widget
-/// type name keeps the walkthrough pointed at the real UI instead of degrading
-/// to a stack of centred cards. Names are compared as strings so nothing here
-/// has to import — or be able to see — another feature's private classes.
-///
-/// Safe by construction: a miss just means "no rect", which the tour already
-/// handles. Delete an entry the moment its surface registers a real anchor.
+/// Widget type names probed for when an id has no registered [OnboardingAnchor]
+/// — a fallback, not the mechanism. Names are compared as strings so nothing
+/// here has to import another feature's private classes. A miss just means "no
+/// rect". Delete an entry once its surface registers a real anchor.
 const Map<OnboardingAnchorId, List<String>> kOnboardingAnchorTypeProbes =
     <OnboardingAnchorId, List<String>>{
-      // Every anchor except the message list now registers a real
-      // OnboardingAnchor at its surface, so only this probe remains.
       OnboardingAnchorId.messageList: <String>['MessagePane'],
     };
-
-/// Tooltip text identifying the mobile drawer button, which is a bare
-/// [IconButton] with no type of its own to match on.
-const String kOnboardingNavMenuTooltip = 'Channels';
 
 /// The rectangle to spotlight for [id], in [overlay]'s coordinate space, or null
 /// when nothing suitable is on screen.
@@ -193,22 +178,13 @@ Rect? _rectOf(BuildContext? context, RenderBox overlay) {
 /// pathological tree can't stall a frame.
 Element? _probe(OnboardingAnchorId id, BuildContext searchRoot) {
   final names = kOnboardingAnchorTypeProbes[id];
-  if (names == null && id != OnboardingAnchorId.navMenu) return null;
-  if (!searchRoot.mounted) return null;
-
-  bool matches(Widget widget) {
-    if (id == OnboardingAnchorId.navMenu) {
-      return widget is IconButton &&
-          widget.tooltip == kOnboardingNavMenuTooltip;
-    }
-    return names!.contains(widget.runtimeType.toString());
-  }
+  if (names == null || !searchRoot.mounted) return null;
 
   Element? found;
   var visited = 0;
   void visit(Element element) {
     if (found != null || visited++ > 20000) return;
-    if (matches(element.widget)) {
+    if (names.contains(element.widget.runtimeType.toString())) {
       found = element;
       return;
     }

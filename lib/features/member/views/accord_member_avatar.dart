@@ -16,7 +16,6 @@ class AccordMemberAvatar extends StatelessWidget {
     required this.initial,
     this.status,
     this.radius = 16,
-    this.ringColor,
     this.backgroundColor,
     this.initialStyle,
   });
@@ -34,10 +33,6 @@ class AccordMemberAvatar extends StatelessWidget {
   /// the dot for avatars that don't surface presence.
   final String? status;
   final double radius;
-
-  /// The color the status dot's border blends into (the surrounding surface).
-  /// Defaults to the theme foreground.
-  final Color? ringColor;
 
   /// Background tint shown behind the initial when there's no avatar image.
   /// Pass [accordIdColor] of the user/space ID for a stable per-identity color;
@@ -80,8 +75,8 @@ class AccordMemberAvatar extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: dotColor,
                   shape: BoxShape.circle,
-                  border:
-                      Border.all(color: ringColor ?? colors.foreground, width: 2),
+                  // Blends into the surrounding surface.
+                  border: Border.all(color: colors.foreground, width: 2),
                 ),
               ),
             ),

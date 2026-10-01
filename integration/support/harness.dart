@@ -212,8 +212,6 @@ class IntegrationHarness {
     Hive.init(dir.path);
     for (final box in const [
       'auth',
-      'last-location',
-      'added-accounts',
       'space-cache',
       'window-state',
     ]) {

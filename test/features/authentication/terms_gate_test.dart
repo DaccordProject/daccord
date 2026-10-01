@@ -71,9 +71,6 @@ void main() {
       'auth',
     ).put('accepted-app-terms-version', appTermsVersion - 1);
     expect(hasAcceptedAppTerms(), isFalse);
-
-    await clearAppTermsAcceptance();
-    expect(hasAcceptedAppTerms(), isFalse);
   });
 
   testWidgets('the gate replaces every signed-out surface until accepted', (

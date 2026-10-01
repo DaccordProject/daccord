@@ -34,8 +34,7 @@ class AccordConnection {
     this.spacesReady = false,
   });
 
-  /// Stable identity: user + server, matching `AccordAuth`'s account key.
-  String get key => '${session.userId}@${session.server.baseUrl}';
+  String get key => session.key;
 
   AccordConnection copyWith({
     ConnectionStatus? status,
@@ -93,8 +92,7 @@ class ConnectionsController extends _$ConnectionsController {
 
   /// Adds [session] as a connecting server (or updates its session in place).
   void register(AccordSession session, {ConnectionStatus? status}) {
-    final key = '${session.userId}@${session.server.baseUrl}';
-    final existing = state.connectionFor(key);
+    final existing = state.connectionFor(session.key);
     final conn = AccordConnection(
       session: session,
       status: status ?? existing?.status ?? ConnectionStatus.connecting,

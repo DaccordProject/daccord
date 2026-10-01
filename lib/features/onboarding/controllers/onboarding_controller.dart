@@ -1,4 +1,5 @@
 import 'package:bonfire/features/profiles/services/profile_store.dart';
+import 'package:bonfire/features/server/utils/space_cache.dart';
 import 'package:bonfire/shared/app_info.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_ce/hive.dart';
@@ -54,7 +55,7 @@ bool onboardingLooksLikeExistingUser({
     hasCachedSpaces ||
     hasPriorSelection;
 
-/// Owns the first-launch walkthrough's persistence and gating (#175).
+/// Owns the first-launch walkthrough's persistence and gating.
 ///
 /// **Persistence.** The seen-marker lives in the existing `accord-settings` Hive
 /// box under its own [seenKey] (no new box), exactly as the release-notes
@@ -67,11 +68,7 @@ bool onboardingLooksLikeExistingUser({
 /// re-introduce it" decision later. Any non-empty value counts as seen.
 @Riverpod(keepAlive: true)
 class OnboardingController extends _$OnboardingController {
-  static const String boxName = 'accord-settings';
   static const String seenKey = 'onboarding-seen-version';
-
-  static String get _activeSettingsBoxName =>
-      ProfileStore.activeSettingsBoxName;
 
   /// Overridable marker storage, for widget tests.
   ///
@@ -100,7 +97,7 @@ class OnboardingController extends _$OnboardingController {
   /// The app version that last showed the tour; empty when it never has.
   String get seenVersion {
     final store = debugStore;
-    final activeBoxName = _activeSettingsBoxName;
+    final activeBoxName = ProfileStore.activeSettingsBoxName;
     final raw = store != null
         ? store[seenKey]
         : (Hive.isBoxOpen(activeBoxName)
@@ -123,23 +120,9 @@ class OnboardingController extends _$OnboardingController {
       store[seenKey] = value;
       return;
     }
-    final activeBoxName = _activeSettingsBoxName;
+    final activeBoxName = ProfileStore.activeSettingsBoxName;
     if (!Hive.isBoxOpen(activeBoxName)) return;
     Hive.box(activeBoxName).put(seenKey, value);
-  }
-
-  /// Clears the marker, so the next launch offers the tour again. Not used by
-  /// the Settings replay (which shows it immediately instead), but it is what a
-  /// "reset the app" flow would want.
-  void clearSeen() {
-    final store = debugStore;
-    if (store != null) {
-      store.remove(seenKey);
-      return;
-    }
-    final activeBoxName = _activeSettingsBoxName;
-    if (!Hive.isBoxOpen(activeBoxName)) return;
-    Hive.box(activeBoxName).delete(seenKey);
   }
 
   // -- gating ---------------------------------------------------------------
@@ -148,7 +131,7 @@ class OnboardingController extends _$OnboardingController {
   /// Prefer [existingUserAtLaunch], which freezes this at startup.
   bool readLooksLikeExistingUser() {
     Map<dynamic, dynamic>? settings;
-    final settingsBoxName = _activeSettingsBoxName;
+    final settingsBoxName = ProfileStore.activeSettingsBoxName;
     final sessionBoxName = ProfileStore.activeSessionBoxName;
     if (Hive.isBoxOpen(settingsBoxName)) {
       final raw = Hive.box(settingsBoxName).get('settings');
@@ -165,7 +148,8 @@ class OnboardingController extends _$OnboardingController {
           (Hive.box(sessionBoxName).get('accounts') as Map?)?.isNotEmpty ==
               true,
       hasCachedSpaces:
-          Hive.isBoxOpen('space-cache') && Hive.box('space-cache').isNotEmpty,
+          Hive.isBoxOpen(SpaceCache.boxName) &&
+          Hive.box(SpaceCache.boxName).isNotEmpty,
       hasPriorSelection:
           (lastSpace is String && lastSpace.isNotEmpty) ||
           (lastChannel is String && lastChannel.isNotEmpty),
@@ -197,13 +181,6 @@ class OnboardingController extends _$OnboardingController {
     if (_startupHandled) return null;
     _startupHandled = true;
     return startupTrigger;
-  }
-
-  /// Test hook: forget that the startup decision was already taken.
-  @visibleForTesting
-  void resetStartupGuard() {
-    _startupHandled = false;
-    _existingUserAtLaunch = null;
   }
 
   // -- live state -----------------------------------------------------------

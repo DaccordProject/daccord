@@ -19,11 +19,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Server-URL + credentials login against an Accord server. The Daccord
-/// replacement for the Discord `LoginScreen`: it drives [accordAuthProvider]
-/// (restore-on-launch → sign in / register → optional MFA or forced password
-/// change → connect) and, once a live session exists, hands off to the
-/// messaging frame.
+/// Server-URL + credentials login against an Accord server. Drives
+/// [accordAuthProvider] (restore-on-launch → sign in / register → optional MFA
+/// or forced password change → connect) and, once a live session exists, hands
+/// off to the messaging frame.
 ///
 /// [initialMode] selects the Sign in / Register tab on entry; the `/register`
 /// route uses it to land directly on registration.
@@ -83,17 +82,13 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   bool _hasAccounts = false;
 
   /// Whether the app's own terms have been accepted on this device. Until they
-  /// are, the gate replaces the whole signed-out flow — App Review 1.2 wants
-  /// the EULA before registering *or* signing in, so it can't live inside the
-  /// register tab (#289).
+  /// are, the gate replaces the whole signed-out flow: App Review 1.2 requires
+  /// the EULA before either registration or sign-in.
   bool _termsAccepted = true;
 
   // Terms-of-Service config, fetched per server when the Register tab is shown.
-  // Absent until a fetch says otherwise, so no gate flashes before the answer.
-  TosAvailability _tosAvailability = TosAvailability.absent;
+  TosConfig _tos = tosNotFetched;
   bool _tosAccepted = false;
-  String? _tosUrl;
-  String? _tosText;
   String? _tosFetchedServer;
 
   /// True until the launch-time session restore attempt settles, so we show a
@@ -175,9 +170,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     if (!mounted) return;
     setState(() {
       _tosFetchedServer = server.baseUrl;
-      _tosAvailability = tos.availability;
-      _tosUrl = tos.url;
-      _tosText = tos.text;
+      _tos = tos;
       _tosAccepted = false;
     });
   }
@@ -185,8 +178,6 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   void _generatePassword() {
     _passwordController.text = generateAuthPassword();
   }
-
-  Future<void> _openTos() => openTos(context, url: _tosUrl, text: _tosText);
 
   /// Accepts the app's terms: the gate lifts immediately and the record is
   /// written behind it. A failed write only means the gate shows again next
@@ -265,7 +256,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
       final validationError = validateRegistrationCredentials(
         username: username,
         password: password,
-        tosRequired: _tosAvailability == TosAvailability.advertised,
+        tosRequired: _tos.availability == TosAvailability.advertised,
         tosAccepted: _tosAccepted,
       );
       if (validationError != null) {
@@ -313,8 +304,6 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
         .read(accordAuthProvider.notifier)
         .submitPasswordChange(oldPassword: oldPw, newPassword: newPw);
   }
-
-  void _navigateToHome() => context.go('/spaces');
 
   Future<void> _finishLogin(AccordAuthLoggedIn loggedIn) async {
     if (_finishingLogin) return;
@@ -368,7 +357,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     _pendingJoinSpaceId = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && ref.read(pendingDeepLinkProvider) == null) {
-        _navigateToHome();
+        context.go('/spaces');
       }
     });
     _finishingLogin = false;
@@ -387,11 +376,8 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     });
 
     // Covers a login that completes *while this screen is showing* — a state
-    // change doesn't re-run router redirects. Landing on a sign-in route while
-    // *already* logged in never reaches build: the router redirects it straight
-    // home (see `redirectLoggedInToHome` in `lib/router/controller.dart`), and
-    // the signed-in screens are siblings of these routes, so this screen is not
-    // mounted underneath them.
+    // change doesn't re-run router redirects. Arriving already logged in is
+    // redirected home by `redirectLoggedInToHome` before this ever builds.
     ref.listen(accordAuthProvider, (previous, next) {
       if (next is AccordAuthLoggedIn) {
         _finishLogin(next);
@@ -452,7 +438,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
         ),
         // Wide enough for the welcome screen's three-up highlights on a tablet
         // or desktop canvas; it collapses itself back to a phone layout below
-        // `kWelcomeWideBreakpoint` (#292).
+        // `kWelcomeWideBreakpoint`.
         maxWidth: 760,
       ),
       _LoggedOutView.browse => _BrowseView(
@@ -469,14 +455,14 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
           displayNameController: _displayNameController,
           mode: _mode,
           hasAccounts: _hasAccounts,
-          tosAvailability: _tosAvailability,
+          tosAvailability: _tos.availability,
           tosAccepted: _tosAccepted,
           onBack: _atFlowRoot ? null : _goBack,
           onModeChanged: _onModeChanged,
           onSwitchAccount: () => context.push('/switcher'),
           onGeneratePassword: _generatePassword,
           onTosChanged: (v) => setState(() => _tosAccepted = v),
-          onTosLinkTap: _openTos,
+          onTosLinkTap: () => openTos(context, _tos),
           onAppTermsTap: () => showAppTermsDialog(context),
           onDiscover: () => setState(() => _view = _LoggedOutView.browse),
           onSubmit: _submit,
@@ -735,8 +721,6 @@ class _BrowseView extends StatelessWidget {
                 ],
               ),
             ),
-            // The connect-by-URL / host-your-own footer lives inside
-            // [AccordDiscoveryBody] so the dialog variant gets it too (#292).
             Expanded(
               child: AccordDiscoveryBody(
                 onJoinRequiresAuth: onJoinRequiresAuth,

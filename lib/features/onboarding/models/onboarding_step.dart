@@ -1,8 +1,8 @@
 import 'package:bonfire/features/spaces/models/home_layout.dart';
 import 'package:flutter/material.dart';
 
-/// A named hook a live widget can publish so the first-launch tour (#175) can
-/// draw a spotlight over it.
+/// A named hook a live widget can publish so the first-launch tour can draw a
+/// spotlight over it.
 ///
 /// The tour never reaches into another feature's widget tree by identity — it
 /// asks for an [OnboardingAnchorId] and gets back whatever rectangle is on
@@ -51,31 +51,25 @@ class OnboardingStep {
   /// Candidate anchors in priority order. The first one that resolves to a
   /// visible rectangle wins; when none do (the widget isn't built on this
   /// layout, or is scrolled off screen) the card is simply centred, which is
-  /// also the intended presentation for [isIntro]-style steps.
+  /// also the intended presentation for the welcome / wrap-up cards (no
+  /// anchors).
   final List<OnboardingAnchorId> anchors;
-
-  /// A step that never spotlights anything (the welcome / wrap-up cards).
-  bool get isCentered => anchors.isEmpty;
 }
 
 /// Below this width `AccordHomeScreen` moves the rail and channel list into a
-/// drawer, so the tour has nothing inline to spotlight. Aliases
-/// [kHomeSidebarBreakpoint] — the tour must not point at a rail that isn't on
-/// screen, so it branches on exactly the width that screen does rather than on
-/// `shouldUseDesktopLayout` (which is true for short-but-wide windows where the
-/// panes are still collapsed).
-///
-/// The wide tour is also correct for `HomeLayoutMode.medium`: the rail, channel
-/// list and composer it spotlights are all inline there — only the member
-/// roster (which the tour never points at) has moved into a drawer.
+/// drawer. Aliases [kHomeSidebarBreakpoint] rather than branching on
+/// `shouldUseDesktopLayout` (true for short-but-wide windows whose panes are
+/// still collapsed), so the tour never points at a rail that isn't on screen.
+/// `HomeLayoutMode.medium` gets the wide tour: only the member roster, which
+/// the tour never points at, moves into a drawer there.
 const double kOnboardingWideBreakpoint = kHomeSidebarBreakpoint;
 
 /// The walkthrough, adapted to the layout actually on screen.
 ///
-/// Both variants cover the same four surfaces the issue asks for — spaces,
-/// channels, messaging, voice — but the wide layout can point at each pane
-/// directly while the narrow one has to point at the drawer button that reveals
-/// them (and merges spaces + channels into one card, since they share it).
+/// Both variants cover the same four surfaces — spaces, channels, messaging,
+/// voice — but the wide layout can point at each pane directly while the
+/// narrow one has to point at the drawer button that reveals them (and merges
+/// spaces + channels into one card, since they share it).
 List<OnboardingStep> onboardingSteps({required bool wide}) =>
     wide ? _wideSteps : _narrowSteps;
 
@@ -84,16 +78,18 @@ List<OnboardingStep> onboardingSteps({required bool wide}) =>
 List<OnboardingStep> onboardingStepsForWidth(double width) =>
     onboardingSteps(wide: width >= kOnboardingWideBreakpoint);
 
+const _welcomeStep = OnboardingStep(
+  id: 'welcome',
+  title: 'Welcome to Daccord',
+  body:
+      'A quick tour of the four things you need: your spaces, your channels, '
+      'sending messages, and voice. It takes about thirty seconds — you can '
+      'skip it at any point and replay it later from Settings.',
+  icon: Icons.waving_hand_outlined,
+);
+
 const List<OnboardingStep> _wideSteps = <OnboardingStep>[
-  OnboardingStep(
-    id: 'welcome',
-    title: 'Welcome to Daccord',
-    body:
-        'A quick tour of the four things you need: your spaces, your channels, '
-        'sending messages, and voice. It takes about thirty seconds — you can '
-        'skip it at any point and replay it later from Settings.',
-    icon: Icons.waving_hand_outlined,
-  ),
+  _welcomeStep,
   OnboardingStep(
     id: 'spaces',
     title: 'Spaces live here',
@@ -153,15 +149,7 @@ const List<OnboardingStep> _wideSteps = <OnboardingStep>[
 ];
 
 const List<OnboardingStep> _narrowSteps = <OnboardingStep>[
-  OnboardingStep(
-    id: 'welcome',
-    title: 'Welcome to Daccord',
-    body:
-        'A quick tour of the four things you need: your spaces, your channels, '
-        'sending messages, and voice. It takes about thirty seconds — you can '
-        'skip it at any point and replay it later from Settings.',
-    icon: Icons.waving_hand_outlined,
-  ),
+  _welcomeStep,
   // On a phone the rail and the channel list are both inside the navigation
   // drawer, so they get one card pointing at the button that reveals them
   // rather than two cards pointing at widgets that aren't on screen.

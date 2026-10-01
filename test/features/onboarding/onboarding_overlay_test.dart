@@ -262,7 +262,6 @@ void main() {
         ),
       );
       expect(onboardingAnchors.keysFor(OnboardingAnchorId.channelList), isEmpty);
-      expect(onboardingAnchors.isEmpty, isTrue);
     });
 
     testWidgets('a zero-sized anchor is not spotlit', (tester) async {

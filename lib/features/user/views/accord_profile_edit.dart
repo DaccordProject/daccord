@@ -4,7 +4,6 @@ import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
@@ -12,6 +11,7 @@ import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/color_swatch_chip.dart';
+import 'package:bonfire/shared/components/dialog_title_bar.dart';
 import 'package:bonfire/shared/components/image_crop_dialog.dart';
 import 'package:bonfire/shared/components/ticker_aware_circle_avatar.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -53,8 +53,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
 
   /// Bytes of a freshly-picked avatar awaiting save. When non-null, save uses
   /// it as a data URI; otherwise the current server-side avatar is unchanged.
-  List<int>? _newAvatarBytes;
-  String? _newAvatarFilename;
+  Uint8List? _newAvatarBytes;
 
   /// The chosen imageless-avatar background color (stored as the user's
   /// `accent_color`). `null` means "transparent" — the avatar falls back to the
@@ -78,11 +77,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
   }
 
   AccordClient? get _client => widget.serverKey == null
-      ? ref.read(
-          accordAuthProvider.select(
-            (s) => s is AccordAuthLoggedIn ? s.client : null,
-          ),
-        )
+      ? ref.accordClient
       : ref.read(accordAuthProvider.notifier).clientForKey(widget.serverKey!);
 
   @override
@@ -137,7 +132,6 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     if (cropped == null || !mounted) return;
     setState(() {
       _newAvatarBytes = cropped;
-      _newAvatarFilename = 'avatar.png';
       // An uploaded image hides the colored fallback, so reset the picker to
       // transparent — the chosen color only applies to imageless avatars.
       _accentColor = null;
@@ -157,11 +151,9 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
       // null clears the accent server-side, falling back to the auto color.
       'accent_color': _accentColor == null ? null : (_accentColor! & 0xFFFFFF),
     };
-    if (_newAvatarBytes != null) {
-      body['avatar'] = AccordCDN.buildDataUri(
-        _toUint8(_newAvatarBytes!),
-        _newAvatarFilename ?? 'avatar.png',
-      );
+    final avatarBytes = _newAvatarBytes;
+    if (avatarBytes != null) {
+      body['avatar'] = AccordCDN.buildDataUri(avatarBytes, 'avatar.png');
     }
     final result = await client.users.updateMe(body);
     if (!mounted) return;
@@ -231,29 +223,11 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.person_outline,
-                    size: 18,
-                    color: colors.dirtyWhite,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      serverName == null
-                          ? 'Edit profile'
-                          : 'Edit profile · $serverName',
-                      style: theme.textTheme.titleMedium,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Close',
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    icon: const Icon(Icons.close, size: 18),
-                  ),
-                ],
+              DialogTitleBar(
+                serverName == null
+                    ? 'Edit profile'
+                    : 'Edit profile · $serverName',
+                icon: Icons.person_outline,
               ),
               const SizedBox(height: 8),
               if (!_loaded)
@@ -269,7 +243,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                         radius: 40,
                         backgroundColor: previewBg,
                         foregroundImage: _newAvatarBytes != null
-                            ? MemoryImage(_toUint8(_newAvatarBytes!))
+                            ? MemoryImage(_newAvatarBytes!)
                             : (avatarUrl != null
                                   ? CachedNetworkImageProvider(avatarUrl)
                                   : null),
@@ -385,10 +359,3 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     );
   }
 }
-
-// MemoryImage needs a Uint8List; FilePicker returns one from `bytes`, but it's
-// typed as List<int> through accordkit helpers — cast/copy on the boundary.
-Uint8List _toUint8(List<int> bytes) =>
-    bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
-
-/// A selectable avatar-background swatch. The [transparent] variant marks the
