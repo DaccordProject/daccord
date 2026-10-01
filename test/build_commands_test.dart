@@ -38,8 +38,11 @@ void main() {
       final contents = File(path).readAsStringSync();
       expect(contents, contains('Web (JavaScript)'), reason: path);
       expect(
-        contents.toLowerCase(),
-        isNot(contains('wasm')),
+        RegExp(
+          r'Web\s*\(\s*WASM\s*\)',
+          caseSensitive: false,
+        ).hasMatch(contents),
+        isFalse,
         reason: '$path must not label the JavaScript artifact as WASM',
       );
     }

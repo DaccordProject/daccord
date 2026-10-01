@@ -232,6 +232,44 @@ jobs:
         working-directory: packages/accordkit
         run: dart test
 
+  experience-stack:
+    name: Curated directory to multiplayer host
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: DaccordProject/accordserver
+          ref: fc83a9c44563f48fec2115fc3535df4fe572eb8f
+          path: .experience-fixture/server
+      - uses: actions/checkout@v7
+        with:
+          repository: DaccordProject/accordmasterserver
+          ref: 24e2229725827d88771343e374f52c36d16ec605
+          path: .experience-fixture/master
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .experience-fixture/server -> target
+            .experience-fixture/master -> target
+      - name: Build coordinated server fixtures
+        run: |
+          cargo build --locked --manifest-path .experience-fixture/server/Cargo.toml --bin accordserver
+          cargo build --locked --manifest-path .experience-fixture/master/Cargo.toml --bin accordmasterserver
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - name: Verify signed packages and both session modes against real servers
+        run: |
+          python3 tools/experiences/run_fixture.py \
+            --server-bin .experience-fixture/server/target/debug/accordserver \
+            --master-bin .experience-fixture/master/target/debug/accordmasterserver \
+            -- flutter test integration/experiences_test.dart --reporter expanded
+
   experience-runtime:
     name: Bounded WASM host (native and browser)
     runs-on: ubuntu-latest

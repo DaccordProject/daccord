@@ -70,3 +70,6 @@ app.*.map.json
 
 # Scratch output from store-media/ios-generator/render.sh.
 store-media/ios-generator/out/
+
+# Isolated coordinated server sources/builds used by the experience CI gate.
+/.experience-fixture/

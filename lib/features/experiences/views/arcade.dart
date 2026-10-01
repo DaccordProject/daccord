@@ -11,6 +11,17 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'experience_canvas.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+String experiencePlatform(BuildContext context) => kIsWeb
+    ? 'web'
+    : switch (Theme.of(context).platform) {
+        TargetPlatform.linux => 'linux',
+        TargetPlatform.windows => 'windows',
+        TargetPlatform.macOS => 'macos',
+        TargetPlatform.android => 'android',
+        TargetPlatform.iOS => 'ios',
+        _ => 'unsupported',
+      };
+
 Future<void> showSpaceArcade(
   BuildContext context, {
   required String serverKey,
@@ -323,6 +334,7 @@ class _SpaceArcadeState extends ConsumerState<SpaceArcade> {
       Map<String, dynamic>.from(game['manifest'] as Map),
     );
     final enabled = game['enabled'] == true;
+    final available = manifest.platforms.contains(experiencePlatform(context));
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -331,13 +343,14 @@ class _SpaceArcadeState extends ConsumerState<SpaceArcade> {
           children: [
             Text(manifest.name, style: Theme.of(context).textTheme.titleMedium),
             Text(manifest.description),
+            if (!available) const Text('Unavailable on this platform.'),
             Text(
               '${manifest.publisher} · ${manifest.version} · ${manifest.minPlayers}–${manifest.maxPlayers} players · ${manifest.sessionMode == 'turn_based' ? 'Turn-based' : 'Real-time'}',
             ),
             Wrap(
               spacing: 8,
               children: [
-                if (enabled && _arcade?['enabled'] == true)
+                if (enabled && available && _arcade?['enabled'] == true)
                   FilledButton(
                     onPressed: _busy ? null : () => _create(manifest),
                     child: const Text('Create lobby'),
@@ -815,16 +828,7 @@ class _ExperienceSessionViewState extends ConsumerState<ExperienceSessionView>
     }
   }
 
-  String _platform() => kIsWeb
-      ? 'web'
-      : switch (Theme.of(context).platform) {
-          TargetPlatform.linux => 'linux',
-          TargetPlatform.windows => 'windows',
-          TargetPlatform.macOS => 'macos',
-          TargetPlatform.android => 'android',
-          TargetPlatform.iOS => 'ios',
-          _ => 'unsupported',
-        };
+  String _platform() => experiencePlatform(context);
   int _read(int key, int index) {
     final values = _session.game[key == 0 ? 'board' : 'rects'];
     if (values is! List || index >= values.length) return 0;
