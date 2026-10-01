@@ -30,6 +30,30 @@ Map<String, dynamic> lastSent(FakeGatewayConnection c) =>
     jsonDecode(c.sent.last) as Map<String, dynamic>;
 
 void main() {
+  test('constructor options configure IDENTIFY and the stable session budget',
+      () async {
+    final factory = FakeConnectionFactory();
+    final socket = GatewaySocket(
+      connectionFactory: factory.call,
+      token: 'tok',
+      intents: ['messages'],
+      osName: 'custom-platform',
+      stableSessionThreshold: const Duration(seconds: 45),
+    );
+    addTearDown(socket.dispose);
+    expect(socket.stableSessionThreshold, const Duration(seconds: 45));
+    socket.connectToGateway('wss://x');
+    await pump();
+    factory.last.receive(jsonEncode({
+      'op': GatewayOpcodes.hello,
+      'data': {'heartbeat_interval': 60000},
+    }));
+    await pump();
+    final data = lastSent(factory.last)['data'];
+    expect(data['intents'], ['messages']);
+    expect(data['properties']['os'], 'custom-platform');
+  });
+
   test('rejects a cleartext remote gateway before opening a connection', () {
     final factory = FakeConnectionFactory();
     final socket = makeSocket(factory);

@@ -32,12 +32,13 @@ enum GatewayState { disconnected, connecting, connected, resuming }
 class GatewaySocket {
   String token;
   String tokenType;
-  List<String> intents = [];
+  List<String> intents;
 
   final GatewayConnectionFactory _factory;
   final Future<void> Function(Duration) _sleep;
   final double Function() _random;
   final DateTime Function() _now;
+  final String _osName;
   final int maxReconnectAttempts;
 
   /// How long [ensureConnected] waits for a heartbeat ACK before declaring a
@@ -46,7 +47,7 @@ class GatewaySocket {
 
   /// How long a session must survive past READY before it counts as *stable*
   /// and earns back a fresh reconnect budget. See [_creditStableSession].
-  static const _stableSessionThreshold = Duration(seconds: 30);
+  final Duration stableSessionThreshold;
 
   AccordConfig? _config;
   GatewayConnection? _conn;
@@ -71,14 +72,19 @@ class GatewaySocket {
     Future<void> Function(Duration)? sleep,
     double Function()? random,
     DateTime Function()? now,
+    String osName = 'dart',
     this.maxReconnectAttempts = 10,
     this.probeTimeout = const Duration(seconds: 5),
+    this.stableSessionThreshold = const Duration(seconds: 30),
     this.token = '',
     this.tokenType = 'Bot',
+    List<String>? intents,
   })  : _factory = connectionFactory ?? WebSocketGatewayConnection.connect,
         _sleep = sleep ?? Future.delayed,
         _random = random ?? Random().nextDouble,
-        _now = now ?? DateTime.now;
+        _now = now ?? DateTime.now,
+        _osName = osName,
+        intents = intents ?? [];
 
   // ── Event streams ────────────────────────────────────────────────────────
 
@@ -150,7 +156,6 @@ class GatewaySocket {
   late final _inviteDelete = _ctrl<Map<String, dynamic>>();
 
   late final _experienceSession = _ctrl<Map<String, dynamic>>();
-
 
   late final _emojiCreate = _ctrl<Map<String, dynamic>>();
   late final _emojiUpdate = _ctrl<Map<String, dynamic>>();
@@ -241,8 +246,8 @@ class GatewaySocket {
   Stream<AccordInvite> get onInviteCreate => _inviteCreate.stream;
   Stream<Map<String, dynamic>> get onInviteDelete => _inviteDelete.stream;
 
-  Stream<Map<String, dynamic>> get onExperienceSession => _experienceSession.stream;
-
+  Stream<Map<String, dynamic>> get onExperienceSession =>
+      _experienceSession.stream;
 
   Stream<Map<String, dynamic>> get onEmojiCreate => _emojiCreate.stream;
   Stream<Map<String, dynamic>> get onEmojiUpdate => _emojiUpdate.stream;
@@ -495,14 +500,14 @@ class GatewaySocket {
   }
 
   /// Returns the reconnect budget to full when the session that just ended had
-  /// been up for at least [_stableSessionThreshold], so a connect → READY →
+  /// been up for at least [stableSessionThreshold], so a connect → READY →
   /// die loop still escalates its backoff and spends its budget instead of
   /// hammering the server at the base delay.
   void _creditStableSession() {
     final startedAt = _sessionStartedAt;
     _sessionStartedAt = null;
     if (startedAt == null) return;
-    if (_now().difference(startedAt) >= _stableSessionThreshold) {
+    if (_now().difference(startedAt) >= stableSessionThreshold) {
       _reconnectAttempts = 0;
     }
   }
@@ -583,7 +588,7 @@ class GatewaySocket {
         'token': '$tokenType $token',
         'intents': intents,
         'properties': {
-          'os': 'dart',
+          'os': _osName,
           'client': 'AccordKit',
           'version': AccordConfig.clientVersion,
         },
