@@ -77,3 +77,26 @@ That earlier run's browser harness and transient Maven failures were corrected
 and passed in the final client CI; the individual platform build results are
 the compilation evidence. These results do not complete the physical-device
 or end-to-end Pong latency gates.
+
+## Live Pong UI and input latency
+
+The coordinated manual workflow also runs the real game screen on Linux,
+Android emulation and both Flutter browser compiler modes. It renders the
+reviewed Pong guest, drives the host paddle control, measures peer input to the
+next Flutter frame, covers/returns to the route, disconnects/reconnects the peer
+and disables the installed game. The reference target is p95 <= 250 ms on the
+local fixture; this does not assert a latency bound for arbitrary WAN links.
+
+```sh
+python3 tools/experiences/run_fixture.py \
+  --server-bin ../accordserver/target/debug/accordserver \
+  --master-bin ../accordmasterserver/target/debug/accordmasterserver \
+  -- flutter test integration_test/pong_session_test.dart -d linux \
+     --dart-define=ACCORD_EXPERIENCE_TEST_URL={server_url}
+```
+
+For an Android emulator, pass `--bind-address 0.0.0.0 --client-host 10.0.2.2`
+to the fixture helper, select `-d emulator-5554` and pass `--flavor github`.
+The helper substitutes the temporary server URL into the Dart define; the
+new test skips without that define so ordinary UI suites never use an
+unprovisioned directory. Physical iOS validation remains open by user request.

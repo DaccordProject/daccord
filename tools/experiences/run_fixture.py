@@ -62,7 +62,7 @@ def run(args):
                 with urlopen(request, timeout=10) as response:
                     assert response.status == 200
             server_url = f"http://127.0.0.1:{free_port()}"
-            server_env = dict(os.environ, PORT=server_url.rsplit(":", 1)[1], ACCORD_BIND="127.0.0.1",
+            server_env = dict(os.environ, PORT=server_url.rsplit(":", 1)[1], ACCORD_BIND=args.bind_address,
                               DATABASE_URL=f"sqlite:{directory}/community.db?mode=rwc",
                               ACCORD_STORAGE_PATH=str(directory / "cdn"), ACCORD_TEST_MODE="1",
                               EXPERIENCES_ENABLED="true", EXPERIENCE_DIRECTORY_URL=master_url,
@@ -73,6 +73,8 @@ def run(args):
             healthy(server_url, server)
             print("Testing the real curated directory and community server", flush=True)
             command = args.command[1:] if args.command[0] == "--" else args.command
+            client_url = server_url.replace("127.0.0.1", args.client_host)
+            command = [argument.replace("{server_url}", client_url) for argument in command]
             result = subprocess.run(command, env=dict(os.environ, ACCORD_TEST_SERVER_URL=server_url,
                                                      ACCORD_TEST_EXPERIENCES="1"), check=False)
             if result.returncode:
@@ -99,6 +101,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--master-bin", required=True)
     parser.add_argument("--server-bin", required=True)
+    parser.add_argument("--bind-address", default="127.0.0.1")
+    parser.add_argument("--client-host", default="127.0.0.1", help="Use 10.0.2.2 for Android emulators")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     arguments = parser.parse_args()
     if not arguments.command:
