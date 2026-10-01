@@ -12,6 +12,7 @@ import 'package:bonfire/features/experiences/views/arcade.dart';
 import 'package:bonfire/features/experiences/views/experience_canvas.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -147,9 +148,16 @@ void main() {
         );
         final remoteSnapshots = remote.snapshots.asBroadcastStream();
         AccordExperienceSession? remoteSnapshot;
+        Stopwatch? measuredInput;
+        int? measuredTarget;
+        int? snapshotMilliseconds;
         var keepPlaying = false;
         final remoteEvents = remoteSnapshots.listen((snapshot) {
           remoteSnapshot = snapshot;
+          if (measuredInput != null &&
+              snapshot.game['rects'][5] == measuredTarget) {
+            snapshotMilliseconds ??= measuredInput.elapsedMilliseconds;
+          }
           if (keepPlaying && snapshot.state == 'running') {
             remote.input(
               ((snapshot.game['rects'][9] as int) - 68).clamp(0, 864),
@@ -220,22 +228,32 @@ void main() {
         final latencies = <int>[];
         for (final target in [100, 700, 200, 600, 300]) {
           final stopwatch = Stopwatch()..start();
+          measuredInput = stopwatch;
+          measuredTarget = target;
+          snapshotMilliseconds = null;
           remote.input(target);
           await until(
             () => canvas().drawings[1].values[3] == target,
             stage: 'rendering peer paddle $target',
           );
           latencies.add(stopwatch.elapsedMilliseconds);
+          debugPrint(
+            'Pong target=$target; authoritative peer snapshot='
+            '${snapshotMilliseconds ?? "not observed"} ms; '
+            'Flutter frame=${latencies.last} ms',
+          );
+          measuredInput = null;
         }
-        latencies.sort();
-        final p95 = latencies.last;
+        final sortedLatencies = [...latencies]..sort();
+        final p95 = sortedLatencies.last;
         debugPrint(
-          'Pong input-to-Flutter-frame milliseconds: $latencies; p95=$p95; budget=250',
-        );
-        expect(
-          p95,
-          lessThanOrEqualTo(250),
-          reason: 'The local reference-game input budget is 250 ms',
+          'Pong input-to-Flutter-frame milliseconds (input order): $latencies; '
+          'p95=$p95; budget=250; '
+          'mode=${kProfileMode
+              ? "profile"
+              : kReleaseMode
+              ? "release"
+              : "debug"}',
         );
         // Keep the game in play through the disconnect grace periods. These
         // controllers use the ordinary host slider and sequenced peer input;
@@ -316,6 +334,14 @@ void main() {
         expect(find.textContaining('disabled'), findsWidgets);
         playTimer.cancel();
         await tester.pumpWidget(const SizedBox());
+        debugPrint(
+          'Pong route pause/resume, peer reconnect and disable passed',
+        );
+        expect(
+          p95,
+          lessThanOrEqualTo(250),
+          reason: 'The local reference-game input budget is 250 ms',
+        );
       });
     },
     skip: url.isEmpty,
