@@ -244,8 +244,7 @@ void main() {
         final playTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
           if (find.byType(ExperienceCanvas).evaluate().isNotEmpty &&
               remoteSnapshot?.state == 'running') {
-            final target = ((remoteSnapshot!.game['rects'][9] as int) - 68)
-                .clamp(0, 864);
+            final target = (canvas().drawings[2].values[3] - 68).clamp(0, 864);
             localPaddle(target.toDouble());
           }
         });
