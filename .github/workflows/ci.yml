@@ -57,7 +57,7 @@ on:
   workflow_dispatch:
     inputs:
       build_artifacts:
-        description: Build Web, Android, Linux, and Windows smoke-test artifacts
+        description: Build Web, Android, iOS, Linux, macOS, and Windows smoke-test artifacts
         type: boolean
         default: true
       livekit_sfu:
@@ -720,6 +720,16 @@ jobs:
             os: ubuntu-latest
             artifact: daccord-web
             path: build/web/
+          - name: macOS
+            platform: macos
+            os: macos-14
+            artifact: daccord-macos
+            path: build/macos/Build/Products/Release/*.app/
+          - name: iOS (unsigned)
+            platform: ios
+            os: macos-14
+            artifact: daccord-ios-unsigned
+            path: build/ios/iphoneos/*.app/
           - name: Android
             platform: android
             os: ubuntu-latest
@@ -833,6 +843,8 @@ jobs:
           build_once() {
             case "${{ matrix.platform }}" in
               web)     flutter build web     --no-tree-shake-icons --release ;;
+              macos)   flutter build macos --no-tree-shake-icons ;;
+              ios)     flutter build ios --no-codesign --no-tree-shake-icons ;;
               android) flutter build apk     --no-tree-shake-icons --flavor github ;;
               linux)   flutter build linux ;;
               windows) flutter build windows ;;

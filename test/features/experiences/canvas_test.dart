@@ -23,34 +23,41 @@ void main() {
     'actual WASM frame fits mobile and desktop, with tap and keyboard input',
     (tester) async {
       final semantics = tester.ensureSemantics();
-    addTearDown(semantics.dispose);
-    final chosen = <int>[];
-      for (final width in [320.0, 960.0]) {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: SizedBox(
-                width: width,
-                child: ExperienceCanvas(
-                  drawings: frame.drawings,
-                  onCell: chosen.add,
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      try {
+        final chosen = <int>[];
+        for (final width in [320.0, 960.0]) {
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: SizedBox(
+                  width: width,
+                  child: ExperienceCanvas(
+                    drawings: frame.drawings,
+                    onCell: chosen.add,
+                  ),
                 ),
               ),
             ),
-          ),
-        );
-        await tester.pump();
-        expect(tester.takeException(), isNull);
-        expect(
-          tester.getSize(find.byType(ClipRect)).width,
-          width.clamp(0, 640),
-        );
-        await tester.tap(find.bySemanticsLabel(RegExp('a1, white rook')));
-        expect(chosen.last, 0);
-        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-        expect(chosen.last, 1);
-        await tester.pumpWidget(const SizedBox());
+          );
+          await tester.pump();
+          expect(tester.takeException(), isNull);
+          expect(
+            tester.getSize(find.byType(ClipRect)).width,
+            width.clamp(0, 640),
+          );
+          await tester.tap(find.bySemanticsLabel(RegExp('a1, white rook')));
+          expect(chosen.last, 0);
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          expect(chosen.last, 1);
+          await tester.pumpWidget(const SizedBox());
+        }
+      } finally {
+        semantics.dispose();
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
       }
     },
   );
@@ -58,15 +65,20 @@ void main() {
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
-    addTearDown(semantics.dispose);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(body: ExperienceCanvas(drawings: frame.drawings)),
-      ),
-    );
-    final node = tester.getSemantics(find.bySemanticsLabel(RegExp('a1, white rook')));
-    expect(node.getSemanticsData().flagsCollection.isButton, isFalse);
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    expect(tester.takeException(), isNull);
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: ExperienceCanvas(drawings: frame.drawings)),
+        ),
+      );
+      final node = tester.getSemantics(
+        find.bySemanticsLabel(RegExp('a1, white rook')),
+      );
+      expect(node.getSemanticsData().flagsCollection.isButton, isFalse);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tester.takeException(), isNull);
+    } finally {
+      semantics.dispose();
+    }
   });
 }
