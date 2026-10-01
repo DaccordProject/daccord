@@ -52,8 +52,9 @@ class UsersApi extends EndpointBase {
     final result =
         await rest.makeRequest('POST', '/users/@me/channels', body: data);
     result.deserialize(AccordChannel.fromJson);
-    if (result.ok && result.data is AccordChannel)
+    if (result.ok && result.data is AccordChannel) {
       onPrivateChannel?.call((result.data as AccordChannel).id);
+    }
     return result;
   }
 

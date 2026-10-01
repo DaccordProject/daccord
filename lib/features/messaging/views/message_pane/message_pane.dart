@@ -351,7 +351,9 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
       );
     }
 
-    if (spaceId == null) { ref.accordClient?.messages.requireEncryptionFor(channelId); }
+    if (spaceId == null) {
+      ref.accordClient?.messages.requireEncryptionFor(channelId);
+    }
 
     final serverKey = ref.watchActiveServerKey();
     if (serverKey != null) {
@@ -606,20 +608,13 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                       ),
                       ...widget.headerActions,
                       if (spaceId == null &&
-                          ref
-                                  .watch(accordAuthProvider.notifier)
-                                  .client
-                                  ?.encryption !=
-                              null)
+                          ref.accordClient?.encryption != null)
                         IconButton(
                           tooltip: 'End-to-end encryption and identity backup',
                           icon: const Icon(Icons.lock_outline, size: 18),
                           onPressed: () => showPrivateChatSecurity(
                             context,
-                            ref
-                                .read(accordAuthProvider.notifier)
-                                .client!
-                                .encryption!,
+                            ref.accordClient!.encryption!,
                             channelId,
                           ),
                         ),

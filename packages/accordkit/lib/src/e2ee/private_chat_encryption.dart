@@ -121,8 +121,9 @@ class PrivateChatEncryption {
     }
     _channels[channelId] = wireChannel;
     _selves[channelId] = discovery['self_user_id'] as String;
-    if (discovery['cdn_url'] is String)
+    if (discovery['cdn_url'] is String) {
       _cdns[channelId] = discovery['cdn_url'] as String;
+    }
     final rows = discovery['participants'] as List;
     final aliases = <String, String>{};
     final keys = <String, Map<String, dynamic>>{};
@@ -505,9 +506,10 @@ class PrivateChatEncryption {
       await _loadIdentity(raw);
       final result = await rest.makeRequest('PUT', '/users/@me/encryption',
           body: _identity);
-      if (!result.ok)
+      if (!result.ok) {
         throw EncryptionException(
             result.error?.message ?? 'Backup identity was rejected.');
+      }
       await store.write(_identityKey, raw);
     } catch (_) {
       if (previous != null) await _loadIdentity(previous);

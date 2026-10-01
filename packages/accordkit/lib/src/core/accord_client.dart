@@ -145,8 +145,9 @@ class AccordClient {
     if (encryption != null) {
       _encryptionReady = gateway.onReady.listen((ready) {
         for (final raw in ready['dm_channels'] as List? ?? const []) {
-          if (raw is Map && raw['id'] is String)
+          if (raw is Map && raw['id'] is String) {
             messages.requireEncryptionFor(raw['id'] as String);
+          }
         }
       });
     }

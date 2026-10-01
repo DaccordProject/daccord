@@ -68,8 +68,10 @@ class _EncryptedAttachmentState extends State<EncryptedAttachment> {
       if (!mounted ||
           client != widget.client ||
           attachment.id != widget.attachment.id ||
-          attachment.encryption?['key'] != widget.attachment.encryption?['key'])
+          attachment.encryption?['key'] !=
+              widget.attachment.encryption?['key']) {
         return;
+      }
       if (!save &&
           attachmentPreviewFor(
                 contentType: widget.attachment.contentType,

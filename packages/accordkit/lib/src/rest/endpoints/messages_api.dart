@@ -22,7 +22,9 @@ class MessagesApi extends EndpointBase {
   Future<bool> _private(String channelId) async {
     if (encryption == null) return false;
     if (_privateChannels.contains(channelId) ||
-        encryption!.knowsPrivateChat(channelId)) return true;
+        encryption!.knowsPrivateChat(channelId)) {
+      return true;
+    }
     final result = await rest.makeRequest('GET', '/channels/$channelId');
     if (!result.ok || result.data is! Map) {
       throw EncryptionException(result.error?.message ??

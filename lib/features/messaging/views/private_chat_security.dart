@@ -57,12 +57,13 @@ class _SecurityDialogState extends State<_SecurityDialog> {
     try {
       await action();
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _status = e is EncryptionException
               ? e.message
               : 'Unable to open backup. Check the backup and passphrase.',
         );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -122,12 +123,13 @@ class _SecurityDialogState extends State<_SecurityDialog> {
                           final backup = await widget.encryption.exportBackup(
                             _password.text,
                           );
-                          if (mounted)
+                          if (mounted) {
                             setState(() {
                               _backup.text = backup;
                               _status =
                                   'Backup created. Save it and keep the passphrase separately.';
                             });
+                          }
                         }),
                   child: const Text('Create backup'),
                 ),
@@ -139,12 +141,13 @@ class _SecurityDialogState extends State<_SecurityDialog> {
                             _backup.text.trim(),
                             _password.text,
                           );
-                          if (mounted)
+                          if (mounted) {
                             setState(() {
                               _fingerprints = _load();
                               _status =
                                   'Identity imported. Reopen this chat to decrypt history.';
                             });
+                          }
                         }),
                   child: const Text('Import backup'),
                 ),
