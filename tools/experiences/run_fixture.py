@@ -48,6 +48,7 @@ def healthy(url, process):
 
 def run(args):
     processes = []
+    reverse = None
     with tempfile.TemporaryDirectory(prefix="accord-experiences-") as temporary:
         directory = Path(temporary)
         try:
@@ -79,6 +80,12 @@ def run(args):
                 server = subprocess.Popen([executable(args.server_bin)], env=server_env, stdout=log, stderr=log)
             processes.append(server)
             healthy(server_url, server)
+            if args.android_device:
+                port = server_url.rsplit(":", 1)[1]
+                adb_reverse = [shutil.which("adb") or "adb", "-s", args.android_device,
+                               "reverse"]
+                subprocess.run(adb_reverse + [f"tcp:{port}", f"tcp:{port}"], check=True)
+                reverse = adb_reverse + ["--remove", f"tcp:{port}"]
             print("Testing the real curated directory and community server", flush=True)
             command = args.command[1:] if args.command[0] == "--" else args.command
             client_url = server_url.replace("127.0.0.1", args.client_host)
@@ -99,13 +106,17 @@ def run(args):
                     print(path.read_text()[-8000:], flush=True)
             raise
         finally:
-            for process in reversed(processes):
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
+            try:
+                if reverse is not None:
+                    subprocess.run(reverse, check=False)
+            finally:
+                for process in reversed(processes):
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
 
 
 if __name__ == "__main__":
@@ -113,7 +124,8 @@ if __name__ == "__main__":
     parser.add_argument("--master-bin", required=True)
     parser.add_argument("--server-bin", required=True)
     parser.add_argument("--bind-address", default="127.0.0.1")
-    parser.add_argument("--client-host", default="127.0.0.1", help="Use 10.0.2.2 for Android emulators")
+    parser.add_argument("--client-host", default="127.0.0.1", help="Hostname used by the test client")
+    parser.add_argument("--android-device", help="ADB serial to reverse the fixture port onto device loopback")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     arguments = parser.parse_args()
     if not arguments.command:
