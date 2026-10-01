@@ -1,4 +1,5 @@
 import 'package:bonfire/theme/theme.dart';
+import 'package:bonfire/shared/utils/decrypted_media.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
@@ -22,10 +23,12 @@ class InlineVideoPlayer extends StatefulWidget {
     required this.filename,
     this.width,
     this.height,
+    this.decrypted = false,
   });
 
   final String url;
   final String filename;
+  final bool decrypted;
   final double? width;
   final double? height;
 
@@ -66,9 +69,8 @@ class _InlineVideoPlayerState extends State<InlineVideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    final aspect = (widget.width != null &&
-            widget.height != null &&
-            widget.height! > 0)
+    final aspect =
+        (widget.width != null && widget.height != null && widget.height! > 0)
         ? widget.width! / widget.height!
         : 16 / 9;
     return ClipRRect(
@@ -86,13 +88,13 @@ class _InlineVideoPlayerState extends State<InlineVideoPlayer> {
                   icon: Icons.videocam_off,
                 )
               : !_loaded
-                  ? GestureDetector(
-                      onTap: () => setState(() => _loaded = true),
-                      child: _VideoPoster(filename: widget.filename),
-                    )
-                  : InlineVideoPlayer._isIOS
-                      ? _AvFoundationVideo(url: widget.url)
-                      : _MediaKitVideo(url: widget.url),
+              ? GestureDetector(
+                  onTap: () => setState(() => _loaded = true),
+                  child: _VideoPoster(filename: widget.filename),
+                )
+              : InlineVideoPlayer._isIOS
+              ? _AvFoundationVideo(url: widget.url, decrypted: widget.decrypted)
+              : _MediaKitVideo(url: widget.url),
         ),
       ),
     );
@@ -125,10 +127,9 @@ class _VideoPoster extends StatelessWidget {
               filename,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall!
-                  .copyWith(color: colors.dirtyWhite),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall!.copyWith(color: colors.dirtyWhite),
             ),
           ),
         ],
@@ -182,7 +183,8 @@ class _MediaKitVideoState extends State<_MediaKitVideo> {
 /// controls, so this adds the minimum: tap to toggle play/pause, a play glyph
 /// while paused, and a scrub bar along the bottom.
 class _AvFoundationVideo extends StatefulWidget {
-  const _AvFoundationVideo({required this.url});
+  final bool decrypted;
+  const _AvFoundationVideo({required this.url, this.decrypted = false});
 
   final String url;
 
@@ -197,15 +199,20 @@ class _AvFoundationVideoState extends State<_AvFoundationVideo> {
   @override
   void initState() {
     super.initState();
-    _controller = vp.VideoPlayerController.networkUrl(Uri.parse(widget.url))
-      ..initialize().then((_) {
-        if (!mounted) return;
-        setState(() {});
-        _controller.play();
-      }).catchError((Object e) {
-        if (!mounted) return;
-        setState(() => _error = e);
-      });
+    _controller =
+        (widget.decrypted
+              ? decryptedVideoController(widget.url)
+              : vp.VideoPlayerController.networkUrl(Uri.parse(widget.url)))
+          ..initialize()
+              .then((_) {
+                if (!mounted) return;
+                setState(() {});
+                _controller.play();
+              })
+              .catchError((Object e) {
+                if (!mounted) return;
+                setState(() => _error = e);
+              });
   }
 
   @override
@@ -260,7 +267,10 @@ class _AvFoundationVideoState extends State<_AvFoundationVideo> {
               left: 0,
               right: 0,
               bottom: 0,
-              child: vp.VideoProgressIndicator(_controller, allowScrubbing: true),
+              child: vp.VideoProgressIndicator(
+                _controller,
+                allowScrubbing: true,
+              ),
             ),
           ],
         ),

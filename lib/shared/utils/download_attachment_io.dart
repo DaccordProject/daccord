@@ -53,6 +53,38 @@ Future<DownloadResult> downloadAttachment(
   );
 }
 
+Future<DownloadResult> saveAttachmentBytes(
+  Uint8List bytes, {
+  required String filename,
+}) async {
+  final safeName = sanitizeAttachmentFilename(filename);
+  try {
+    if (UniversalPlatform.isDesktop) {
+      final file = await _createExclusively(
+        await _downloadsDirectory(),
+        safeName,
+      );
+      try {
+        await file.writeAsBytes(bytes, flush: true);
+      } catch (_) {
+        await file.delete();
+        rethrow;
+      }
+      return DownloadResult.saved(file.path);
+    }
+    final saved = await FilePicker.platform.saveFile(
+      dialogTitle: 'Save attachment',
+      fileName: safeName,
+      bytes: bytes,
+    );
+    return saved == null
+        ? const DownloadResult.cancelled()
+        : DownloadResult.saved(saved);
+  } catch (_) {
+    return const DownloadResult.failed('Unable to save decrypted attachment.');
+  }
+}
+
 /// Test seam for exercising both native platform branches without plugins.
 @visibleForTesting
 Future<DownloadResult> downloadAttachmentForTesting(

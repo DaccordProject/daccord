@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:bonfire/features/authentication/repositories/encryption_key_store.dart';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
@@ -978,6 +979,8 @@ class AccordAuth extends _$AccordAuth {
     }
 
     final client = AccordClient(
+      encryptionStore: session.isGuest ? null : PlatformEncryptionKeyStore(),
+      encryptionUserId: session.isGuest ? null : session.userId,
       token: session.token,
       tokenType: session.tokenType,
       baseUrl: session.server.baseUrl,
@@ -1007,6 +1010,8 @@ class AccordAuth extends _$AccordAuth {
           isActive: () =>
               ref.read(connectionsControllerProvider).activeKey == key,
         );
+    // Provision while online so other participants can encrypt offline delivery.
+    unawaited(client.encryption?.initialize().catchError((Object _) {}));
     client.login();
 
     if (makeActive) return _makeActive(key);

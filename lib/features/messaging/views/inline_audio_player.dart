@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:bonfire/shared/utils/download_attachment.dart';
@@ -8,10 +9,16 @@ import 'package:flutter/material.dart';
 /// A compact inline audio player for an audio attachment. The source is loaded
 /// lazily on first play; play/pause and a seek slider are exposed.
 class InlineAudioPlayer extends StatefulWidget {
-  const InlineAudioPlayer({super.key, required this.url, required this.filename});
+  const InlineAudioPlayer({
+    super.key,
+    required this.url,
+    required this.filename,
+    this.bytes,
+  });
 
   final String url;
   final String filename;
+  final Uint8List? bytes;
 
   @override
   State<InlineAudioPlayer> createState() => _InlineAudioPlayerState();
@@ -37,23 +44,31 @@ class _InlineAudioPlayerState extends State<InlineAudioPlayer> {
   @override
   void initState() {
     super.initState();
-    _subs.add(_player.onPositionChanged.listen((p) {
-      if (mounted) setState(() => _position = p);
-    }));
-    _subs.add(_player.onDurationChanged.listen((d) {
-      if (mounted) setState(() => _duration = d);
-    }));
-    _subs.add(_player.onPlayerStateChanged.listen((s) {
-      if (mounted) setState(() => _playing = s == PlayerState.playing);
-    }));
-    _subs.add(_player.onPlayerComplete.listen((_) {
-      if (mounted) {
-        setState(() {
-          _playing = false;
-          _position = Duration.zero;
-        });
-      }
-    }));
+    _subs.add(
+      _player.onPositionChanged.listen((p) {
+        if (mounted) setState(() => _position = p);
+      }),
+    );
+    _subs.add(
+      _player.onDurationChanged.listen((d) {
+        if (mounted) setState(() => _duration = d);
+      }),
+    );
+    _subs.add(
+      _player.onPlayerStateChanged.listen((s) {
+        if (mounted) setState(() => _playing = s == PlayerState.playing);
+      }),
+    );
+    _subs.add(
+      _player.onPlayerComplete.listen((_) {
+        if (mounted) {
+          setState(() {
+            _playing = false;
+            _position = Duration.zero;
+          });
+        }
+      }),
+    );
   }
 
   @override
@@ -70,7 +85,11 @@ class _InlineAudioPlayerState extends State<InlineAudioPlayer> {
       await _player.pause();
     } else if (!_started) {
       _started = true;
-      await _player.play(UrlSource(widget.url));
+      await _player.play(
+        widget.bytes == null
+            ? UrlSource(widget.url)
+            : BytesSource(widget.bytes!),
+      );
     } else {
       await _player.resume();
     }
@@ -84,15 +103,17 @@ class _InlineAudioPlayerState extends State<InlineAudioPlayer> {
       _downloadError = null;
     });
 
-    final result = await downloadAttachment(
-      widget.url,
-      filename: widget.filename,
-      // Throttling isn't needed here: progress arrives per HTTP chunk, and the
-      // player is a small widget in an already-scrolling list.
-      onProgress: (p) {
-        if (mounted) setState(() => _progress = p);
-      },
-    );
+    final result = widget.bytes != null
+        ? await saveAttachmentBytes(widget.bytes!, filename: widget.filename)
+        : await downloadAttachment(
+            widget.url,
+            filename: widget.filename,
+            // Throttling isn't needed here: progress arrives per HTTP chunk, and the
+            // player is a small widget in an already-scrolling list.
+            onProgress: (p) {
+              if (mounted) setState(() => _progress = p);
+            },
+          );
 
     if (!mounted) return;
     setState(() {
@@ -172,8 +193,9 @@ class _InlineAudioPlayerState extends State<InlineAudioPlayer> {
                 child: Text(
                   widget.filename,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall!
-                      .copyWith(color: colors.dirtyWhite),
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: colors.dirtyWhite,
+                  ),
                 ),
               ),
             ],
@@ -190,22 +212,23 @@ class _InlineAudioPlayerState extends State<InlineAudioPlayer> {
               ),
               Expanded(
                 child: SliderTheme(
-                  data: SliderTheme.of(context)
-                      .copyWith(trackHeight: 2, overlayShape: SliderComponentShape.noOverlay),
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 2,
+                    overlayShape: SliderComponentShape.noOverlay,
+                  ),
                   child: Slider(
                     value: value,
                     max: maxMs == 0 ? 1 : maxMs.toDouble(),
                     onChanged: maxMs == 0
                         ? null
-                        : (v) => _player
-                            .seek(Duration(milliseconds: v.toInt())),
+                        : (v) =>
+                              _player.seek(Duration(milliseconds: v.toInt())),
                   ),
                 ),
               ),
               Text(
                 '${_fmt(_position)} / ${_fmt(_duration)}',
-                style:
-                    theme.textTheme.labelSmall!.copyWith(color: colors.gray),
+                style: theme.textTheme.labelSmall!.copyWith(color: colors.gray),
               ),
               const SizedBox(width: 2),
               // Sized to match the IconButton it swaps places with, so the row

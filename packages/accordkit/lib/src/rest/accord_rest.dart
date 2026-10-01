@@ -169,6 +169,33 @@ class AccordRest {
     );
   }
 
+  /// Fetches opaque CDN bytes without sending account credentials or following redirects.
+  Future<RestResult> downloadOpaque(Uri uri, {required int maxBytes}) async {
+    if (!const ['http', 'https'].contains(uri.scheme) ||
+        uri.userInfo.isNotEmpty) {
+      return RestResult.failure(0, _internalError('Invalid attachment URL'));
+    }
+    return _executeWithRetry(
+      attemptTimeout: uploadTimeout,
+      send: () async {
+        final request = http.Request('GET', uri)..followRedirects = false;
+        final streamed = await _client.send(request);
+        final bytes = BytesBuilder(copy: false);
+        await for (final chunk in streamed.stream) {
+          if (bytes.length + chunk.length > maxBytes) {
+            throw StateError('Encrypted attachment exceeds download limit');
+          }
+          bytes.add(chunk);
+        }
+        return http.Response.bytes(bytes.takeBytes(), streamed.statusCode);
+      },
+      interpret: (response) => response.statusCode == 200
+          ? RestResult.success(200, response.bodyBytes)
+          : RestResult.failure(response.statusCode,
+              _internalError('Attachment download failed')),
+    );
+  }
+
   /// Performs a `multipart/form-data` request (file uploads).
   ///
   /// [retryOnRateLimit] as for [makeRequest]. Uploads should normally pass

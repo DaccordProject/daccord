@@ -8,7 +8,8 @@ import '../rest_result.dart';
 /// User-related routes: the current user, lookups, DMs, relationships, and
 /// GDPR data export.
 class UsersApi extends EndpointBase {
-  UsersApi(super.rest);
+  final void Function(String channelId)? onPrivateChannel;
+  UsersApi(super.rest, {this.onPrivateChannel});
 
   /// Fetches the currently authenticated user.
   Future<RestResult> getMe() async {
@@ -37,14 +38,24 @@ class UsersApi extends EndpointBase {
   /// Lists all DM channels for the current user.
   Future<RestResult> listChannels() async {
     final result = await rest.makeRequest('GET', '/users/@me/channels');
-    return result.deserializeArray(AccordChannel.fromJson);
+    result.deserializeArray(AccordChannel.fromJson);
+    if (result.ok && result.data is List) {
+      for (final channel in (result.data as List).whereType<AccordChannel>()) {
+        onPrivateChannel?.call(channel.id);
+      }
+    }
+    return result;
   }
 
   /// Creates a DM channel with the specified user(s).
   Future<RestResult> createDm(Map<String, dynamic> data) async {
     final result =
         await rest.makeRequest('POST', '/users/@me/channels', body: data);
-    return result.deserialize(AccordChannel.fromJson);
+    result.deserialize(AccordChannel.fromJson);
+    if (result.ok && result.data is AccordChannel) {
+      onPrivateChannel?.call((result.data as AccordChannel).id);
+    }
+    return result;
   }
 
   /// Deletes the current user's account.

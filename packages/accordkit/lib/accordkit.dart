@@ -79,4 +79,5 @@ export 'src/utils/json_utils.dart';
 export 'src/utils/qualified_id.dart';
 export 'src/utils/transport_security.dart';
 
+export 'src/e2ee/private_chat_encryption.dart';
 export 'src/core/experience_live.dart';
