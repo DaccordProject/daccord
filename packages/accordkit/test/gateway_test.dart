@@ -385,7 +385,7 @@ void main() {
       await pump();
 
       // Establish a session. `resumable` is what licenses the RESUME below —
-      // without it the socket re-identifies instead (#208).
+      // without it the socket re-identifies instead.
       factory.last.receive(jsonEncode({
         'op': GatewayOpcodes.event,
         'type': 'ready',
@@ -424,7 +424,7 @@ void main() {
       // A plain READY — no `resumable`, no `capabilities`. accordserver's
       // pre-identify loop ignores op 3 entirely, so a speculative RESUME would
       // idle until its 30-second identify timeout with us broadcast offline
-      // the whole time (#208).
+      // the whole time.
       factory.last.receive(jsonEncode({
         'op': GatewayOpcodes.event,
         'type': 'ready',
@@ -583,9 +583,8 @@ void main() {
 
     test('escalates when the session keeps dying before it is stable',
         () async {
-      // The #208 cadence: READY, alive for five seconds, dead. The budget used
-      // to be reset on READY, so this looped at 1–2s forever — one visible
-      // offline/online flip per cycle for everyone watching the roster.
+      // READY, alive for five seconds, dead: the backoff must keep escalating
+      // rather than looping at the 1–2s base delay.
       expect(
         await flap(rounds: 4, sessionLifetime: const Duration(seconds: 5)),
         [1000, 2000, 4000, 8000],
