@@ -22,7 +22,7 @@ class AccordPresence {
     final p = AccordPresence(
       status: asString(d['status'], 'offline'),
       clientStatus: asMap(d['client_status']) ?? {},
-      spaceId: asStringOrNull(d['space_id']),
+      spaceId: asStringOrNull(d['space_id'] ?? d['guild_id']),
     );
 
     final rawUser = asMap(d['user']);

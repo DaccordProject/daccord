@@ -31,7 +31,7 @@ class AccordVoiceState {
   factory AccordVoiceState.fromJson(Map<String, dynamic> d) {
     return AccordVoiceState(
       userId: asString(d['user_id']),
-      spaceId: asStringOrNull(d['space_id']),
+        spaceId: asStringOrNull(d['space_id'] ?? d['guild_id']),
       channelId: asStringOrNull(d['channel_id']),
       sessionId: asString(d['session_id']),
       deaf: asBool(d['deaf']),

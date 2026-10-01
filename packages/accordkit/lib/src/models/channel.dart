@@ -72,7 +72,7 @@ class AccordChannel {
     final c = AccordChannel(
       id: asString(d['id']),
       type: asString(d['type'], 'text'),
-      spaceId: asStringOrNull(d['space_id']),
+      spaceId: asStringOrNull(d['space_id'] ?? d['guild_id']),
       name: d['name'] as String?,
       topic: d['topic'] as String?,
       position: d['position'],

@@ -2,6 +2,26 @@ import 'package:accordkit/accordkit.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('space ID compatibility', () {
+    final parsers = <String, String? Function(Map<String, dynamic>)>{
+      'channel': (json) => AccordChannel.fromJson(json).spaceId,
+      'invite': (json) => AccordInvite.fromJson(json).spaceId,
+      'member': (json) => AccordMember.fromJson(json).spaceId,
+      'presence': (json) => AccordPresence.fromJson(json).spaceId,
+      'report': (json) => AccordReport.fromJson(json).spaceId,
+      'voice state': (json) => AccordVoiceState.fromJson(json).spaceId,
+    };
+    for (final entry in parsers.entries) {
+      test('${entry.key} accepts the legacy guild_id alias', () {
+        expect(entry.value({'guild_id': 7}), '7');
+        expect(entry.value({'space_id': null, 'guild_id': 7}), '7');
+      });
+      test('${entry.key} prefers space_id when both are present', () {
+        expect(entry.value({'space_id': '8', 'guild_id': '7'}), '8');
+      });
+    }
+  });
+
   group('AccordUser', () {
     test('parses fields and coerces int id to string', () {
       final u = AccordUser.fromJson({
