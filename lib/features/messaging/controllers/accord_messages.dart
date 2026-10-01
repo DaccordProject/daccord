@@ -210,19 +210,9 @@ class AccordMessagesController extends _$AccordMessagesController {
     }
   }
 
-  /// Sends [content] to this channel. Optimistically appends the created
-  /// message (the gateway echo is then deduped by `addMessage`). Pass [replyTo]
-  /// to send the message as a reply to that message ID. Returns true on success.
-  Future<bool> send(
-    AccordClient client,
-    String content, {
-    String? replyTo,
-  }) async => await _createMessage(client, content, replyTo: replyTo) == null;
-
   /// Sends [content] via `messages.create`. Returns null on success, or the
   /// server's own failure (message plus, for a 429, its `retry_after`) —
-  /// shared by [send] and the no-attachments path of [sendWithAttachments] so
-  /// both surface the same reason instead of [send]'s bool swallowing it.
+  /// used by the no-attachments path of [sendWithAttachments].
   ///
   /// One request per call: the SDK doesn't retry a rate-limited send, so a
   /// slowmode or upload-budget 429 comes straight back for the composer to
@@ -489,7 +479,6 @@ class AccordMessagesController extends _$AccordMessagesController {
     String messageId,
     String emojiName, {
     String? emojiId,
-    int limit = 100,
   }) async {
     final token = emojiId == null
         ? resolveEmojiGlyph(emojiName)
@@ -498,7 +487,7 @@ class AccordMessagesController extends _$AccordMessagesController {
       channelId,
       messageId,
       token,
-      query: {'limit': limit},
+      query: {'limit': 100},
     );
     if (!ref.mounted) return const [];
     if (!result.ok) {

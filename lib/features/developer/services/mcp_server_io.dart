@@ -10,7 +10,7 @@
 /// * a 1MB max request body, POST-only, to `/mcp` or `/mcp/`;
 /// * tool-group permission filtering against the live allowed-groups list;
 /// * MCP `content` wrapping of every tool result;
-/// * a 100-entry in-memory activity ring buffer (surfaced via [onActivity]).
+/// * every tool call reported through `onActivity`.
 ///
 /// The token is generated locally and is never sent to the Accord server.
 library;
@@ -20,6 +20,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bonfire/features/developer/services/mcp_tools.dart';
+import 'package:bonfire/shared/app_info.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 
 class McpServer {
@@ -28,10 +29,9 @@ class McpServer {
     required String Function() tokenGetter,
     required List<String> Function() allowedGroupsGetter,
     required void Function(McpActivity) onActivity,
-    this.appVersion = '0.0.0',
-  })  : _tokenGetter = tokenGetter,
-        _allowedGroupsGetter = allowedGroupsGetter,
-        _onActivity = onActivity;
+  }) : _tokenGetter = tokenGetter,
+       _allowedGroupsGetter = allowedGroupsGetter,
+       _onActivity = onActivity;
 
   static const String _protocolVersion = '2025-03-26';
   static const String _loopbackAddr = '127.0.0.1';
@@ -40,7 +40,6 @@ class McpServer {
   static const int _rateLimitWindowMs = 1000;
 
   final McpTools tools;
-  final String appVersion;
   final String Function() _tokenGetter;
   final List<String> Function() _allowedGroupsGetter;
   final void Function(McpActivity) _onActivity;
@@ -101,7 +100,11 @@ class McpServer {
 
     final contentLength = request.contentLength;
     if (contentLength > _maxContentLength) {
-      _send(request, 413, _jsonRpcError(-32600, 'Request body too large', null));
+      _send(
+        request,
+        413,
+        _jsonRpcError(-32600, 'Request body too large', null),
+      );
       return;
     }
 
@@ -116,7 +119,11 @@ class McpServer {
 
     final bodyBytes = await _readBody(request);
     if (bodyBytes == null) {
-      _send(request, 413, _jsonRpcError(-32600, 'Request body too large', null));
+      _send(
+        request,
+        413,
+        _jsonRpcError(-32600, 'Request body too large', null),
+      );
       return;
     }
 
@@ -176,7 +183,7 @@ class McpServer {
           'capabilities': {
             'tools': {'listChanged': false},
           },
-          'serverInfo': {'name': 'daccord', 'version': appVersion},
+          'serverInfo': {'name': 'daccord', 'version': kAppVersion},
         });
       case 'notifications/initialized':
         return id != null ? _jsonRpcResult(id, <String, dynamic>{}) : {};
@@ -185,7 +192,9 @@ class McpServer {
       case 'tools/call':
         final params = request['params'];
         return _handleToolsCall(
-            id, params is Map ? Map<String, dynamic>.from(params) : {});
+          id,
+          params is Map ? Map<String, dynamic>.from(params) : {},
+        );
       default:
         return _jsonRpcError(-32601, 'Method not found: $method', id);
     }
@@ -206,7 +215,9 @@ class McpServer {
   }
 
   Future<Map<String, dynamic>> _handleToolsCall(
-      Object? id, Map<String, dynamic> params) async {
+    Object? id,
+    Map<String, dynamic> params,
+  ) async {
     final name = params['name'];
     if (name is! String || name.isEmpty) {
       return _jsonRpcError(-32602, 'Missing tool name', id);
@@ -222,11 +233,13 @@ class McpServer {
     if (!_allowedGroupsGetter().contains(tool.group)) {
       _logActivity(name, false);
       return _jsonRpcError(
-          -32600, "Tool group '${tool.group}' is not enabled", id);
+        -32600,
+        "Tool group '${tool.group}' is not enabled",
+        id,
+      );
     }
 
-    final result =
-        await tool.handler(Map<String, dynamic>.from(arguments));
+    final result = await tool.handler(Map<String, dynamic>.from(arguments));
     _logActivity(name, !result.containsKey('error'));
     return _jsonRpcResult(id, {
       'content': [
@@ -274,14 +287,17 @@ class McpServer {
 
   // ── JSON-RPC + HTTP helpers ──────────────────────────────────────────────
 
-  Map<String, dynamic> _jsonRpcResult(Object? id, Object? result) =>
-      {'jsonrpc': '2.0', 'result': result, 'id': id};
+  Map<String, dynamic> _jsonRpcResult(Object? id, Object? result) => {
+    'jsonrpc': '2.0',
+    'result': result,
+    'id': id,
+  };
 
   Map<String, dynamic> _jsonRpcError(int code, String message, Object? id) => {
-        'jsonrpc': '2.0',
-        'error': {'code': code, 'message': message},
-        'id': id,
-      };
+    'jsonrpc': '2.0',
+    'error': {'code': code, 'message': message},
+    'id': id,
+  };
 
   void _send(HttpRequest request, int status, Map<String, dynamic> body) {
     request.response

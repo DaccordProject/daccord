@@ -1,8 +1,5 @@
 /// Pure decision logic for the voice stack, extracted so it can be unit-tested
-/// without a native LiveKit `Room`. `VoiceSession`/`VoiceController` call these
-/// directly, and the tests in `test/features/voice/voice_logic_test.dart` lock
-/// the behaviour in so a future change to the voice layer fails loudly rather
-/// than in a live call.
+/// without a native LiveKit `Room`.
 library;
 
 import 'package:bonfire/features/voice/services/voice_session.dart'
@@ -20,28 +17,13 @@ double voiceGain(num volumePercent) =>
 String? normalizeDeviceId(String? deviceId) =>
     (deviceId == null || deviceId.isEmpty) ? null : deviceId;
 
-/// Frame rate used for a screen share when the caller doesn't pass one (the
-/// settings-derived value normally does). Matches
-/// `AccordSettings.defaultScreenShareFps`: an unspecified rate means "the
-/// motion-friendly default", never LiveKit's 15 fps slideshow preset.
+/// Frame rate used for a screen share when the caller doesn't pass one.
+/// Matches `AccordSettings.defaultScreenShareFps`.
 const int defaultScreenShareFps = 60;
 
 /// Send-bitrate ceiling used for a screen share when the caller doesn't pass
 /// one. Matches `AccordSettings.screenShareBitrate` at its 720p60 default.
 const int defaultScreenShareBitrate = 3000000;
-
-/// Whether a `RoomDisconnected` should be treated as an *unintentional* drop
-/// (so the controller proactively reconnects), versus an intentional teardown
-/// (leave / channel-swap / dispose) which must NOT auto-reconnect.
-///
-/// [intentional] is the session's own `_intentionalDisconnect` flag (set around
-/// every deliberate teardown); [clientInitiated] is LiveKit's
-/// `DisconnectReason.clientInitiated`. A drop is unintentional only when neither
-/// holds.
-bool isUnintentionalDisconnect({
-  required bool intentional,
-  required bool clientInitiated,
-}) => !intentional && !clientInitiated;
 
 /// Whether the controller should attempt an auto-reconnect after a session
 /// disconnect: only for an unintentional drop while we still believe we're
@@ -53,14 +35,9 @@ bool shouldAutoReconnect({
   required bool alreadyAttempted,
 }) => !intentional && stillConnected && !alreadyAttempted;
 
-/// Whether a session state transition from [current] to [next] should fire the
-/// `onStateChanged` callback — i.e. only on an actual change.
-bool shouldEmitStateChange(VoiceSessionState current, VoiceSessionState next) =>
-    current != next;
-
-/// Whether a connection state counts as "live" for the purposes of the
-/// reconnect/credential-refresh path (a token refresh / SFU move only reconnects
-/// when the session has actually dropped).
+/// Whether fresh credentials (token refresh / SFU move) should reconnect a
+/// session in [state]: only once it has dropped, failed or is reconnecting, so
+/// a healthy or still-connecting session isn't churned.
 bool needsReconnect(VoiceSessionState state) =>
     state == VoiceSessionState.disconnected ||
     state == VoiceSessionState.failed ||

@@ -22,8 +22,9 @@ class ExperienceTurns
     _revisions[key] = session.revision;
     if (_revisions.length > 256) _revisions.remove(_revisions.keys.first);
     final next = {...state}..remove(key);
-    if (session.state == 'running' && session.turnUserId == user)
+    if (session.state == 'running' && session.turnUserId == user) {
       next[key] = session;
+    }
     if (next.length > 128) next.remove(next.keys.first);
     state = Map.unmodifiable(next);
   }

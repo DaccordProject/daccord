@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:bonfire/features/experiences/views/arcade.dart';
+import 'package:bonfire/features/experiences/views/space_arcade_entry.dart';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -34,6 +34,7 @@ import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/controllers/role_preview.dart';
 import 'package:bonfire/features/spaces/models/home_layout.dart';
 import 'package:bonfire/features/spaces/models/space_folder.dart';
+import 'package:bonfire/features/spaces/utils/leave_space.dart';
 import 'package:bonfire/features/spaces/utils/space_display.dart';
 import 'package:bonfire/features/spaces/views/role_preview_banner.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
@@ -58,6 +59,7 @@ import 'package:bonfire/shared/components/context_menu.dart';
 import 'package:bonfire/shared/components/drawer_swipe_area.dart';
 import 'package:bonfire/shared/components/horizontal_wheel_scroll.dart';
 import 'package:bonfire/shared/components/server_unreachable.dart';
+import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/shared/models/server_entity_key.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
@@ -82,6 +84,7 @@ part 'accord_home_rail_folders.dart';
 part 'accord_home_space_actions.dart';
 part 'accord_home_tabs.dart';
 part 'accord_home_channels.dart';
+part 'accord_home_channel_rows.dart';
 part 'accord_home_channel_drag.dart';
 
 /// The primary Accord screen: a three-pane view (space rail → channel list →
@@ -242,7 +245,8 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       if (spaceId == null || spaceId.isEmpty) {
         return {'error': 'No space selected'};
       }
-      await showAccordSearch(context, spaceId: spaceId);
+      final selection = await showAccordSearch(context, spaceId: spaceId);
+      if (mounted && selection != null) _openSearchSelection(selection);
       return {'ok': true};
     },
   };
@@ -269,7 +273,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     if (existing != null) {
       ref.read(openTabsControllerProvider.notifier).activate(existing.key);
       setState(() => _pendingOpenSpaceId = null);
-      _markChannelRead(existing.channelId);
+      markChannelRead(ref, existing.channelId);
     } else {
       setState(() => _pendingOpenSpaceId = spaceId);
     }
@@ -284,7 +288,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     }
     ref.read(openTabsControllerProvider.notifier).activate(tab.key);
     setState(() => _pendingOpenSpaceId = null);
-    _markChannelRead(tab.channelId);
+    markChannelRead(ref, tab.channelId);
     ref
         .read(settingsControllerProvider.notifier)
         .setLastSelection(tab.serverKey, tab.spaceId, tab.channelId);
@@ -328,7 +332,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     // channel; opening one clears it exactly the same way (the ack matters most
     // here — a voice channel's messages are rarely cached, so without the
     // `last_message_id` fallback the badge would come back on every connect).
-    _markChannelRead(channelId, fallbackMessageId: channel?.lastMessageId);
+    markChannelRead(ref, channelId, fallbackMessageId: channel?.lastMessageId);
     setState(() => _pendingOpenSpaceId = null);
     ref
         .read(settingsControllerProvider.notifier)
@@ -385,6 +389,14 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     });
   }
 
+  void _openSearchSelection(AccordSearchSelection selection) {
+    setState(() {
+      _pendingChannelId = selection.channelId;
+      _pendingChannelName = null;
+      _pendingMessageId = selection.messageId;
+    });
+  }
+
   void _scheduleDeepLinkFailure() {
     if (_deepLinkFailureScheduled) return;
     _deepLinkFailureScheduled = true;
@@ -418,7 +430,11 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
               name: channel.name ?? channel.id,
             ),
           );
-      _markChannelRead(channel.id, fallbackMessageId: channel.lastMessageId);
+      markChannelRead(
+        ref,
+        channel.id,
+        fallbackMessageId: channel.lastMessageId,
+      );
       ref
           .read(settingsControllerProvider.notifier)
           .setLastSelection(activeKey, spaceId, channel.id);
@@ -427,12 +443,6 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       }
     });
   }
-
-  /// Marks [channelId] read locally and POSTs `channels.ack` on the active
-  /// connection. See [markChannelRead] for why the ack (and its
-  /// [fallbackMessageId]) is what makes the badge stay gone.
-  void _markChannelRead(String channelId, {String? fallbackMessageId}) =>
-      markChannelRead(ref, channelId, fallbackMessageId: fallbackMessageId);
 
   /// Shows the rules interstitial once when a space with a rules channel is
   /// first opened this session.
@@ -613,6 +623,10 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
             ?.name,
         channels: channels,
         selectedChannelId: shownChannelId,
+        onSearchSelect: (selection) {
+          _openSearchSelection(selection);
+          if (inDrawer) _scaffoldKey.currentState?.closeDrawer();
+        },
         onSelect: shownSpaceId == null
             ? (_) {}
             : (channelId) {

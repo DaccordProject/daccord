@@ -1,6 +1,5 @@
-import 'package:bonfire/features/onboarding/views/onboarding_help.dart'
-    show openOnboardingHelpUrl;
 import 'package:bonfire/shared/app_info.dart' show kGithubRepo;
+import 'package:bonfire/shared/utils/external_url.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 
@@ -89,7 +88,7 @@ Future<void> showSelfHostingDialog(
               child: const Text('Connect by URL'),
             ),
           FilledButton(
-            onPressed: () => openOnboardingHelpUrl(kDaccordSelfHostingUrl),
+            onPressed: () => openTrustedUrl(kDaccordSelfHostingUrl),
             child: const Text('Read the guide'),
           ),
         ],

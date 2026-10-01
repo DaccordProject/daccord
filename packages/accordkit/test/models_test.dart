@@ -2,6 +2,26 @@ import 'package:accordkit/accordkit.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('space ID compatibility', () {
+    final parsers = <String, String? Function(Map<String, dynamic>)>{
+      'channel': (json) => AccordChannel.fromJson(json).spaceId,
+      'invite': (json) => AccordInvite.fromJson(json).spaceId,
+      'member': (json) => AccordMember.fromJson(json).spaceId,
+      'presence': (json) => AccordPresence.fromJson(json).spaceId,
+      'report': (json) => AccordReport.fromJson(json).spaceId,
+      'voice state': (json) => AccordVoiceState.fromJson(json).spaceId,
+    };
+    for (final entry in parsers.entries) {
+      test('${entry.key} accepts the legacy guild_id alias', () {
+        expect(entry.value({'guild_id': 7}), '7');
+        expect(entry.value({'space_id': null, 'guild_id': 7}), '7');
+      });
+      test('${entry.key} prefers space_id when both are present', () {
+        expect(entry.value({'space_id': '8', 'guild_id': '7'}), '8');
+      });
+    }
+  });
+
   group('AccordUser', () {
     test('parses fields and coerces int id to string', () {
       final u = AccordUser.fromJson({
@@ -103,10 +123,10 @@ void main() {
   });
 
   group('AccordChannel', () {
-    test('parses space_id from guild_id alias and overwrites', () {
+    test('parses space_id and overwrites', () {
       final c = AccordChannel.fromJson({
         'id': '1',
-        'guild_id': '7',
+        'space_id': '7',
         'rate_limit_per_user': 5,
         'permission_overwrites': [
           {'id': '3', 'type': 'member', 'allow': [], 'deny': []},
@@ -198,7 +218,7 @@ void main() {
     test('reads nested user and nick alias', () {
       final m = AccordMember.fromJson({
         'user': {'id': '2', 'username': 'x'},
-        'guild_id': '7',
+        'space_id': '7',
         'nick': 'Nicky',
         'roles': [1, 2],
         'communication_disabled_until': 'soon',
@@ -417,10 +437,10 @@ void main() {
   });
 
   group('AccordInvite', () {
-    test('inviter object and guild_id alias', () {
+    test('inviter object', () {
       final i = AccordInvite.fromJson({
         'code': 'abc',
-        'guild_id': '7',
+        'space_id': '7',
         'channel_id': '5',
         'inviter': {'id': '2'},
       });
@@ -433,7 +453,7 @@ void main() {
     test('leniently parses fields and derives a directly targeted user', () {
       final report = AccordReport.fromJson({
         'id': 12,
-        'guild_id': 7,
+        'space_id': 7,
         'reporter_id': 3,
         'target_type': 'member',
         'target_id': 9,

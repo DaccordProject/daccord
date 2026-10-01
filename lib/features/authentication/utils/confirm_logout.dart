@@ -1,12 +1,8 @@
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 
-/// Confirmation dialog shown before logging out.
-///
-/// Returns `true` only when the user explicitly confirms; `false` when they
-/// cancel or dismiss it. Shared by the settings screen and the home rail so
-/// both logout entry points use identical copy and neither signs the user out
-/// on a single accidental tap.
+/// Confirmation dialog shown before logging out. Returns `true` only when the
+/// user explicitly confirms.
 Future<bool> confirmLogout(BuildContext context) async {
   final confirmed = await showConfirmDialog(
     context,

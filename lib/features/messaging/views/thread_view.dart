@@ -1,3 +1,4 @@
+import 'package:bonfire/shared/app_info.dart';
 import 'dart:async';
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/messaging/utils/send_cooldown.dart';
@@ -240,7 +241,7 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
         label: 'Share Daccord link',
         icon: Icons.rocket_launch_outlined,
         onSelected: () => _copyShareLink(
-          'https://www.daccord.gg/open/navigate/$spaceId/'
+          '$kUniversalLinkBase/navigate/$spaceId/'
               '${widget.channelId}?msg=${_root.id}',
           'Daccord link copied to clipboard',
         ),

@@ -115,24 +115,6 @@ void main() {
     expect(stateOf(c).containsKey('chan-a'), isFalse);
   });
 
-  test('removeUser drops one user and prunes an emptied channel', () {
-    final c = makeContainer();
-    ctl(c)
-      ..upsert(vs('u1', 'chan-a'))
-      ..upsert(vs('u2', 'chan-a'))
-      ..removeUser('chan-a', 'u1');
-    expect(voiceUserCount(stateOf(c), 'chan-a'), 1);
-    ctl(c).removeUser('chan-a', 'u2');
-    expect(stateOf(c).containsKey('chan-a'), isFalse);
-  });
-
-  test('clear empties the whole cache', () {
-    final c = makeContainer();
-    ctl(c).upsert(vs('u1', 'chan-a'));
-    ctl(c).clear();
-    expect(stateOf(c), isEmpty);
-  });
-
   test('voiceStatesFor / voiceUserCount default for an unknown channel', () {
     expect(voiceStatesFor(const {}, 'nope'), isEmpty);
     expect(voiceUserCount(const {}, 'nope'), 0);

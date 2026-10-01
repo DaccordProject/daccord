@@ -7,6 +7,7 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/automod/utils/automod_policy.dart';
 import 'package:bonfire/features/automod/views/automod_rule_editor.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
+import 'package:bonfire/features/member/utils/permission_catalog.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -57,22 +58,13 @@ class AutomodPanel extends ConsumerWidget {
         child: Text('You do not have permission to manage AutoMod.'),
       );
     }
+    final serverKey = ref.watchActiveServerKey() ?? '';
     final channels = scope == '*'
         ? [
             for (final s in spaces)
-              ...?ref.watch(
-                accordChannelsControllerProvider(
-                  ref.watchActiveServerKey() ?? '',
-                  s.id,
-                ),
-              ),
+              ...?ref.watch(accordChannelsControllerProvider(serverKey, s.id)),
           ]
-        : ref.watch(
-                accordChannelsControllerProvider(
-                  ref.watchActiveServerKey() ?? '',
-                  scope,
-                ),
-              ) ??
+        : ref.watch(accordChannelsControllerProvider(serverKey, scope)) ??
               <AccordChannel>[];
     return AutomodWorkbench(
       key: ValueKey((auth.client, scope, configure, review)),
@@ -184,8 +176,8 @@ class _AutomodWorkbenchState extends State<AutomodWorkbench> {
         switch (key) {
           case 'policy':
             if (!_dirty) {
-              final envelope = automodMap(result.data);
-              _policy = copyAutomodJson(automodMap(envelope['policy']));
+              final envelope = asMap(result.data) ?? const {};
+              _policy = copyAutomodJson(asMap(envelope['policy']) ?? {});
               _inherited = envelope['inherited'] == true;
             }
           case 'hashes':
@@ -195,7 +187,7 @@ class _AutomodWorkbenchState extends State<AutomodWorkbench> {
           case 'events':
             _events = _rows(result.data);
           case 'health':
-            _health = automodMap(result.data);
+            _health = asMap(result.data) ?? {};
         }
       }
       _loading = false;
@@ -229,10 +221,10 @@ class _AutomodWorkbenchState extends State<AutomodWorkbench> {
     _dirty = true;
   });
   Future<void> _rule([int? index]) async {
-    final rules = automodList(_policy?['rules']);
+    final rules = asList(_policy?['rules']) ?? [];
     final edited = await editAutomodRule(
       context,
-      rule: index == null ? null : automodMap(rules[index]),
+      rule: index == null ? null : asMap(rules[index]) ?? {},
       channels: widget.channels,
     );
     if (!mounted || edited == null) return;
@@ -457,13 +449,13 @@ class _AutomodWorkbenchState extends State<AutomodWorkbench> {
   Widget _rules() {
     final policy = _policy;
     if (policy == null) return const Center(child: Text('No policy loaded.'));
-    final rules = automodList(policy['rules']);
-    final exemptions = automodList(
-      policy['exempt_roles'],
-    ).map((v) => '$v').toSet();
-    final permissions = automodList(
-      policy['exempt_permissions'],
-    ).map((v) => '$v').toSet();
+    final rules = asList(policy['rules']) ?? [];
+    final exemptions = (asList(policy['exempt_roles']) ?? const [])
+        .map((v) => '$v')
+        .toSet();
+    final permissions = (asList(policy['exempt_permissions']) ?? const [])
+        .map((v) => '$v')
+        .toSet();
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -475,7 +467,7 @@ class _AutomodWorkbenchState extends State<AutomodWorkbench> {
             'Queue capacity: ${_health!['max_held']} uploads · ${((asInt(_health!['max_held_bytes'])) / (1024 * 1024)).round()} MiB',
           ),
         if (_health != null)
-          for (final row in automodList(_health!['uploads']))
+          for (final row in asList(_health!['uploads']) ?? const [])
             Text('${row['status']}: ${row['count']} uploads'),
         if (_health != null && _health!['scanner'] != 'ready')
           const Text(
@@ -542,12 +534,12 @@ class _AutomodWorkbenchState extends State<AutomodWorkbench> {
           children: [
             for (final permission in {
               ...permissions,
-              'manage_messages',
-              'manage_channels',
-              'moderate_members',
+              AccordPermission.manageMessages,
+              AccordPermission.manageChannels,
+              AccordPermission.moderateMembers,
             })
               FilterChip(
-                label: Text(permission.replaceAll('_', ' ')),
+                label: Text(accordPermissionLabel(permission)),
                 selected: permissions.contains(permission),
                 onSelected: _busy
                     ? null
@@ -754,7 +746,7 @@ class _AutomodWorkbenchState extends State<AutomodWorkbench> {
           child: ListTile(
             title: SelectableText(asString(row['hash'])),
             subtitle: Text(
-              '${row['reason']}\nAdded by ${row['added_by'] ?? 'unknown'}${row['created_at'] == null ? '' : ' · ${DateTime.fromMillisecondsSinceEpoch(asInt(row['created_at']) * 1000).toLocal()}'}',
+              '${row['reason']}\nAdded by ${row['added_by'] ?? 'unknown'}${row['created_at'] is num ? ' · ${_timestamp(row['created_at'])}' : ''}',
             ),
             trailing: IconButton(
               tooltip: 'Unblock file',
@@ -791,12 +783,12 @@ class _AutomodWorkbenchState extends State<AutomodWorkbench> {
   Map<String, dynamic> _decodeDetails(Object? value) {
     if (value is String) {
       try {
-        return automodMap(jsonDecode(value));
+        return asMap(jsonDecode(value)) ?? {};
       } catch (_) {
         return {};
       }
     }
-    return automodMap(value);
+    return asMap(value) ?? {};
   }
 
   String _timestamp(Object? value) => value is num
@@ -806,13 +798,14 @@ class _AutomodWorkbenchState extends State<AutomodWorkbench> {
       : '';
   String _scanSummary(Object? value) {
     final result = _decodeDetails(value);
-    final scores = automodMap(result['scores']);
+    final scores = asMap(result['scores']) ?? const {};
+    final samples = asList(result['sampled_timestamps_ms']) ?? const [];
     return [
       for (final entry in scores.entries)
         if (entry.value is num)
           '${entry.key.replaceAll('_', ' ').toLowerCase()}: ${((entry.value as num) * 100).toStringAsFixed(1)}%',
-      if (automodList(result['sampled_timestamps_ms']).isNotEmpty)
-        'Video samples (seconds): ${automodList(result['sampled_timestamps_ms']).whereType<num>().map((v) => (v / 1000).toStringAsFixed(1)).join(', ')}',
+      if (samples.isNotEmpty)
+        'Video samples (seconds): ${samples.whereType<num>().map((v) => (v / 1000).toStringAsFixed(1)).join(', ')}',
     ].join('\n');
   }
 

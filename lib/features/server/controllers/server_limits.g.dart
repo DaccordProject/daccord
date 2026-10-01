@@ -17,8 +17,7 @@ part of 'server_limits.dart';
 /// The fetch is fire-and-forget on purpose: the composer must be usable the
 /// instant a channel opens, so it starts on the fallback limits and tightens
 /// (or loosens) them a round-trip later. A failed fetch is not an error state —
-/// it just leaves the fallback in place, which is what the client did
-/// unconditionally before this existed.
+/// it just leaves the fallback in place.
 
 @ProviderFor(ServerLimitsController)
 final serverLimitsControllerProvider = ServerLimitsControllerProvider._();
@@ -32,8 +31,7 @@ final serverLimitsControllerProvider = ServerLimitsControllerProvider._();
 /// The fetch is fire-and-forget on purpose: the composer must be usable the
 /// instant a channel opens, so it starts on the fallback limits and tightens
 /// (or loosens) them a round-trip later. A failed fetch is not an error state —
-/// it just leaves the fallback in place, which is what the client did
-/// unconditionally before this existed.
+/// it just leaves the fallback in place.
 final class ServerLimitsControllerProvider
     extends $NotifierProvider<ServerLimitsController, AccordServerLimits> {
   /// The connected server's upload limits, refreshed on connect.
@@ -45,8 +43,7 @@ final class ServerLimitsControllerProvider
   /// The fetch is fire-and-forget on purpose: the composer must be usable the
   /// instant a channel opens, so it starts on the fallback limits and tightens
   /// (or loosens) them a round-trip later. A failed fetch is not an error state —
-  /// it just leaves the fallback in place, which is what the client did
-  /// unconditionally before this existed.
+  /// it just leaves the fallback in place.
   ServerLimitsControllerProvider._()
     : super(
         from: null,
@@ -75,7 +72,7 @@ final class ServerLimitsControllerProvider
 }
 
 String _$serverLimitsControllerHash() =>
-    r'ad1e49b942e1444d5b85cb2eb70f8381d4afb4b7';
+    r'63cad80fa88b4af4d28e817fa7c2a3293ec69df2';
 
 /// The connected server's upload limits, refreshed on connect.
 ///
@@ -86,8 +83,7 @@ String _$serverLimitsControllerHash() =>
 /// The fetch is fire-and-forget on purpose: the composer must be usable the
 /// instant a channel opens, so it starts on the fallback limits and tightens
 /// (or loosens) them a round-trip later. A failed fetch is not an error state —
-/// it just leaves the fallback in place, which is what the client did
-/// unconditionally before this existed.
+/// it just leaves the fallback in place.
 
 abstract class _$ServerLimitsController extends $Notifier<AccordServerLimits> {
   AccordServerLimits build();

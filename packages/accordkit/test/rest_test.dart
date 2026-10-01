@@ -328,7 +328,7 @@ void main() {
       final rest = mockRest(
         log: [],
         timeout: const Duration(milliseconds: 20),
-        // Never completes — a black-holed server (#306).
+        // Never completes — a black-holed server.
         responder: (_) => Completer<http.Response>().future,
       );
       final result = await rest.makeRequest('GET', '/x');
@@ -634,7 +634,10 @@ void main() {
         'c',
         {'content': 'pic'},
         [
-          {'filename': 'a.png', 'content': Uint8List.fromList([1])},
+          {
+            'filename': 'a.png',
+            'content': Uint8List.fromList([1])
+          },
         ],
       );
       expect(log, hasLength(1));
@@ -717,7 +720,7 @@ void main() {
         () async {
       // A large or slow-link attachment upload can easily outrun the ordinary
       // request timeout without being stuck; uploadTimeout gives it a
-      // separate, longer budget (#306 follow-up).
+      // separate, longer budget.
       final rest = mockRest(
         log: [],
         timeout: const Duration(milliseconds: 20),

@@ -141,10 +141,8 @@ Future<void> _showSheet(
     builder: (sheetCtx) {
       final theme = Theme.of(sheetCtx);
       return SafeArea(
-        // Scrollable: the sheet is capped at a fraction of the viewport, and a
-        // long menu — the DM user menu is nine entries — overflowed it on a
-        // short screen, clipping the last entries instead of letting the user
-        // reach them.
+        // Scrollable: the sheet is capped at a fraction of the viewport, so a
+        // long menu would otherwise clip its last entries on short screens.
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,

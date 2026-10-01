@@ -9,6 +9,7 @@ import 'package:bonfire/features/server/services/deep_link_navigation.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:bonfire/features/server/services/federation_join.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
+import 'package:bonfire/shared/components/dialog_title_bar.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -85,11 +86,8 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
   bool _busy = false;
 
   // Terms-of-Service config, fetched per server when the Register mode is shown.
-  // Absent until a fetch says otherwise, so no gate flashes before the answer.
-  TosAvailability _tosAvailability = TosAvailability.absent;
+  TosConfig _tos = tosNotFetched;
   bool _tosAccepted = false;
-  String? _tosUrl;
-  String? _tosText;
   String? _tosFetchedServer;
 
   /// Space to join on the new connection once auth succeeds (from a discovery
@@ -255,14 +253,10 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
     if (!mounted) return;
     setState(() {
       _tosFetchedServer = server.baseUrl;
-      _tosAvailability = tos.availability;
-      _tosUrl = tos.url;
-      _tosText = tos.text;
+      _tos = tos;
       _tosAccepted = false;
     });
   }
-
-  Future<void> _openTos() => openTos(context, url: _tosUrl, text: _tosText);
 
   Future<void> _submitCredentials() async {
     final server = _server;
@@ -276,7 +270,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
       final validationError = validateRegistrationCredentials(
         username: username,
         password: password,
-        tosRequired: _tosAvailability == TosAvailability.advertised,
+        tosRequired: _tos.availability == TosAvailability.advertised,
         tosAccepted: _tosAccepted,
       );
       if (validationError != null) {
@@ -400,23 +394,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
-              child: Row(
-                children: [
-                  Icon(Icons.dns_outlined, size: 20, color: colors.dirtyWhite),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Add a Server',
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Close',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(Icons.close, size: 20, color: colors.gray),
-                  ),
-                ],
-              ),
+              child: DialogTitleBar('Add a Server', icon: Icons.dns_outlined),
             ),
             TabBar(
               controller: _tabs,
@@ -493,10 +471,10 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
                 usernameController: _userCtrl,
                 passwordController: _passCtrl,
                 displayNameController: _displayCtrl,
-                tosAvailability: _tosAvailability,
+                tosAvailability: _tos.availability,
                 tosAccepted: _tosAccepted,
                 onTosChanged: (v) => setState(() => _tosAccepted = v),
-                onTosLinkTap: _openTos,
+                onTosLinkTap: () => openTos(context, _tos),
                 onGeneratePassword: _generatePassword,
                 onSubmit: _submitCredentials,
                 enabled: !_busy,

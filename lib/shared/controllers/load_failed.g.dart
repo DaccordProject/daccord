@@ -8,62 +8,35 @@ part of 'load_failed.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Whether a self-loading cache's initial REST fetch failed (a non-2xx
-/// response, a network error, or a timeout).
+/// Whether a self-loading cache's initial REST fetch failed. Cache controllers
+/// hold `null` for "no data", so this is the second bit: `null` + not failed =
+/// loading, `null` + failed = show an error with Retry.
 ///
-/// The cache controllers hold `null` for "no data", which on its own cannot
-/// tell a pane still loading apart from one whose load failed — so a failed
-/// fetch used to render as a permanent spinner. This flag is the second bit:
-/// `null` + not failed = loading, `null` + failed = show an error with a Retry.
-///
-/// Written by the controller that owns the fetch (cleared on success, set once
-/// its retries are exhausted) and by a pane's Retry button before it
-/// re-triggers the load. Keyed by [scope] (which cache: `members`, `messages`,
-/// `channels`, `spaces`), the owning connection's [serverKey], and the [id]
-/// within it (the space or channel; empty for connection-wide caches).
-///
-/// Don't watch this provider directly — each feature exposes a named helper
-/// (`membersLoadFailedProvider`, `channelsLoadFailedProvider`, …) that fills in
-/// its own scope.
+/// Keyed by [scope] (`members`, `messages`, `channels`, `spaces`), the owning
+/// connection's [serverKey], and the space/channel [id] (empty for
+/// connection-wide caches). Watch it through each feature's named helper
+/// (`membersLoadFailedProvider`, …), not directly.
 
 @ProviderFor(LoadFailed)
 final loadFailedProvider = LoadFailedFamily._();
 
-/// Whether a self-loading cache's initial REST fetch failed (a non-2xx
-/// response, a network error, or a timeout).
+/// Whether a self-loading cache's initial REST fetch failed. Cache controllers
+/// hold `null` for "no data", so this is the second bit: `null` + not failed =
+/// loading, `null` + failed = show an error with Retry.
 ///
-/// The cache controllers hold `null` for "no data", which on its own cannot
-/// tell a pane still loading apart from one whose load failed — so a failed
-/// fetch used to render as a permanent spinner. This flag is the second bit:
-/// `null` + not failed = loading, `null` + failed = show an error with a Retry.
-///
-/// Written by the controller that owns the fetch (cleared on success, set once
-/// its retries are exhausted) and by a pane's Retry button before it
-/// re-triggers the load. Keyed by [scope] (which cache: `members`, `messages`,
-/// `channels`, `spaces`), the owning connection's [serverKey], and the [id]
-/// within it (the space or channel; empty for connection-wide caches).
-///
-/// Don't watch this provider directly — each feature exposes a named helper
-/// (`membersLoadFailedProvider`, `channelsLoadFailedProvider`, …) that fills in
-/// its own scope.
+/// Keyed by [scope] (`members`, `messages`, `channels`, `spaces`), the owning
+/// connection's [serverKey], and the space/channel [id] (empty for
+/// connection-wide caches). Watch it through each feature's named helper
+/// (`membersLoadFailedProvider`, …), not directly.
 final class LoadFailedProvider extends $NotifierProvider<LoadFailed, bool> {
-  /// Whether a self-loading cache's initial REST fetch failed (a non-2xx
-  /// response, a network error, or a timeout).
+  /// Whether a self-loading cache's initial REST fetch failed. Cache controllers
+  /// hold `null` for "no data", so this is the second bit: `null` + not failed =
+  /// loading, `null` + failed = show an error with Retry.
   ///
-  /// The cache controllers hold `null` for "no data", which on its own cannot
-  /// tell a pane still loading apart from one whose load failed — so a failed
-  /// fetch used to render as a permanent spinner. This flag is the second bit:
-  /// `null` + not failed = loading, `null` + failed = show an error with a Retry.
-  ///
-  /// Written by the controller that owns the fetch (cleared on success, set once
-  /// its retries are exhausted) and by a pane's Retry button before it
-  /// re-triggers the load. Keyed by [scope] (which cache: `members`, `messages`,
-  /// `channels`, `spaces`), the owning connection's [serverKey], and the [id]
-  /// within it (the space or channel; empty for connection-wide caches).
-  ///
-  /// Don't watch this provider directly — each feature exposes a named helper
-  /// (`membersLoadFailedProvider`, `channelsLoadFailedProvider`, …) that fills in
-  /// its own scope.
+  /// Keyed by [scope] (`members`, `messages`, `channels`, `spaces`), the owning
+  /// connection's [serverKey], and the space/channel [id] (empty for
+  /// connection-wide caches). Watch it through each feature's named helper
+  /// (`membersLoadFailedProvider`, …), not directly.
   LoadFailedProvider._({
     required LoadFailedFamily super.from,
     required (String, String, String) super.argument,
@@ -110,23 +83,14 @@ final class LoadFailedProvider extends $NotifierProvider<LoadFailed, bool> {
 
 String _$loadFailedHash() => r'09220fe5f012b97226a7fabcb21e7fd0566a869c';
 
-/// Whether a self-loading cache's initial REST fetch failed (a non-2xx
-/// response, a network error, or a timeout).
+/// Whether a self-loading cache's initial REST fetch failed. Cache controllers
+/// hold `null` for "no data", so this is the second bit: `null` + not failed =
+/// loading, `null` + failed = show an error with Retry.
 ///
-/// The cache controllers hold `null` for "no data", which on its own cannot
-/// tell a pane still loading apart from one whose load failed — so a failed
-/// fetch used to render as a permanent spinner. This flag is the second bit:
-/// `null` + not failed = loading, `null` + failed = show an error with a Retry.
-///
-/// Written by the controller that owns the fetch (cleared on success, set once
-/// its retries are exhausted) and by a pane's Retry button before it
-/// re-triggers the load. Keyed by [scope] (which cache: `members`, `messages`,
-/// `channels`, `spaces`), the owning connection's [serverKey], and the [id]
-/// within it (the space or channel; empty for connection-wide caches).
-///
-/// Don't watch this provider directly — each feature exposes a named helper
-/// (`membersLoadFailedProvider`, `channelsLoadFailedProvider`, …) that fills in
-/// its own scope.
+/// Keyed by [scope] (`members`, `messages`, `channels`, `spaces`), the owning
+/// connection's [serverKey], and the space/channel [id] (empty for
+/// connection-wide caches). Watch it through each feature's named helper
+/// (`membersLoadFailedProvider`, …), not directly.
 
 final class LoadFailedFamily extends $Family
     with
@@ -146,23 +110,14 @@ final class LoadFailedFamily extends $Family
         isAutoDispose: false,
       );
 
-  /// Whether a self-loading cache's initial REST fetch failed (a non-2xx
-  /// response, a network error, or a timeout).
+  /// Whether a self-loading cache's initial REST fetch failed. Cache controllers
+  /// hold `null` for "no data", so this is the second bit: `null` + not failed =
+  /// loading, `null` + failed = show an error with Retry.
   ///
-  /// The cache controllers hold `null` for "no data", which on its own cannot
-  /// tell a pane still loading apart from one whose load failed — so a failed
-  /// fetch used to render as a permanent spinner. This flag is the second bit:
-  /// `null` + not failed = loading, `null` + failed = show an error with a Retry.
-  ///
-  /// Written by the controller that owns the fetch (cleared on success, set once
-  /// its retries are exhausted) and by a pane's Retry button before it
-  /// re-triggers the load. Keyed by [scope] (which cache: `members`, `messages`,
-  /// `channels`, `spaces`), the owning connection's [serverKey], and the [id]
-  /// within it (the space or channel; empty for connection-wide caches).
-  ///
-  /// Don't watch this provider directly — each feature exposes a named helper
-  /// (`membersLoadFailedProvider`, `channelsLoadFailedProvider`, …) that fills in
-  /// its own scope.
+  /// Keyed by [scope] (`members`, `messages`, `channels`, `spaces`), the owning
+  /// connection's [serverKey], and the space/channel [id] (empty for
+  /// connection-wide caches). Watch it through each feature's named helper
+  /// (`membersLoadFailedProvider`, …), not directly.
 
   LoadFailedProvider call(String scope, String serverKey, String id) =>
       LoadFailedProvider._(argument: (scope, serverKey, id), from: this);
@@ -171,23 +126,14 @@ final class LoadFailedFamily extends $Family
   String toString() => r'loadFailedProvider';
 }
 
-/// Whether a self-loading cache's initial REST fetch failed (a non-2xx
-/// response, a network error, or a timeout).
+/// Whether a self-loading cache's initial REST fetch failed. Cache controllers
+/// hold `null` for "no data", so this is the second bit: `null` + not failed =
+/// loading, `null` + failed = show an error with Retry.
 ///
-/// The cache controllers hold `null` for "no data", which on its own cannot
-/// tell a pane still loading apart from one whose load failed — so a failed
-/// fetch used to render as a permanent spinner. This flag is the second bit:
-/// `null` + not failed = loading, `null` + failed = show an error with a Retry.
-///
-/// Written by the controller that owns the fetch (cleared on success, set once
-/// its retries are exhausted) and by a pane's Retry button before it
-/// re-triggers the load. Keyed by [scope] (which cache: `members`, `messages`,
-/// `channels`, `spaces`), the owning connection's [serverKey], and the [id]
-/// within it (the space or channel; empty for connection-wide caches).
-///
-/// Don't watch this provider directly — each feature exposes a named helper
-/// (`membersLoadFailedProvider`, `channelsLoadFailedProvider`, …) that fills in
-/// its own scope.
+/// Keyed by [scope] (`members`, `messages`, `channels`, `spaces`), the owning
+/// connection's [serverKey], and the space/channel [id] (empty for
+/// connection-wide caches). Watch it through each feature's named helper
+/// (`membersLoadFailedProvider`, …), not directly.
 
 abstract class _$LoadFailed extends $Notifier<bool> {
   late final _$args = ref.$arg as (String, String, String);

@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:flutter/material.dart';
 
 /// Resolves a member's preferred display name: nickname → user display name →
@@ -41,19 +42,11 @@ String accordInitial(String? name) {
 /// point image fetches at internal/cloud-metadata addresses or smuggle
 /// userinfo/path into the host. Mirrors the per-server CDN derivation in
 /// `AccordServer.fromBaseUrl`.
-String? cdnBaseForDomain(String domain) =>
-    _isSafeFederationHost(domain) ? 'https://$domain/cdn' : null;
-
-/// Validates a federation [domain] that may carry an optional `:port`: a real
-/// hostname that is not loopback/link-local.
-bool _isSafeFederationHost(String domain) {
-  var host = domain;
-  final colon = domain.lastIndexOf(':');
-  if (colon != -1) {
-    if (int.tryParse(domain.substring(colon + 1)) == null) return false;
-    host = domain.substring(0, colon);
-  }
-  return isValidHost(host) && !isLoopbackOrLinkLocalHost(host);
+String? cdnBaseForDomain(String domain) {
+  final host = ServerUri.hostFromAuthority(domain);
+  return host != null && !isLoopbackOrLinkLocalHost(host)
+      ? 'https://$domain/cdn'
+      : null;
 }
 
 /// Whether [asset] is safe to fetch for a remote home [domain]: a relative path
@@ -66,10 +59,7 @@ bool _assetAllowedForDomain(String asset, String domain) {
   }
   final uri = Uri.tryParse(asset);
   if (uri == null) return false;
-  final colon = domain.lastIndexOf(':');
-  final host = colon != -1 && int.tryParse(domain.substring(colon + 1)) != null
-      ? domain.substring(0, colon)
-      : domain;
+  final host = ServerUri.hostFromAuthority(domain) ?? domain;
   return uri.host.toLowerCase() == host.toLowerCase();
 }
 
@@ -183,7 +173,7 @@ String? accordEmojiUrl(AccordEmoji emoji, String? cdnUrl) {
 
 /// Resolves a message/post author's display name by `author_id`, consulting the
 /// space member cache first, then the on-demand global user cache, then
-/// [fallback]. When neither cache has the author yet it schedules a fetch via
+/// "Unknown". When neither cache has the author yet it schedules a fetch via
 /// [ensure] (safe to call during build — the user controller dedupes and only
 /// mutates post-request). Mirrors the reference client, which shows "Unknown"
 /// until the user resolves rather than the raw snowflake ID. Use this anywhere a
@@ -193,13 +183,11 @@ String accordAuthorName(
   Map<String, AccordMember>? members,
   Map<String, AccordUser>? users,
   void Function(String userId)? ensure,
-  String fallback = 'Unknown',
 }) => accordAuthorNameOf(
   authorId,
   member: members?[authorId],
   user: users?[authorId],
   ensure: ensure,
-  fallback: fallback,
 );
 
 /// Single-author variant of [accordAuthorName], for per-row widgets that scope

@@ -41,12 +41,10 @@ class VoiceConnection {
   final String? channelId;
   final String? spaceId;
 
-  /// The connection (`userId@baseUrl`) the voice session belongs to. Voice is a
-  /// single global session pinned to the server we joined on — *not* whichever
-  /// server is currently driving the panes. Every voice REST/gateway call routes
-  /// through this key's client so switching the active server mid-call doesn't
-  /// send our leave/state updates to the wrong server (the reference's
-  /// `_client_for_space`).
+  /// The connection (`userId@baseUrl`) the voice session is pinned to — *not*
+  /// whichever server is active. Every voice REST/gateway call routes through
+  /// this key's client so switching servers mid-call doesn't send our
+  /// leave/state updates to the wrong server.
   final String? serverKey;
   final VoiceSessionState sessionState;
   final bool selfMute;
@@ -57,18 +55,16 @@ class VoiceConnection {
   final bool selfStream;
   final Set<String> speakingUserIds;
 
-  /// Whether *we* have been idle long enough to count as away. Purely a
-  /// client-side determination (see `AfkMonitor`): the Accord voice state has
-  /// no AFK field, so this is surfaced to other members by flipping our
-  /// presence to `idle`.
+  /// Whether *we* have been idle long enough to count as away (see
+  /// `AfkMonitor`); surfaced to other members by flipping our presence to
+  /// `idle`.
   final bool isAfk;
 
   /// Transient error message for the voice bar (auto-dismissed by the UI).
   final String? error;
 
-  /// Bumped on every LiveKit room change (track published/subscribed, speaker
-  /// changes). The video grid watches this to rebuild its tiles when the set of
-  /// renderable tracks changes — the reference client's `_schedule_rebuild`.
+  /// Bumped when the set of renderable LiveKit tracks/participants changes; the
+  /// video grid watches it to rebuild its tiles.
   final int tick;
 
   bool get isConnected => channelId != null;
@@ -105,16 +101,14 @@ class VoiceConnection {
   }
 }
 
-/// Orchestrates voice channel join/leave and media toggles, the Dart port of
-/// the reference `client_voice.gd` + the voice slice of its `AppState`. Owns a
-/// single [VoiceSession] (the LiveKit transport) and pushes runtime self-state
-/// to the server over the gateway via `updateVoiceState`.
+/// Orchestrates voice channel join/leave and media toggles (reference:
+/// `client_voice.gd`). Owns a single [VoiceSession] (the LiveKit transport) and
+/// pushes runtime self-state to the server via `updateVoiceState`.
 @Riverpod(keepAlive: true)
 class VoiceController extends _$VoiceController {
   VoiceSession? _session;
 
-  /// The live LiveKit session, exposed so the video grid can render its room.
-  /// Null whenever we're not connected.
+  /// The LiveKit session, exposed so the video grid can render its tracks.
   VoiceSession? get session => _session;
 
   /// Installs a stand-in session so tests can exercise the media toggles
@@ -188,15 +182,13 @@ class VoiceController extends _$VoiceController {
       _afkMonitor = null;
       _session?.dispose();
       _session = null;
-      soundManager.setVoiceSessionActive(false);
+      soundManager.voiceSessionActive = false;
     });
     return const VoiceConnection();
   }
 
-  /// The client for the connection our voice session is pinned to. Resolved by
-  /// [VoiceConnection.serverKey] rather than the active connection so a call
-  /// survives the user switching the active server (the reference routes voice
-  /// REST/gateway through `_client_for_space`, never the "current" client).
+  /// The client for the connection our voice session is pinned to
+  /// ([VoiceConnection.serverKey]), not the active one.
   AccordClient? get _client {
     final key = state.serverKey;
     if (key == null) return null;
@@ -205,17 +197,13 @@ class VoiceController extends _$VoiceController {
 
   /// One-shot guard so a dropped connection triggers at most one proactive
   /// credential-refresh reconnect; reset whenever we (re)connect or leave.
-  /// Mirrors the reference's `_auto_reconnect_attempted`.
   bool _reconnectAttempted = false;
 
   /// Serializes every session-mutating operation (join, leave, gateway-driven
-  /// reconnect, and forced disconnect) onto a single chain so a LiveKit
-  /// `connect()` and `disconnect()` can never run concurrently on the one reused
-  /// [VoiceSession]. Without this, switching channels races the in-flight join
-  /// against the server's gateway echoes (`voice.server_update` reconnect and
-  /// the leave-channel state update), driving two overlapping connect/teardown
-  /// cycles that wedge the WebRTC layer — the "works once, then hangs and never
-  /// reconnects" failure.
+  /// reconnect, forced disconnect) so a LiveKit `connect()` and `disconnect()`
+  /// never overlap on the one reused [VoiceSession]. Otherwise a channel switch
+  /// races the in-flight join against the server's gateway echoes, and the
+  /// overlapping connect/teardown cycles wedge the WebRTC layer.
   Future<void> _queue = Future<void>.value();
 
   Future<void> _serialize(Future<void> Function() op) {
@@ -240,9 +228,8 @@ class VoiceController extends _$VoiceController {
     if (state.channelId == channelId) return;
     if (state.isConnected) await _leaveLocked();
 
-    // Pin to whichever connection is active *now* — that's the server whose
-    // channel was tapped. Resolve its client by key so later voice calls keep
-    // hitting it even after the user makes another server active.
+    // Pin to whichever connection is active *now* — the server whose channel
+    // was tapped.
     final serverKey = ref.read(connectionsControllerProvider).activeKey;
     final client = serverKey == null
         ? null
@@ -286,14 +273,14 @@ class VoiceController extends _$VoiceController {
     );
     final settings = ref.read(settingsControllerProvider);
     // Flag the live call *before* the media session comes up, so no chime can
-    // reconfigure the platform audio session underneath it (#323).
-    soundManager.setVoiceSessionActive(true);
+    // reconfigure the platform audio session underneath it.
+    soundManager.voiceSessionActive = true;
     await _session!.connect(
       url,
       token,
       selfMute: state.selfMute,
       selfDeaf: state.selfDeaf,
-      relayOnly: ref.read(settingsControllerProvider).voiceRelayOnly,
+      relayOnly: settings.voiceRelayOnly,
       audioInputDeviceId: settings.audioInputDeviceId,
       audioOutputDeviceId: settings.audioOutputDeviceId,
       outputVolume: settings.outputVolume,
@@ -304,11 +291,9 @@ class VoiceController extends _$VoiceController {
     await _refreshVoiceStates(channelId);
   }
 
-  /// After a (re)connect: if the microphone could not be captured or
-  /// published — the OS denied access, no input device, publish failure —
-  /// reflect that honestly. We stay in the channel (you can still listen) but
-  /// as *muted*, tell the server so, and surface the reason in the voice bar
-  /// rather than showing a live mic that sends nothing (#325).
+  /// After a (re)connect whose mic could not be captured or published: stay in
+  /// the channel but as *muted*, tell the server so, and surface the reason
+  /// rather than showing a live mic that sends nothing.
   void _applyMicOutcome() {
     final micError = _session?.micError;
     if (micError == null || !state.isConnected || state.selfMute) return;
@@ -327,7 +312,7 @@ class VoiceController extends _$VoiceController {
     if (channelId == null) return;
     _reconnectAttempted = false;
     await _session?.disconnect();
-    soundManager.setVoiceSessionActive(false);
+    soundManager.voiceSessionActive = false;
     await _client?.voice.leave(channelId);
     soundManager.play('voice_leave');
     state = const VoiceConnection();
@@ -391,11 +376,8 @@ class VoiceController extends _$VoiceController {
 
   /// Toggles screen sharing. When starting, [sourceId] selects a specific
   /// screen/window chosen from the desktop source picker (null = let the
-  /// platform prompt).
-  ///
-  /// Quality comes from the *screen-share* settings, not the camera ones: a
-  /// webcam preset (720p30 @ 1.7 Mbps) is the wrong shape for gameplay, which
-  /// is what people actually share (issue #151).
+  /// platform prompt). Quality comes from the *screen-share* settings, not the
+  /// camera ones.
   Future<void> toggleScreenShare({String? sourceId}) async {
     if (!state.isConnected) return;
     final enable = !state.selfStream;
@@ -418,11 +400,9 @@ class VoiceController extends _$VoiceController {
     _sendVoiceStateUpdate();
   }
 
-  /// Fresh LiveKit credentials arrived over the gateway. Reconnect the backend
-  /// only when the session has actually dropped (token refresh / SFU move) so
-  /// we don't churn a healthy initial connection that the join already wired.
-  /// Serialized so it waits behind any in-flight join rather than firing a
-  /// second concurrent connect on the shared session.
+  /// Fresh LiveKit credentials arrived over the gateway. Reconnects only when
+  /// the session has actually dropped ([needsReconnect]); serialized behind any
+  /// in-flight join.
   void handleServerUpdate(AccordVoiceServerUpdate info) {
     _serialize(() => _serverUpdateLocked(info));
   }
@@ -446,54 +426,41 @@ class VoiceController extends _$VoiceController {
 
   /// The server removed us from voice (our gateway state's channel went null).
   /// [leftChannel] is the channel the null-echo reported leaving; the teardown
-  /// only fires if we're *still* in it when this runs.
+  /// only fires if we're *still* in it when this runs, since a channel switch's
+  /// own echo queues behind the join to the new channel.
   void handleForcedDisconnect(String? leftChannel) {
     _serialize(() => _forcedDisconnectLocked(leftChannel));
   }
 
   Future<void> _forcedDisconnectLocked(String? leftChannel) async {
     if (!state.isConnected) return;
-    // A channel switch leaves the old channel (server echoes our own
-    // channel→null), which queues a forced-disconnect *behind* the in-flight
-    // join to the new channel. By the time it runs we've already connected
-    // elsewhere — that stale echo must not tear the new session down. Only
-    // honour the kick if we're still in the channel it was for.
     if (leftChannel != null && state.channelId != leftChannel) return;
     _reconnectAttempted = false;
     await _session?.disconnect();
-    soundManager.setVoiceSessionActive(false);
+    soundManager.voiceSessionActive = false;
     state = const VoiceConnection();
     _syncAfk();
   }
 
-  VoiceSession _buildSession() {
-    final session = VoiceSession()
-      ..onChanged = _onSessionChanged
-      ..onTracksChanged = _onSessionTracksChanged
-      ..onStateChanged = _onSessionStateChanged
-      ..onDisconnected = _onSessionDisconnected;
-    return session;
-  }
+  VoiceSession _buildSession() => VoiceSession()
+    ..onChanged = _onSessionChanged
+    ..onTracksChanged = _onSessionTracksChanged
+    ..onStateChanged = _onSessionStateChanged
+    ..onDisconnected = _onSessionDisconnected;
 
-  /// High-frequency speaker churn: refresh the speaking set, but only push a new
-  /// state (and rebuild) when it actually changed. LiveKit's `Room` notifies on
-  /// every active-speaker/audio-level report — many times per second while
-  /// anyone talks — so an unconditional update here pegs the UI thread.
+  /// High-frequency speaker churn (many times per second while anyone talks):
+  /// only push a new state when the speaking set actually changed.
   void _onSessionChanged() {
     final speaking = _session?.speakingUserIds ?? const {};
     if (setEquals(speaking, state.speakingUserIds)) return;
     state = state.copyWith(speakingUserIds: speaking);
   }
 
-  /// Structural change (track sub/unsub, publish, participant join/leave): bump
-  /// the grid-rebuild tick. These are comparatively rare, so rebuilding the
-  /// video grid here is cheap.
   void _onSessionTracksChanged() {
     state = state.copyWith(tick: state.tick + 1);
   }
 
-  /// Dismisses the transient voice error (the bar auto-clears it after a few
-  /// seconds; mirrors the reference's 4s error tween).
+  /// Dismisses the transient voice error.
   void clearError() {
     if (state.error == null) return;
     state = state.copyWith(clearError: true);
@@ -516,11 +483,9 @@ class VoiceController extends _$VoiceController {
     )) {
       return;
     }
-    // LiveKit gave up its own retries (terminal RoomDisconnected). Don't just
-    // sit in "reconnecting" waiting for a gateway push that may never come —
-    // proactively refresh credentials and reconnect, like the reference's
-    // `_try_auto_reconnect`. A concurrent gateway voice.server_update is handled
-    // because both reconnect paths run on the same serialized [_queue].
+    // LiveKit gave up its own retries. Rather than wait on a gateway push that
+    // may never come, refresh credentials and reconnect; a concurrent
+    // voice.server_update is safe because both paths share [_queue].
     state = state.copyWith(sessionState: VoiceSessionState.reconnecting);
     _serialize(_reconnectLocked);
   }
@@ -566,7 +531,7 @@ class VoiceController extends _$VoiceController {
       token,
       selfMute: state.selfMute,
       selfDeaf: state.selfDeaf,
-      relayOnly: ref.read(settingsControllerProvider).voiceRelayOnly,
+      relayOnly: settings.voiceRelayOnly,
       audioInputDeviceId: settings.audioInputDeviceId,
       audioOutputDeviceId: settings.audioOutputDeviceId,
       outputVolume: settings.outputVolume,
@@ -592,17 +557,11 @@ class VoiceController extends _$VoiceController {
         .seedChannel(channelId, data);
   }
 
-  // ---------------------------------------------------------------------
-  // AFK (#112)
+  // ── AFK ──
   //
-  // Detection is entirely client-side. The Accord protocol has no AFK concept
-  // in voice: `AccordVoiceState` carries no `afk` field and gateway op 9
-  // (`updateVoiceState`) accepts only the four self_* flags, so there is no way
-  // to publish "I am away" *as voice state*. What we can do is flip our
-  // presence to `idle` — a status the server accepts and rebroadcasts — which
-  // is what makes the AFK badge visible to other members rather than being a
-  // local-only decoration.
-  // ---------------------------------------------------------------------
+  // Detection is client-side: `AccordVoiceState` has no `afk` field and
+  // `updateVoiceState` accepts only the self_* flags, so AFK is published to
+  // other members by flipping our presence to `idle`.
 
   /// Re-points the idle monitor at the current connection + timeout setting.
   void _syncAfk() {
@@ -689,12 +648,8 @@ class VoiceController extends _$VoiceController {
         );
   }
 
-  /// Moves us into the space's designated AFK channel, when it has one.
-  ///
-  /// There is no server-side move: Accord exposes no "move participant" route
-  /// and never acts on `AccordSpace.afkChannelId` itself. Moving *ourselves*
-  /// is possible though — re-joining another channel implicitly leaves the old
-  /// one — so this is a plain re-join, and it only ever moves the local user.
+  /// Moves us into the space's designated AFK channel, when it has one. Accord
+  /// has no server-side move, so this is a plain re-join of the local user.
   Future<void> _moveToAfkChannel() async {
     if (!ref.read(settingsControllerProvider).voiceAfkAutoMove) return;
     final spaceId = state.spaceId;
@@ -727,10 +682,8 @@ class VoiceController extends _$VoiceController {
   void _sendVoiceStateUpdate() {
     final channelId = state.channelId;
     if (channelId == null) return;
-    // `spaceId` is null during a DM call. That used to mean bailing out — the
-    // gateway op was space-scoped, so peers saw the mute/deafen state we opened
-    // the call with and nothing after it (#135). The server now resolves the
-    // scope from the channel and routes DM updates to the call's participants.
+    // `spaceId` is null during a DM call; the server resolves the scope from
+    // the channel.
     _client?.updateVoiceState(
       state.spaceId,
       channelId,

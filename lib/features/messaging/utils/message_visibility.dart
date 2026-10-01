@@ -16,12 +16,6 @@ class MessageVisibility {
     required this.blockedAuthorIds,
   });
 
-  /// Nothing filtered — for surfaces built without a provider scope.
-  static const none = MessageVisibility(
-    hiddenMessageIds: {},
-    blockedAuthorIds: {},
-  );
-
   final Set<String> hiddenMessageIds;
   final Set<String> blockedAuthorIds;
 

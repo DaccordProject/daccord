@@ -28,10 +28,11 @@ Offset onboardingCalloutOffset({
   required Size overlay,
   required Size card,
   Rect? target,
-  double gap = kOnboardingCalloutGap,
-  double margin = kOnboardingCalloutMargin,
 }) {
-  double clampX(double x) => _clamp(x, margin, overlay.width - card.width - margin);
+  const gap = kOnboardingCalloutGap;
+  const margin = kOnboardingCalloutMargin;
+  double clampX(double x) =>
+      _clamp(x, margin, overlay.width - card.width - margin);
   double clampY(double y) =>
       _clamp(y, margin, overlay.height - card.height - margin);
 
@@ -74,7 +75,7 @@ double _clamp(double value, double min, double max) {
   return value < min ? min : (value > max ? max : value);
 }
 
-/// The first-launch walkthrough (#175): a scrim with a hole punched over the
+/// The first-launch walkthrough: a scrim with a hole punched over the
 /// real widget being described, plus a card explaining it.
 ///
 /// Owns nothing persistent — the "seen" marker and the decision to show at all
@@ -117,9 +118,6 @@ class OnboardingOverlayState extends State<OnboardingOverlay>
 
   /// The step currently on screen.
   OnboardingStep get step => widget.steps[_index];
-
-  /// Zero-based index of the step on screen.
-  int get index => _index;
 
   @override
   void initState() {
@@ -407,10 +405,7 @@ class _OnboardingCard extends StatelessWidget {
                   if (!isLast)
                     TextButton(
                       onPressed: onSkip,
-                      child: Text(
-                        'Skip',
-                        style: TextStyle(color: colors.gray),
-                      ),
+                      child: Text('Skip', style: TextStyle(color: colors.gray)),
                     ),
                   if (onBack != null)
                     TextButton(

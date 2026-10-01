@@ -42,7 +42,7 @@ void main() {
       expect(result['member_list_visible'], isFalse);
     });
 
-    test('clear resets both handlers and the state reader', () {
+    test('clear resets both handlers and the state reader', () async {
       mcpHomeBridge.registerAll({
         'navigate': (_) async => {'ok': true},
       });
@@ -56,7 +56,10 @@ void main() {
 
       mcpHomeBridge.clear();
 
-      expect(mcpHomeBridge.isMounted, isFalse);
+      expect(
+        (await mcpHomeBridge.invoke('navigate', {}))['error'],
+        contains('not mounted'),
+      );
       expect(mcpHomeBridge.state.spaceId, isNull);
       expect(mcpHomeBridge.state.channelId, isNull);
       expect(mcpHomeBridge.state.memberListVisible, isTrue);

@@ -1,8 +1,7 @@
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'dart:async';
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/messaging/utils/send_cooldown.dart';
-import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/utils/emoticons.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:flutter/material.dart';
@@ -89,11 +88,7 @@ class _PostComposerDialogState extends ConsumerState<PostComposerDialog> {
       setState(() => _error = 'Title is required');
       return;
     }
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
+    final client = ref.accordClient;
     if (client == null) return;
     setState(() {
       _busy = true;

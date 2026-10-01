@@ -14,7 +14,6 @@ class RemoteOriginBadge extends StatelessWidget {
     super.key,
     required this.domain,
     this.showDomain = true,
-    this.iconSize = 12,
   });
 
   /// The home domain (e.g. `b.example`), or null/empty for local content.
@@ -23,8 +22,6 @@ class RemoteOriginBadge extends StatelessWidget {
   /// Whether to render the `@domain` text after the glyph. When false only the
   /// glyph shows (e.g. as a compact avatar overlay).
   final bool showDomain;
-
-  final double iconSize;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +34,7 @@ class RemoteOriginBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.public, size: iconSize, color: colors.gray),
+          Icon(Icons.public, size: 12, color: colors.gray),
           if (showDomain) ...[
             const SizedBox(width: 3),
             Text(

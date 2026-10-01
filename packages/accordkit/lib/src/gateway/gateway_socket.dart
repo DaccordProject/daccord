@@ -157,7 +157,6 @@ class GatewaySocket {
 
   late final _experienceSession = _ctrl<Map<String, dynamic>>();
 
-
   late final _emojiCreate = _ctrl<Map<String, dynamic>>();
   late final _emojiUpdate = _ctrl<Map<String, dynamic>>();
   late final _emojiDelete = _ctrl<Map<String, dynamic>>();
@@ -247,8 +246,8 @@ class GatewaySocket {
   Stream<AccordInvite> get onInviteCreate => _inviteCreate.stream;
   Stream<Map<String, dynamic>> get onInviteDelete => _inviteDelete.stream;
 
-  Stream<Map<String, dynamic>> get onExperienceSession => _experienceSession.stream;
-
+  Stream<Map<String, dynamic>> get onExperienceSession =>
+      _experienceSession.stream;
 
   Stream<Map<String, dynamic>> get onEmojiCreate => _emojiCreate.stream;
   Stream<Map<String, dynamic>> get onEmojiUpdate => _emojiUpdate.stream;
@@ -296,7 +295,7 @@ class GatewaySocket {
   /// loop only inspects `op == IDENTIFY` and silently drops everything else, so
   /// a speculative RESUME just idles until the server's 30-second identify
   /// timeout fires — during which we are broadcast offline to everyone who can
-  /// see us (#208).
+  /// see us.
   bool get resumeSupported => _resumeSupported;
 
   /// The effective heartbeat interval in ms, after constraining the
@@ -483,7 +482,7 @@ class GatewaySocket {
   /// RESUME is only attempted against a server that advertised support for it;
   /// otherwise the held session is dropped up front so the handshake goes
   /// straight to IDENTIFY rather than stalling on a RESUME the server never
-  /// answers (#208).
+  /// answers.
   GatewayState _handshakeState() {
     if (_sessionId.isEmpty) return GatewayState.connecting;
     if (_resumeSupported) return GatewayState.resuming;
@@ -501,13 +500,9 @@ class GatewaySocket {
   }
 
   /// Returns the reconnect budget to full when the session that just ended had
-  /// been up for at least [stableSessionThreshold].
-  ///
-  /// Resetting on READY itself (as this used to) meant a connect → READY → die
-  /// loop reconnected at the 1–2s base delay forever: the backoff never
-  /// escalated and the budget was never spent, so a broken socket hammered the
-  /// server and broadcast an offline+online pair to every observer every few
-  /// seconds (#208).
+  /// been up for at least [stableSessionThreshold], so a connect → READY →
+  /// die loop still escalates its backoff and spends its budget instead of
+  /// hammering the server at the base delay.
   void _creditStableSession() {
     final startedAt = _sessionStartedAt;
     _sessionStartedAt = null;
@@ -658,7 +653,7 @@ class GatewaySocket {
           _sendResume();
         } else {
           // Never speculatively RESUME: a server without a handler for op 3
-          // drops it silently and we sit dead until its identify timeout (#208).
+          // drops it silently and we sit dead until its identify timeout.
           _sessionId = '';
           _sequence = 0;
           if (_state == GatewayState.resuming) _state = GatewayState.connected;

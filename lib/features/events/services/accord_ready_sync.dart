@@ -35,13 +35,9 @@ void seedVoiceStatesFromReady(
 }
 
 /// Seeds a server's read state from the gateway READY payload's `unread`
-/// array. Each entry carries `channel_id`, `mention_count` and (so the rail can
-/// roll a server-level badge up) `space_id`; when the server omits `space_id`
-/// we recover it from the READY `channels` array. This is the durable source of
-/// truth that survives restarts — the live message handler only adds deltas.
-/// Unfiltered by mutes for the same reason [markUnread] is: the indicators
-/// apply [UnreadIndicatorGate] at render time, so a reconnect can't resurrect a
-/// muted space's dot and unmuting doesn't need one.
+/// array, recovering an omitted `space_id` from READY's `channels`. This is the
+/// durable source of truth; the live message handler only adds deltas. Mutes
+/// are applied at render time by [UnreadIndicatorGate].
 void hydrateReadStateFromReady(
   Ref ref,
   Map<String, dynamic> ready, {
@@ -57,7 +53,7 @@ void hydrateReadStateFromReady(
     for (final c in channels) {
       if (c is! Map) continue;
       final id = (c['id'] ?? c['channel_id'])?.toString();
-      final space = (c['space_id'] ?? c['guild_id'])?.toString();
+      final space = c['space_id']?.toString();
       if (id != null && id.isNotEmpty && space != null && space.isNotEmpty) {
         channelSpace[id] = space;
       }
@@ -87,10 +83,9 @@ void hydrateReadStateFromReady(
 /// Seeds a connection's presence cache from the gateway READY payload's
 /// `presences` array (matches the reference client's `_apply_presences`).
 ///
-/// Runs for every connection, keyed by [serverKey], so two servers READYing in
-/// sequence no longer overwrite each other. An *empty* `presences` array is a
-/// real answer ("nobody visible is online") and clears the server's map; a
-/// missing/malformed field leaves the previous seed alone.
+/// An *empty* `presences` array is a real answer ("nobody visible is online")
+/// and clears the server's map; a missing/malformed field leaves the previous
+/// seed alone.
 void seedPresencesFromReady(
   Ref ref,
   Map<String, dynamic> ready, {
@@ -127,13 +122,9 @@ Future<void> loadSpaces(
     return;
   }
 
-  // `GET /users/@me/spaces` returns summary spaces without their role list, so
-  // hydrate roles via the dedicated endpoint before seeding any cache — the
-  // reference client does the same on every (re)connect (`_refetch_data` →
-  // `fetch_roles`). Without this `AccordSpace.roles` stays empty and the roster
-  // grouping, name colors, role chips, and role-based permission grants all
-  // silently no-op. Done for background connections too so their snapshot is
-  // complete the moment they become active.
+  // `GET /users/@me/spaces` omits role lists, which the roster, name colours
+  // and permission checks need: hydrate them (for background connections too)
+  // before seeding any cache, as the reference client does.
   await _hydrateRoles(client, spaces);
   ref
       .read(connectionsControllerProvider.notifier)
@@ -146,11 +137,9 @@ Future<void> loadSpaces(
   ref.read(spacesControllerProvider.notifier).setSpaces(spaces);
 }
 
-/// Fetches each space's roles over REST (`GET /spaces/{id}/roles`) and populates
-/// the space's `roles` list in place. Role lists are small, so fetching all
-/// spaces concurrently on (re)connect is cheap. A failed fetch for one space
-/// leaves it with no roles rather than aborting the others — the gateway
-/// `role.*` events still keep it current once something changes.
+/// Fetches each space's roles (`GET /spaces/{id}/roles`) into its `roles` list,
+/// a few at a time. A failed fetch leaves that space without roles rather than
+/// aborting the others.
 Future<void> _hydrateRoles(
   AccordClient client,
   List<AccordSpace> spaces,

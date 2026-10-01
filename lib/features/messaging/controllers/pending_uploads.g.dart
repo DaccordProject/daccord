@@ -127,7 +127,7 @@ final class PendingUploadsControllerProvider
 }
 
 String _$pendingUploadsControllerHash() =>
-    r'ea5b5b3b0a1630e323cfe770c1754e1ce740de0b';
+    r'd733b2d168b428d3ccf4280e7b614622ad65f3c9';
 
 /// Tracks this account's AutoMod-held uploads on one connection so the sender
 /// sees *where* an attachment is rather than a message that silently lost it.

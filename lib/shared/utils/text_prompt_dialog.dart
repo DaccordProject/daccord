@@ -3,11 +3,8 @@ import 'package:flutter/material.dart';
 /// Shows an [AlertDialog] with a single [TextField] and resolves to the
 /// entered text when confirmed, or `null` when cancelled/dismissed.
 ///
-/// Consolidates the hand-rolled "one text field + Cancel/Save" dialogs that
-/// were copy-pasted across the space settings (nickname), rail (folder name),
-/// soundboard/emoji renames, admin space rename, DM group rename and profile
-/// rename. Callers keep their own trim/empty-input semantics. When [resetLabel]
-/// is given, an extra action resolves to `''` (the "clear this value" case).
+/// Callers keep their own trim/empty-input semantics. When [resetLabel] is
+/// given, an extra action resolves to `''` (the "clear this value" case).
 Future<String?> showTextPromptDialog(
   BuildContext context, {
   required String title,
@@ -16,7 +13,6 @@ Future<String?> showTextPromptDialog(
   String? hintText,
   String initial = '',
   String confirmLabel = 'Save',
-  String cancelLabel = 'Cancel',
   String? resetLabel,
   bool obscureText = false,
   TextInputType? keyboardType,
@@ -42,7 +38,7 @@ Future<String?> showTextPromptDialog(
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(cancelLabel),
+            child: const Text('Cancel'),
           ),
           if (resetLabel != null)
             TextButton(

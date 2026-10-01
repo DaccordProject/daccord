@@ -13,8 +13,7 @@ LoadFailedProvider spacesLoadFailedProvider(String serverKey) =>
 
 /// Holds the current user's space list — the left rail. Populated on gateway
 /// ready (via `users.listSpaces()`) and kept in sync by space
-/// create/update/delete gateway events. The Accord analogue of Bonfire's
-/// `GuildsController`.
+/// create/update/delete gateway events.
 @Riverpod(keepAlive: true)
 class SpacesController extends _$SpacesController {
   @override
@@ -45,8 +44,10 @@ class SpacesController extends _$SpacesController {
         }
       });
 
-  void removeRole(String spaceId, String roleId) =>
-      _mutateRoles(spaceId, (roles) => roles.removeWhere((r) => r.id == roleId));
+  void removeRole(String spaceId, String roleId) => _mutateRoles(
+    spaceId,
+    (roles) => roles.removeWhere((r) => r.id == roleId),
+  );
 
   /// Replaces [spaceId]'s entire role list (e.g. after a reorder).
   void setRoles(String spaceId, List<AccordRole> roles) =>

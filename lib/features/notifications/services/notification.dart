@@ -50,12 +50,10 @@ Future<void> dismissReadNotifications({
 /// Initializes local notifications for every supported platform. No-ops on web
 /// (the plugin is unsupported there).
 ///
-/// This only prepares the plugin — it deliberately asks for **no** permission.
-/// Init runs from `main()` before anything is signed in, so requesting here put
-/// the OS permission alert over the terms gate, which is both the first thing a
-/// user sees and the beat App Review's guideline 1.2 recording opens on. The
-/// request moved to [requestNotificationPermissions], called once an account is
-/// actually connected and the prompt has some context.
+/// Deliberately asks for **no** permission: init runs from `main()` before
+/// sign-in, and an OS alert over the terms gate falls foul of App Review
+/// (guideline 1.2). [requestNotificationPermissions] asks once an account is
+/// connected.
 Future<void> initializeNotifications() async {
   if (UniversalPlatform.isWeb) return;
 
@@ -90,17 +88,12 @@ Future<void> initializeNotifications() async {
   _initialized = true;
 }
 
-/// Asks the OS for permission to post notifications, once per app run.
+/// Asks the OS for permission to post notifications, once per app run. Called
+/// when a server connection is established, not at startup (see
+/// [initializeNotifications]).
 ///
-/// Called when a server connection is established rather than from startup:
-/// every platform that gates notifications behind a runtime permission
-/// (Android 13+, iOS, macOS) shows a system alert here, and one thrown at a
-/// user before they have accepted the terms or picked a server is both bad
-/// manners and, on iOS, an alert sitting on top of the terms gate.
-///
-/// No-ops on web, before [initializeNotifications], and on repeat calls. The OS
-/// itself only ever prompts once per install; later calls just return the
-/// standing answer, so a signed-in user is not re-asked on every reconnect.
+/// No-ops on web, before [initializeNotifications], and on repeat calls; the
+/// OS itself only prompts once per install.
 Future<void> requestNotificationPermissions() async {
   if (UniversalPlatform.isWeb || !_initialized || _permissionRequested) return;
   _permissionRequested = true;

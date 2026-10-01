@@ -14,9 +14,8 @@ part 'release_notes_controller.g.dart';
 /// Why (or why not) the "What's new" notes should be shown on this launch,
 /// derived from the last version we showed notes for vs. the running build.
 enum ReleaseNotesTrigger {
-  /// Nothing recorded yet — a fresh install (or the first launch after this
-  /// feature shipped). Notes would read as noise, so they're suppressed and the
-  /// marker is seeded with the running version. Onboarding is #175's job.
+  /// Nothing recorded yet (a fresh install). Notes would read as noise, so
+  /// they're suppressed and the marker is seeded with the running version.
   firstInstall,
 
   /// Same version as the last launch: notes were already shown (or suppressed)
@@ -79,44 +78,20 @@ class ReleaseNotesState {
   /// Whether a fetch has completed (so the UI can tell "not looked yet" from
   /// "looked and found nothing").
   final bool checked;
-
-  /// Whether there is a non-empty body worth rendering.
-  bool get hasNotes => (release?.notes.trim().isNotEmpty ?? false);
-
-  ReleaseNotesState copyWith({
-    bool? loading,
-    AppRelease? release,
-    bool clearRelease = false,
-    bool? checked,
-  }) => ReleaseNotesState(
-    loading: loading ?? this.loading,
-    release: clearRelease ? null : (release ?? this.release),
-    checked: checked ?? this.checked,
-  );
 }
 
-/// Shows the release notes for the build the user is *now* running, once, after
-/// an update is applied (#183).
+/// Shows the release notes for the running build once after an update. The
+/// staged [AppRelease] dies with the old process, so this fetches the running
+/// tag ([kGithubReleaseByTagUrl]), which also covers updates applied outside
+/// the app.
 ///
-/// The updater already fetches notes for the release it's about to install, but
-/// the one-click flow (stage in the background → tap → relaunch) means most
-/// users never read them, and the staged [AppRelease] dies with the old process.
-/// So this fetches the notes for the running tag instead
-/// ([kGithubReleaseByTagUrl]) — which also covers updates applied outside the
-/// app (package manager, Play Store, a fresh download).
+/// The seen marker lives in the `accord-settings` box under [_seenKey], not in
+/// `AccordSettings`: settings are exportable between devices, and a carried
+/// marker would suppress (or fake) notes on the receiving one.
 ///
-/// **Persistence.** The last version we showed notes for lives in the existing
-/// `accord-settings` Hive box under its own [_seenKey] (no new box). It is
-/// deliberately *not* part of `AccordSettings`: settings are exportable /
-/// importable between devices, and carrying a "seen" marker across machines
-/// would suppress (or fake) notes on the receiving one.
-///
-/// **App Store / Play builds.** [kAppStoreBuild] disables the *updater*
-/// (downloading and running executable code outside the store); reading a
-/// release's markdown body is not that, so notes still show on those builds —
-/// the user updated through the store and still deserves to know what changed.
-/// Nothing here can install anything, and when the fetch fails or the release
-/// has no body nothing is shown at all (never a broken/empty sheet).
+/// Notes still show on store builds: [kAppStoreBuild] forbids installing code,
+/// and reading a release body installs nothing. A failed fetch or empty body
+/// shows nothing.
 @Riverpod(keepAlive: true)
 class ReleaseNotesController extends _$ReleaseNotesController {
   static const _seenKey = 'release-notes-seen-version';
@@ -141,12 +116,11 @@ class ReleaseNotesController extends _$ReleaseNotesController {
     return raw is String ? raw : '';
   }
 
-  /// Stamps [version] (default: the running build) as seen, so the notes are
-  /// never shown twice for the same version.
-  void markSeen([String? version]) {
+  /// Stamps the running build as seen, so its notes are never shown twice.
+  void markSeen() {
     final boxName = ProfileStore.activeSettingsBoxName;
     if (!Hive.isBoxOpen(boxName)) return;
-    Hive.box(boxName).put(_seenKey, version ?? kAppVersion);
+    Hive.box(boxName).put(_seenKey, kAppVersion);
   }
 
   /// How this launch compares to the last one.
@@ -180,7 +154,11 @@ class ReleaseNotesController extends _$ReleaseNotesController {
   Future<AppRelease?> loadNotesForCurrentVersion({bool force = false}) async {
     if (state.loading) return state.release;
     if (state.checked && !force) return state.release;
-    state = state.copyWith(loading: true);
+    state = ReleaseNotesState(
+      loading: true,
+      release: state.release,
+      checked: state.checked,
+    );
     final release = await _fetchRelease(kAppVersion);
     state = ReleaseNotesState(loading: false, release: release, checked: true);
     return release;
@@ -190,19 +168,9 @@ class ReleaseNotesController extends _$ReleaseNotesController {
     final normalized = normalizeVersion(version);
     if (normalized.isEmpty || normalized == '0.0.0') return null;
     final uri = Uri.parse(kGithubReleaseByTagUrl(normalized));
-    const headers = <String, String>{'Accept': 'application/vnd.github+json'};
     try {
-      final client = debugHttpClient;
-      final res = await (client == null
-              ? http.get(uri, headers: {
-                  ...headers,
-                  'User-Agent': 'daccord/$kAppVersion',
-                })
-              : client.get(uri, headers: {
-                  ...headers,
-                  'User-Agent': 'daccord/$kAppVersion',
-                }))
-          .timeout(_timeout);
+      final get = debugHttpClient?.get ?? http.get;
+      final res = await get(uri, headers: githubApiHeaders()).timeout(_timeout);
       // 404 = unreleased/dev build or a tag that doesn't exist — not an error.
       if (res.statusCode != 200) return null;
       final json = jsonDecode(res.body);

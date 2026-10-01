@@ -1,21 +1,16 @@
 /// Pure AFK (away-from-keyboard) decision logic for the voice stack, extracted
-/// so the state machine can be unit-tested without timers, a native LiveKit
-/// `Room`, or a Flutter binding. `AfkMonitor`/`VoiceController` drive these; the
-/// tests in `test/features/voice/afk_logic_test.dart` lock the behaviour in.
+/// so the state machine can be unit-tested without timers or input hooks.
 library;
 
 /// Idle timeouts offered in Voice & Video settings, in minutes. `0` disables
 /// AFK detection entirely.
 ///
-/// Note the Accord *space* also carries an `afk_timeout` (`AccordSpace
-/// .afkTimeout`), but the server defaults that column to 300s on every space
-/// and never enforces it, so treating it as authoritative would silently
-/// override the user's choice everywhere. The user setting wins; see the issue
-/// notes on `afk_channel_id`/`afk_timeout` being config-only on the server.
+/// `AccordSpace.afkTimeout` is ignored: the server defaults it to 300s on every
+/// space and never enforces it, so honouring it would silently override the
+/// user's choice everywhere.
 const List<int> afkTimeoutOptionsMinutes = [0, 1, 5, 10, 15, 30];
 
-/// Default idle timeout, in minutes. Matches Discord's shortest guild AFK
-/// timeout tier and is a middle option in [afkTimeoutOptionsMinutes].
+/// Default idle timeout, in minutes.
 const int defaultAfkTimeoutMinutes = 10;
 
 /// Human label for an [afkTimeoutOptionsMinutes] entry.
@@ -32,17 +27,15 @@ Duration? effectiveAfkTimeout(int userMinutes) =>
 /// How often the monitor should re-evaluate for a given [timeout]: a quarter of
 /// the timeout, clamped to 1–15s. Short enough that the AFK flip is prompt,
 /// long enough that a 30-minute timeout isn't polling the mic every second.
-Duration afkPollInterval(Duration timeout) => Duration(
-  milliseconds: (timeout.inMilliseconds ~/ 4).clamp(1000, 15000),
-);
+Duration afkPollInterval(Duration timeout) =>
+    Duration(milliseconds: (timeout.inMilliseconds ~/ 4).clamp(1000, 15000));
 
 /// The AFK state machine: a "last activity" timestamp plus the derived AFK
-/// flag. Deliberately clock-injected (every method takes `now`) rather than
-/// reading `DateTime.now()` itself so tests can step time directly.
+/// flag. Every method takes `now` so tests can step time directly.
 ///
-/// AFK only ever accrues while connected to voice with a timeout configured —
-/// [tick] resets the idle clock whenever either is false, so a user who was
-/// idle for an hour before joining a call is *not* instantly AFK on join.
+/// AFK only accrues while connected to voice with a timeout configured — [tick]
+/// resets the idle clock otherwise, so a user idle for an hour before joining a
+/// call is *not* instantly AFK on join.
 class AfkTracker {
   AfkTracker({required DateTime now}) : _lastActivityAt = now;
 
@@ -51,9 +44,6 @@ class AfkTracker {
 
   /// Whether the user is currently considered away.
   bool get isAfk => _afk;
-
-  /// When activity was last observed.
-  DateTime get lastActivityAt => _lastActivityAt;
 
   /// Records user activity at [now]. Returns true when this *cleared* an
   /// existing AFK state, i.e. the caller should publish "back".

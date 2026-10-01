@@ -10,8 +10,6 @@ class MissedCall {
   const MissedCall({
     required this.channelId,
     required this.callerId,
-    required this.at,
-    this.serverKey,
     this.count = 1,
     this.video = false,
   });
@@ -22,12 +20,6 @@ class MissedCall {
   /// Who rang us (empty when the ring carried no caller id).
   final String callerId;
 
-  /// When the most recent miss happened.
-  final DateTime at;
-
-  /// The connection (`userId@baseUrl`) the ring arrived on, kept for context.
-  final String? serverKey;
-
   /// How many consecutive missed calls on this channel, collapsed into one
   /// entry (mirrors how a phone shows "Missed call (3)").
   final int count;
@@ -37,22 +29,6 @@ class MissedCall {
 
   /// Label for the DM list row.
   String get label => count > 1 ? 'Missed call ($count)' : 'Missed call';
-
-  /// Folds another miss on the same channel into this entry.
-  MissedCall bump({
-    required String callerId,
-    required DateTime at,
-    required bool video,
-    String? serverKey,
-  }) =>
-      MissedCall(
-        channelId: channelId,
-        callerId: callerId.isEmpty ? this.callerId : callerId,
-        at: at,
-        serverKey: serverKey ?? this.serverKey,
-        count: count + 1,
-        video: video,
-      );
 }
 
 /// Unanswered incoming DM calls, keyed by channel id.
@@ -64,13 +40,11 @@ class MissedCall {
 /// answered the prompt, so re-surfacing it as an unread badge would be noise.
 ///
 /// **Session-only.** The entries live in memory and are gone after a restart:
-/// the record is an attention cue rather than a call log, Accord has no
-/// call-history API to reconcile against, and persisting would mean adding a new
-/// Hive box in `setupHive()`.
+/// the record is an attention cue rather than a call log, and Accord has no
+/// call-history API to reconcile against.
 ///
-/// Keyed by channel id alone; ids are per-server snowflakes, so the (unlikely)
-/// case of two servers minting the same DM channel id could collide. [MissedCall
-/// .serverKey] carries the origin connection for callers that care.
+/// Keyed by channel id alone; ids are per-server snowflakes, so two servers
+/// minting the same DM channel id could (unlikely) collide.
 @Riverpod(keepAlive: true)
 class MissedCallsController extends _$MissedCallsController {
   @override
@@ -81,29 +55,21 @@ class MissedCallsController extends _$MissedCallsController {
   void record({
     required String channelId,
     required String callerId,
-    String? serverKey,
     bool video = false,
-    DateTime? at,
   }) {
     if (channelId.isEmpty) return;
-    final when = at ?? DateTime.now();
     final existing = state[channelId];
     state = {
       ...state,
-      channelId: existing == null
-          ? MissedCall(
-              channelId: channelId,
-              callerId: callerId,
-              at: when,
-              serverKey: serverKey,
-              video: video,
-            )
-          : existing.bump(
-              callerId: callerId,
-              at: when,
-              video: video,
-              serverKey: serverKey,
-            ),
+      channelId: MissedCall(
+        channelId: channelId,
+        // A repeat ring with no caller id keeps the earlier caller.
+        callerId: callerId.isEmpty && existing != null
+            ? existing.callerId
+            : callerId,
+        count: (existing?.count ?? 0) + 1,
+        video: video,
+      ),
     };
   }
 

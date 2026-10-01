@@ -2,50 +2,52 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/spaces/utils/space_media_cache.dart';
 
 /// Resolves a space's `banner` reference to an absolute CDN URL, or null when
-/// unset. The field is either a bare asset hash or a server-relative/absolute
-/// path; both are handled (mirrors `accordMemberAvatarUrl`).
+/// unset.
 String? accordSpaceBannerUrl(
   AccordSpace space,
   String? cdnUrl, {
   bool versioned = true,
-}) {
-  final banner = space.banner;
-  if (banner is! String || banner.isEmpty) return null;
-  final cdn = cdnUrl ?? '';
-  String resolve(String url) => versioned ? spaceMediaCache.resolve(url) : url;
-  if (banner.contains('/') || banner.startsWith('http')) {
-    return resolve(AccordCDN.resolvePath(banner, cdnUrl: cdn));
-  }
-  return resolve(
-    AccordCDN.spaceBanner(
-      space.id,
-      banner,
-      format: AccordCDN.autoFormat(banner),
-      cdnUrl: cdn,
-    ),
-  );
-}
+}) => _resolveSpaceMedia(
+  space,
+  space.banner,
+  cdnUrl,
+  versioned,
+  AccordCDN.spaceBanner,
+);
 
 /// Resolves a space's `icon` reference to an absolute CDN URL, or null when
-/// unset. Mirrors [accordSpaceBannerUrl].
+/// unset.
 String? accordSpaceIconUrl(
   AccordSpace space,
   String? cdnUrl, {
   bool versioned = true,
-}) {
-  final icon = space.icon;
-  if (icon is! String || icon.isEmpty) return null;
+}) => _resolveSpaceMedia(
+  space,
+  space.icon,
+  cdnUrl,
+  versioned,
+  AccordCDN.spaceIcon,
+);
+
+/// The reference is either a bare asset hash, built into a URL by [byHash], or
+/// a server-relative/absolute path (mirrors `accordMemberAvatarUrl`).
+String? _resolveSpaceMedia(
+  AccordSpace space,
+  Object? reference,
+  String? cdnUrl,
+  bool versioned,
+  String Function(String spaceId, String hash, {String format, String cdnUrl})
+  byHash,
+) {
+  if (reference is! String || reference.isEmpty) return null;
   final cdn = cdnUrl ?? '';
-  String resolve(String url) => versioned ? spaceMediaCache.resolve(url) : url;
-  if (icon.contains('/') || icon.startsWith('http')) {
-    return resolve(AccordCDN.resolvePath(icon, cdnUrl: cdn));
-  }
-  return resolve(
-    AccordCDN.spaceIcon(
-      space.id,
-      icon,
-      format: AccordCDN.autoFormat(icon),
-      cdnUrl: cdn,
-    ),
-  );
+  final url = reference.contains('/') || reference.startsWith('http')
+      ? AccordCDN.resolvePath(reference, cdnUrl: cdn)
+      : byHash(
+          space.id,
+          reference,
+          format: AccordCDN.autoFormat(reference),
+          cdnUrl: cdn,
+        );
+  return versioned ? spaceMediaCache.resolve(url) : url;
 }

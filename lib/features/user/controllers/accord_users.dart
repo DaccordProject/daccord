@@ -26,9 +26,9 @@ class AccordUsersController extends _$AccordUsersController {
   final Map<String, AccordUser> _cache = {};
   final Map<String, Future<AccordUser?>> _inFlight = {};
 
-  /// Ids whose last fetch failed (deleted account, 404, network), by when.
-  /// Without this every pane rebuild re-issued `GET /users/{id}` for an author
-  /// that no longer exists, since a failure leaves nothing in [_cache].
+  /// Ids whose last fetch got a definitive 4xx miss (e.g. a deleted account),
+  /// by when, so pane rebuilds don't re-issue `GET /users/{id}` for an author
+  /// that no longer exists.
   final Map<String, DateTime> _failedAt = {};
   final Queue<_UserResolutionRequest> _pending = Queue();
   int _activeFetches = 0;
@@ -127,8 +127,8 @@ class AccordUsersController extends _$AccordUsersController {
     state = {..._cache};
   }
 
-  /// Returns a cached user from the same server as [client].
-  AccordUser? cached(String userId, {AccordClient? client}) => _cache[userId];
+  /// Returns a user from this server-qualified cache.
+  AccordUser? cached(String userId) => _cache[userId];
 }
 
 class _UserResolutionRequest {

@@ -1,5 +1,12 @@
-/// A published release fetched from the GitHub Releases API. Mirrors the subset
-/// of fields the reference client's updater parses (`updater.gd` `_parse_release`).
+import 'package:bonfire/shared/app_info.dart';
+
+/// Headers for GitHub REST API requests, which are rejected without a
+/// `User-Agent`.
+Map<String, String> githubApiHeaders() => {
+  'User-Agent': 'daccord/$kAppVersion',
+  'Accept': 'application/vnd.github+json',
+};
+
 /// A downloadable file attached to a release.
 class AppReleaseAsset {
   const AppReleaseAsset({required this.name, required this.url, this.size = 0});
@@ -20,6 +27,8 @@ class AppReleaseAsset {
   }
 }
 
+/// A published release fetched from the GitHub Releases API. Mirrors the subset
+/// of fields the reference client's updater parses (`updater.gd` `_parse_release`).
 class AppRelease {
   const AppRelease({
     required this.version,
@@ -40,8 +49,7 @@ class AppRelease {
   /// Release notes / changelog body (`body`).
   final String notes;
 
-  /// The release's web page (`html_url`) — opened for manual download since the
-  /// client doesn't self-install.
+  /// The release's web page (`html_url`), opened for a manual download.
   final String url;
 
   /// ISO-8601 publish timestamp (`published_at`), may be empty.

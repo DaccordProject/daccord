@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:bonfire/features/messaging/utils/dropped_entity.dart';
+import 'package:bonfire/features/messaging/utils/dropped_entity_io.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -40,9 +40,6 @@ void main() {
     // advice that cannot help someone who dropped a folder. XFile.length()
     // delegates straight to File.length(), asserted on here to keep the test
     // off a transitive dependency.
-    expect(
-      () => File(tmp.path).length(),
-      throwsA(isA<FileSystemException>()),
-    );
+    expect(() => File(tmp.path).length(), throwsA(isA<FileSystemException>()));
   });
 }

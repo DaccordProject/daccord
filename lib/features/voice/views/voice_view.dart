@@ -25,12 +25,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:livekit_client/livekit_client.dart' show VideoTrack;
 import 'package:livekit_client/livekit_client.dart' as lk;
 
-/// Presents the voice channel full-screen as its own route. The reference's
-/// voice view can expand to take over the window (`main_window_voice_view.gd`'s
-/// `set_full_area`); on a single-pane client a pushed full-screen page is the
-/// natural equivalent. The pushed view renders [VoiceChannelView] in
-/// [VoiceChannelView.fullScreen] mode so its header shows a "minimize" button
-/// that pops back instead of a maximize button.
+/// Presents the voice channel full-screen as its own route, rendering
+/// [VoiceChannelView] in [VoiceChannelView.fullScreen] mode so its header
+/// shows a "minimize" button that pops back.
 Future<void> showFullScreenVoice(
   BuildContext context, {
   required String channelId,
@@ -55,10 +52,8 @@ Future<void> showFullScreenVoice(
 
 /// The voice channel screen shown in the message pane: a header, the video
 /// grid (one tile per participant, camera/screen tracks or an initials
-/// placeholder), an optional side text-chat panel, and a control bar. Ports the
-/// reference client's voice view (`main_window_voice_view.gd` + `video_grid.gd`
-/// + `video_tile.gd` + `voice_text_panel.gd`), minus the activity/plugin
-/// subsystem which this client doesn't have.
+/// placeholder), an optional side text-chat panel, and a control bar
+/// (reference: `main_window_voice_view.gd`).
 class VoiceChannelView extends ConsumerStatefulWidget {
   const VoiceChannelView({
     super.key,
@@ -84,12 +79,10 @@ class VoiceChannelView extends ConsumerStatefulWidget {
 class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
   String? _spotlightUserId;
 
-  /// Whether the voice text-chat panel is open. The reference auto-opens it on a
-  /// non-compact layout; we default it open in full-screen (wide) presentation
-  /// and in the lobby (reading a voice channel you haven't joined is the whole
-  /// point of the pre-join state — see #202), and closed for a call already in
-  /// progress in the narrower message-pane presentation. The user's toggle from
-  /// the header then wins until the view switches to another channel.
+  /// Whether the voice text-chat panel is open. Defaults open in full-screen and
+  /// in the lobby, and closed for a call already in progress in the narrower
+  /// message-pane presentation; the header toggle then wins until the view
+  /// switches to another channel.
   late bool _chatOpen = _defaultChatOpen();
 
   /// Below this width the chat panel takes over the body instead of sitting
@@ -205,8 +198,7 @@ class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
         // control bar below.
         if (connectedHere) return chat;
         // Narrow, in the lobby: chat still takes the body, but the participants
-        // and the Join button stay pinned above it — joining must never require
-        // closing the chat first (#202).
+        // and the Join button stay pinned above it.
         return Column(
           children: [
             VoiceLobbyBody(
@@ -356,11 +348,15 @@ class _ConnectedBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Rebuild on any room change (track added/removed, speaker changes).
     ref.watch(voiceControllerProvider.select((v) => v.tick));
-    final states = ref.watch(
-      voiceStatesControllerProvider(
-        ref.readActiveServerKey() ?? '',
-      ).select((cache) => voiceStatesFor(cache, channelId)),
-    );
+    final states =
+        ref
+            .watch(
+              voiceStatesControllerProvider(
+                ref.readActiveServerKey() ?? '',
+              ).select((cache) => cache[channelId]),
+            )
+            ?.values ??
+        const [];
     final speaking = ref.watch(
       voiceControllerProvider.select((v) => v.speakingUserIds),
     );
@@ -421,7 +417,7 @@ class _ConnectedBody extends ConsumerWidget {
   /// Builds one [_Tile] per participant (plus one per active screen share) —
   /// pure data assembly, no widgets.
   List<_Tile> _buildTiles({
-    required List<AccordVoiceState> states,
+    required Iterable<AccordVoiceState> states,
     required Map<String, AccordMember>? members,
     required Map<String, AccordUser>? users,
     required String? cdnUrl,
@@ -651,22 +647,6 @@ class _ControlBar extends ConsumerWidget {
   final String channelId;
   final String? spaceId;
 
-  /// Hangs up. Leaving voice is enough for a space channel, but a DM call we're
-  /// still *ringing* has to tell the callee explicitly: the call controller's
-  /// `cancelOutgoing` sends `call/cancel` (and then leaves + clears the
-  /// outgoing state). Without it, dismissing the callee's ring would depend
-  /// entirely on the server noticing the room emptied (#140).
-  void _hangUp(WidgetRef ref) {
-    final ringingDmCall =
-        spaceId == null &&
-        ref.read(callControllerProvider).outgoingChannelId == channelId;
-    if (ringingDmCall) {
-      unawaited(ref.read(callControllerProvider.notifier).cancelOutgoing());
-    } else {
-      unawaited(ref.read(voiceControllerProvider.notifier).leave());
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
@@ -724,7 +704,11 @@ class _ControlBar extends ConsumerWidget {
             tooltip: 'Disconnect',
             active: true,
             activeColor: colors.red,
-            onPressed: () => _hangUp(ref),
+            onPressed: () => unawaited(
+              ref
+                  .read(callControllerProvider.notifier)
+                  .hangUp(channelId, spaceId),
+            ),
           ),
         ],
       ),

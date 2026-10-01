@@ -181,7 +181,7 @@ See the [open issue tracker](https://github.com/DaccordProject/daccord/issues) f
 | Language / framework | Dart / Flutter | |
 | State management | [Riverpod 3](https://riverpod.dev/) | `flutter_riverpod` + `riverpod_annotation` codegen (`*.g.dart`) |
 | Routing | [`go_router`](https://pub.dev/packages/go_router) | |
-| Local storage | [`hive_ce`](https://pub.dev/packages/hive_ce) | device boxes `auth`, `last-location`, `added-accounts`, `space-cache`, `window-state`; `accord-session` / `accord-settings` are opened per local profile |
+| Local storage | [`hive_ce`](https://pub.dev/packages/hive_ce) | device boxes `auth`, `space-cache`, `window-state`; `accord-session` / `accord-settings` are opened per local profile |
 | Credentials | [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage) | session tokens live in the OS credential vault; Hive keeps only opaque references |
 | Networking | `accordkit` | Accord protocol SDK — REST + gateway WebSocket + models. Vendored in-tree at `packages/accordkit` and maintained here |
 | Voice / video / screen share | [`livekit_client`](https://pub.dev/packages/livekit_client) | local fork at `packages/livekit_client`, over WebRTC |

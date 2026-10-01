@@ -8,84 +8,24 @@ part of 'presence.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// One connection's per-user presence cache, scoped to [serverKey]
-/// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the
-/// same reason: snowflake IDs are minted per server, so a single global map lets
-/// two servers' users collide.
-///
-/// Every connection (active *or* background) seeds this from its gateway READY
-/// payload's `presences` array and keeps it current from `presence.update`
-/// events — both wired in `accord_event_handler.dart`. Nothing is gated on the
-/// connection being the active one: with the cache keyed per server there is
-/// nothing for a background connection to clobber, and gating was what left a
-/// backgrounded server permanently showing everyone as offline (#191).
-///
-/// Offline transitions are held for [offlineGrace] before they reach the state
-/// (#210). Presence is purely socket-lifetime driven server-side — one socket
-/// drop on a peer's client is one visible offline/online flip for everyone — so
-/// without smoothing a momentary blip re-buckets that member into the roster's
-/// "Offline" section and back, and rows visibly jump. Going *non*-offline is
-/// never delayed, and a pending offline is cancelled the moment the user comes
-/// back, so a blip shorter than the window is never rendered at all.
-///
-/// Consumers resolve a member's status by user ID via [accordPresenceStatus];
-/// an absent entry means "offline" (the gateway only pushes presence for
-/// non-offline users). Read the active connection's map through
-/// [activePresencesProvider] rather than picking a key by hand.
+/// Per-connection presence cache seeded from READY and `presence.update` for
+/// every connection; offline transitions wait [offlineGrace] so reconnect blips
+/// don't reshuffle the roster, and an absent entry means offline. Read the
+/// active connection's map through [activePresencesProvider].
 
 @ProviderFor(PresenceController)
 final presenceControllerProvider = PresenceControllerFamily._();
 
-/// One connection's per-user presence cache, scoped to [serverKey]
-/// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the
-/// same reason: snowflake IDs are minted per server, so a single global map lets
-/// two servers' users collide.
-///
-/// Every connection (active *or* background) seeds this from its gateway READY
-/// payload's `presences` array and keeps it current from `presence.update`
-/// events — both wired in `accord_event_handler.dart`. Nothing is gated on the
-/// connection being the active one: with the cache keyed per server there is
-/// nothing for a background connection to clobber, and gating was what left a
-/// backgrounded server permanently showing everyone as offline (#191).
-///
-/// Offline transitions are held for [offlineGrace] before they reach the state
-/// (#210). Presence is purely socket-lifetime driven server-side — one socket
-/// drop on a peer's client is one visible offline/online flip for everyone — so
-/// without smoothing a momentary blip re-buckets that member into the roster's
-/// "Offline" section and back, and rows visibly jump. Going *non*-offline is
-/// never delayed, and a pending offline is cancelled the moment the user comes
-/// back, so a blip shorter than the window is never rendered at all.
-///
-/// Consumers resolve a member's status by user ID via [accordPresenceStatus];
-/// an absent entry means "offline" (the gateway only pushes presence for
-/// non-offline users). Read the active connection's map through
-/// [activePresencesProvider] rather than picking a key by hand.
+/// Per-connection presence cache seeded from READY and `presence.update` for
+/// every connection; offline transitions wait [offlineGrace] so reconnect blips
+/// don't reshuffle the roster, and an absent entry means offline. Read the
+/// active connection's map through [activePresencesProvider].
 final class PresenceControllerProvider
     extends $NotifierProvider<PresenceController, PresenceMap> {
-  /// One connection's per-user presence cache, scoped to [serverKey]
-  /// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the
-  /// same reason: snowflake IDs are minted per server, so a single global map lets
-  /// two servers' users collide.
-  ///
-  /// Every connection (active *or* background) seeds this from its gateway READY
-  /// payload's `presences` array and keeps it current from `presence.update`
-  /// events — both wired in `accord_event_handler.dart`. Nothing is gated on the
-  /// connection being the active one: with the cache keyed per server there is
-  /// nothing for a background connection to clobber, and gating was what left a
-  /// backgrounded server permanently showing everyone as offline (#191).
-  ///
-  /// Offline transitions are held for [offlineGrace] before they reach the state
-  /// (#210). Presence is purely socket-lifetime driven server-side — one socket
-  /// drop on a peer's client is one visible offline/online flip for everyone — so
-  /// without smoothing a momentary blip re-buckets that member into the roster's
-  /// "Offline" section and back, and rows visibly jump. Going *non*-offline is
-  /// never delayed, and a pending offline is cancelled the moment the user comes
-  /// back, so a blip shorter than the window is never rendered at all.
-  ///
-  /// Consumers resolve a member's status by user ID via [accordPresenceStatus];
-  /// an absent entry means "offline" (the gateway only pushes presence for
-  /// non-offline users). Read the active connection's map through
-  /// [activePresencesProvider] rather than picking a key by hand.
+  /// Per-connection presence cache seeded from READY and `presence.update` for
+  /// every connection; offline transitions wait [offlineGrace] so reconnect blips
+  /// don't reshuffle the roster, and an absent entry means offline. Read the
+  /// active connection's map through [activePresencesProvider].
   PresenceControllerProvider._({
     required PresenceControllerFamily super.from,
     required String super.argument,
@@ -131,32 +71,12 @@ final class PresenceControllerProvider
 }
 
 String _$presenceControllerHash() =>
-    r'5816b88e6e1757c3b90761697a15487626227417';
+    r'e190da042249837c6d610799f3d894b2f3fd548b';
 
-/// One connection's per-user presence cache, scoped to [serverKey]
-/// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the
-/// same reason: snowflake IDs are minted per server, so a single global map lets
-/// two servers' users collide.
-///
-/// Every connection (active *or* background) seeds this from its gateway READY
-/// payload's `presences` array and keeps it current from `presence.update`
-/// events — both wired in `accord_event_handler.dart`. Nothing is gated on the
-/// connection being the active one: with the cache keyed per server there is
-/// nothing for a background connection to clobber, and gating was what left a
-/// backgrounded server permanently showing everyone as offline (#191).
-///
-/// Offline transitions are held for [offlineGrace] before they reach the state
-/// (#210). Presence is purely socket-lifetime driven server-side — one socket
-/// drop on a peer's client is one visible offline/online flip for everyone — so
-/// without smoothing a momentary blip re-buckets that member into the roster's
-/// "Offline" section and back, and rows visibly jump. Going *non*-offline is
-/// never delayed, and a pending offline is cancelled the moment the user comes
-/// back, so a blip shorter than the window is never rendered at all.
-///
-/// Consumers resolve a member's status by user ID via [accordPresenceStatus];
-/// an absent entry means "offline" (the gateway only pushes presence for
-/// non-offline users). Read the active connection's map through
-/// [activePresencesProvider] rather than picking a key by hand.
+/// Per-connection presence cache seeded from READY and `presence.update` for
+/// every connection; offline transitions wait [offlineGrace] so reconnect blips
+/// don't reshuffle the roster, and an absent entry means offline. Read the
+/// active connection's map through [activePresencesProvider].
 
 final class PresenceControllerFamily extends $Family
     with
@@ -176,30 +96,10 @@ final class PresenceControllerFamily extends $Family
         isAutoDispose: false,
       );
 
-  /// One connection's per-user presence cache, scoped to [serverKey]
-  /// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the
-  /// same reason: snowflake IDs are minted per server, so a single global map lets
-  /// two servers' users collide.
-  ///
-  /// Every connection (active *or* background) seeds this from its gateway READY
-  /// payload's `presences` array and keeps it current from `presence.update`
-  /// events — both wired in `accord_event_handler.dart`. Nothing is gated on the
-  /// connection being the active one: with the cache keyed per server there is
-  /// nothing for a background connection to clobber, and gating was what left a
-  /// backgrounded server permanently showing everyone as offline (#191).
-  ///
-  /// Offline transitions are held for [offlineGrace] before they reach the state
-  /// (#210). Presence is purely socket-lifetime driven server-side — one socket
-  /// drop on a peer's client is one visible offline/online flip for everyone — so
-  /// without smoothing a momentary blip re-buckets that member into the roster's
-  /// "Offline" section and back, and rows visibly jump. Going *non*-offline is
-  /// never delayed, and a pending offline is cancelled the moment the user comes
-  /// back, so a blip shorter than the window is never rendered at all.
-  ///
-  /// Consumers resolve a member's status by user ID via [accordPresenceStatus];
-  /// an absent entry means "offline" (the gateway only pushes presence for
-  /// non-offline users). Read the active connection's map through
-  /// [activePresencesProvider] rather than picking a key by hand.
+  /// Per-connection presence cache seeded from READY and `presence.update` for
+  /// every connection; offline transitions wait [offlineGrace] so reconnect blips
+  /// don't reshuffle the roster, and an absent entry means offline. Read the
+  /// active connection's map through [activePresencesProvider].
 
   PresenceControllerProvider call(String serverKey) =>
       PresenceControllerProvider._(argument: serverKey, from: this);
@@ -208,30 +108,10 @@ final class PresenceControllerFamily extends $Family
   String toString() => r'presenceControllerProvider';
 }
 
-/// One connection's per-user presence cache, scoped to [serverKey]
-/// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the
-/// same reason: snowflake IDs are minted per server, so a single global map lets
-/// two servers' users collide.
-///
-/// Every connection (active *or* background) seeds this from its gateway READY
-/// payload's `presences` array and keeps it current from `presence.update`
-/// events — both wired in `accord_event_handler.dart`. Nothing is gated on the
-/// connection being the active one: with the cache keyed per server there is
-/// nothing for a background connection to clobber, and gating was what left a
-/// backgrounded server permanently showing everyone as offline (#191).
-///
-/// Offline transitions are held for [offlineGrace] before they reach the state
-/// (#210). Presence is purely socket-lifetime driven server-side — one socket
-/// drop on a peer's client is one visible offline/online flip for everyone — so
-/// without smoothing a momentary blip re-buckets that member into the roster's
-/// "Offline" section and back, and rows visibly jump. Going *non*-offline is
-/// never delayed, and a pending offline is cancelled the moment the user comes
-/// back, so a blip shorter than the window is never rendered at all.
-///
-/// Consumers resolve a member's status by user ID via [accordPresenceStatus];
-/// an absent entry means "offline" (the gateway only pushes presence for
-/// non-offline users). Read the active connection's map through
-/// [activePresencesProvider] rather than picking a key by hand.
+/// Per-connection presence cache seeded from READY and `presence.update` for
+/// every connection; offline transitions wait [offlineGrace] so reconnect blips
+/// don't reshuffle the roster, and an absent entry means offline. Read the
+/// active connection's map through [activePresencesProvider].
 
 abstract class _$PresenceController extends $Notifier<PresenceMap> {
   late final _$args = ref.$arg as String;

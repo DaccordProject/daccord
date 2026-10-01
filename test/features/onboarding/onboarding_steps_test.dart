@@ -45,14 +45,6 @@ void main() {
       },
     );
 
-    test('every anchored step has a fallback or a self-evident target', () {
-      for (final wide in [true, false]) {
-        for (final step in onboardingSteps(wide: wide)) {
-          expect(step.isCentered, step.anchors.isEmpty);
-        }
-      }
-    });
-
     test('width picks the variant at the home screen breakpoint', () {
       expect(
         onboardingStepsForWidth(kOnboardingWideBreakpoint),

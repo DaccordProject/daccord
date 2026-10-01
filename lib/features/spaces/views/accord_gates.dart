@@ -1,7 +1,5 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
-import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -105,9 +103,7 @@ Future<void> maybeShowRulesInterstitial(
           .isRulesAccepted(serverKey, space.id)) {
     return;
   }
-  final client = ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  final client = ref.accordClient;
   if (client == null) return;
   final result = await client.messages.list(
     rulesChannelId,

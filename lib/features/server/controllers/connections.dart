@@ -34,20 +34,18 @@ class AccordConnection {
     this.spacesReady = false,
   });
 
-  /// Stable identity: user + server, matching `AccordAuth`'s account key.
-  String get key => '${session.userId}@${session.server.baseUrl}';
+  String get key => session.key;
 
   AccordConnection copyWith({
     ConnectionStatus? status,
     List<AccordSpace>? spaces,
     bool? spacesReady,
-  }) =>
-      AccordConnection(
-        session: session,
-        status: status ?? this.status,
-        spaces: spaces ?? this.spaces,
-        spacesReady: spacesReady ?? this.spacesReady,
-      );
+  }) => AccordConnection(
+    session: session,
+    status: status ?? this.status,
+    spaces: spaces ?? this.spaces,
+    spacesReady: spacesReady ?? this.spacesReady,
+  );
 }
 
 /// The set of connected servers and which one is active (drives the panes).
@@ -61,14 +59,12 @@ class ConnectionsState {
     List<AccordConnection>? connections,
     String? activeKey,
     bool clearActive = false,
-  }) =>
-      ConnectionsState(
-        connections: connections ?? this.connections,
-        activeKey: clearActive ? null : (activeKey ?? this.activeKey),
-      );
+  }) => ConnectionsState(
+    connections: connections ?? this.connections,
+    activeKey: clearActive ? null : (activeKey ?? this.activeKey),
+  );
 
-  AccordConnection? get active =>
-      connectionFor(activeKey);
+  AccordConnection? get active => connectionFor(activeKey);
 
   AccordConnection? connectionFor(String? key) {
     if (key == null) return null;
@@ -93,8 +89,7 @@ class ConnectionsController extends _$ConnectionsController {
 
   /// Adds [session] as a connecting server (or updates its session in place).
   void register(AccordSession session, {ConnectionStatus? status}) {
-    final key = '${session.userId}@${session.server.baseUrl}';
-    final existing = state.connectionFor(key);
+    final existing = state.connectionFor(session.key);
     final conn = AccordConnection(
       session: session,
       status: status ?? existing?.status ?? ConnectionStatus.connecting,
@@ -134,16 +129,20 @@ class ConnectionsController extends _$ConnectionsController {
     final existing = state.connectionFor(key);
     if (existing == null) return;
     final spaces = existing.spaces.upsertById(space, (s) => s.id);
-    state = state.copyWith(connections: _upsert(existing.copyWith(spaces: spaces)));
+    state = state.copyWith(
+      connections: _upsert(existing.copyWith(spaces: spaces)),
+    );
   }
 
   void removeSpace(String key, String spaceId) {
     final existing = state.connectionFor(key);
     if (existing == null) return;
     state = state.copyWith(
-      connections: _upsert(existing.copyWith(
-        spaces: existing.spaces.removeById(spaceId, (s) => s.id),
-      )),
+      connections: _upsert(
+        existing.copyWith(
+          spaces: existing.spaces.removeById(spaceId, (s) => s.id),
+        ),
+      ),
     );
   }
 

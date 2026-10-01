@@ -20,8 +20,7 @@ const MethodChannel taskbarBadgeChannel = MethodChannel(
 );
 
 /// Whether this platform has a taskbar/dock badge at all. Web and mobile
-/// no-op — mobile app-icon badges need background delivery to be worth
-/// anything (see #81) and are tracked separately.
+/// no-op: mobile app-icon badges need background delivery to be useful.
 bool get taskbarBadgeSupported =>
     !UniversalPlatform.isWeb &&
     (UniversalPlatform.isMacOS ||
@@ -45,15 +44,9 @@ Future<void> pushTaskbarBadge(GlobalUnread unread) async {
   }
 }
 
-/// Mirrors [globalUnreadProvider] onto the OS taskbar/dock icon.
-///
-/// Deliberately a "service" with no state of its own: it exists so unread state
-/// reaches the platform *live*, including while the window is minimised or
-/// backgrounded, which is the whole point — a transient local notification is
-/// otherwise the only signal that something arrived.
-///
-/// Kept alive by a `ref.watch` in `MainWindow`, matching
-/// `BackgroundConnectionController` / the MCP server controller.
+/// Mirrors [globalUnreadProvider] onto the OS taskbar/dock icon, live —
+/// including while the window is minimised or backgrounded. Kept alive by a
+/// `ref.watch` in `MainWindow`.
 @Riverpod(keepAlive: true)
 class TaskbarBadgeController extends _$TaskbarBadgeController {
   GlobalUnread? _pushed;

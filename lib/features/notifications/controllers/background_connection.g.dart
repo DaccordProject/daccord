@@ -14,9 +14,9 @@ part of 'background_connection.dart';
 /// keep firing. The service holds no logic of its own — keeping the process
 /// unfrozen is the whole job.
 ///
-/// Mirrors the MCP server controller pattern: kept alive by a `ref.watch` in
-/// `MainWindow`, reacting to the persisted "Background connection" setting and
-/// the login state. A no-op on every platform but Android.
+/// Kept alive by a `ref.watch` in `MainWindow`, reacting to the persisted
+/// "Background connection" setting and the login state. A no-op on every
+/// platform but Android.
 
 @ProviderFor(BackgroundConnectionController)
 final backgroundConnectionControllerProvider =
@@ -28,9 +28,9 @@ final backgroundConnectionControllerProvider =
 /// keep firing. The service holds no logic of its own — keeping the process
 /// unfrozen is the whole job.
 ///
-/// Mirrors the MCP server controller pattern: kept alive by a `ref.watch` in
-/// `MainWindow`, reacting to the persisted "Background connection" setting and
-/// the login state. A no-op on every platform but Android.
+/// Kept alive by a `ref.watch` in `MainWindow`, reacting to the persisted
+/// "Background connection" setting and the login state. A no-op on every
+/// platform but Android.
 final class BackgroundConnectionControllerProvider
     extends $NotifierProvider<BackgroundConnectionController, void> {
   /// Starts/stops the Android foreground service (`BackgroundConnectionService`)
@@ -39,9 +39,9 @@ final class BackgroundConnectionControllerProvider
   /// keep firing. The service holds no logic of its own — keeping the process
   /// unfrozen is the whole job.
   ///
-  /// Mirrors the MCP server controller pattern: kept alive by a `ref.watch` in
-  /// `MainWindow`, reacting to the persisted "Background connection" setting and
-  /// the login state. A no-op on every platform but Android.
+  /// Kept alive by a `ref.watch` in `MainWindow`, reacting to the persisted
+  /// "Background connection" setting and the login state. A no-op on every
+  /// platform but Android.
   BackgroundConnectionControllerProvider._()
     : super(
         from: null,
@@ -78,9 +78,9 @@ String _$backgroundConnectionControllerHash() =>
 /// keep firing. The service holds no logic of its own — keeping the process
 /// unfrozen is the whole job.
 ///
-/// Mirrors the MCP server controller pattern: kept alive by a `ref.watch` in
-/// `MainWindow`, reacting to the persisted "Background connection" setting and
-/// the login state. A no-op on every platform but Android.
+/// Kept alive by a `ref.watch` in `MainWindow`, reacting to the persisted
+/// "Background connection" setting and the login state. A no-op on every
+/// platform but Android.
 
 abstract class _$BackgroundConnectionController extends $Notifier<void> {
   void build();

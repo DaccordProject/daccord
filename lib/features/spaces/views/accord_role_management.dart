@@ -1,6 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/color_swatch_chip.dart';
+import 'package:bonfire/shared/components/dialog_title_bar.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -83,7 +84,12 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
         ?.firstWhereOrNull((s) => s.id == widget.spaceId);
     final currentUserId = ref.readUserId();
     final isAdmin = ref.readIsAdmin();
-    final members = ref.read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId));
+    final members = ref.read(
+      accordMembersControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        widget.spaceId,
+      ),
+    );
     return accordMyHighestRolePosition(
       space: space,
       selfMember: currentUserId == null ? null : members?[currentUserId],
@@ -246,7 +252,15 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _Header(onClose: () => Navigator.of(context).pop()),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: colors.background, width: 1),
+                ),
+              ),
+              child: const DialogTitleBar('Roles'),
+            ),
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -294,34 +308,6 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
               ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({required this.onClose});
-
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.background, width: 1)),
-      ),
-      child: Row(
-        children: [
-          Text('Roles', style: Theme.of(context).textTheme.titleMedium),
-          const Spacer(),
-          IconButton(
-            tooltip: 'Close',
-            onPressed: onClose,
-            icon: Icon(Icons.close, size: 20, color: colors.gray),
-          ),
-        ],
       ),
     );
   }

@@ -17,8 +17,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 PendingAttachment _file(String name, int bytes) => PendingAttachment(
-      PlatformFile(name: name, size: bytes, bytes: Uint8List(bytes)),
-    );
+  PlatformFile(name: name, size: bytes, bytes: Uint8List(bytes)),
+);
 
 /// A logged-in container whose client answers `GET /settings` with [responder].
 ProviderContainer _container(
@@ -222,49 +222,58 @@ void main() {
       );
     });
 
-    test('fetches GET /settings on connect and adopts the server limits',
-        () async {
-      var settingsRequests = 0;
-      final container = _container((request) async {
-        if (request.url.path.endsWith('/settings')) {
-          settingsRequests += 1;
-          return http.Response(
-            jsonEncode({
-              'data': {
-                'max_attachment_size': 1048576,
-                'max_attachments_per_message': 3,
-                'server_name': 'Example',
-              },
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-        return http.Response('{}', 404);
-      });
+    test(
+      'fetches GET /settings on connect and adopts the server limits',
+      () async {
+        var settingsRequests = 0;
+        final container = _container((request) async {
+          if (request.url.path.endsWith('/settings')) {
+            settingsRequests += 1;
+            return http.Response(
+              jsonEncode({
+                'data': {
+                  'max_attachment_size': 1048576,
+                  'max_attachments_per_message': 3,
+                  'server_name': 'Example',
+                },
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response('{}', 404);
+        });
 
-      // Reading the provider starts the fire-and-forget refresh, and the
-      // fallback is what's visible until it lands.
-      expect(container.read(serverLimitsControllerProvider),
-          AccordServerLimits.fallback);
-      await _until(
-        () => container.read(serverLimitsControllerProvider).fromServer,
-      );
+        // Reading the provider starts the fire-and-forget refresh, and the
+        // fallback is what's visible until it lands.
+        expect(
+          container.read(serverLimitsControllerProvider),
+          AccordServerLimits.fallback,
+        );
+        await _until(
+          () => container.read(serverLimitsControllerProvider).fromServer,
+        );
 
-      final limits = container.read(serverLimitsControllerProvider);
-      expect(limits.maxAttachmentBytes, 1048576);
-      expect(limits.maxAttachmentsPerMessage, 3);
-      expect(settingsRequests, 1);
-      // It must not hit the admin-only endpoint, which a non-admin can't read.
-      expect(container.read(serverLimitsControllerProvider).fromServer, isTrue);
-    });
+        final limits = container.read(serverLimitsControllerProvider);
+        expect(limits.maxAttachmentBytes, 1048576);
+        expect(limits.maxAttachmentsPerMessage, 3);
+        expect(settingsRequests, 1);
+        // It must not hit the admin-only endpoint, which a non-admin can't read.
+        expect(
+          container.read(serverLimitsControllerProvider).fromServer,
+          isTrue,
+        );
+      },
+    );
 
     test('accepts an unenveloped settings body', () async {
-      final container = _container((request) async => http.Response(
-            jsonEncode({'max_attachment_size': 2048}),
-            200,
-            headers: {'content-type': 'application/json'},
-          ));
+      final container = _container(
+        (request) async => http.Response(
+          jsonEncode({'max_attachment_size': 2048}),
+          200,
+          headers: {'content-type': 'application/json'},
+        ),
+      );
       await _until(
         () => container.read(serverLimitsControllerProvider).fromServer,
       );
@@ -300,34 +309,14 @@ void main() {
 
     test('keeps the fallback when the body is not JSON', () async {
       final container = _container(
-        (request) async => http.Response('<html>413 Request Entity Too Large',
-            413,
-            headers: {'content-type': 'text/html'}),
+        (request) async => http.Response(
+          '<html>413 Request Entity Too Large',
+          413,
+          headers: {'content-type': 'text/html'},
+        ),
       );
       container.read(serverLimitsControllerProvider);
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      expect(
-        container.read(serverLimitsControllerProvider),
-        AccordServerLimits.fallback,
-      );
-    });
-
-    test('applies and reverts settings applied directly', () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-      final controller =
-          container.read(serverLimitsControllerProvider.notifier);
-
-      controller.applySettings(const {
-        'max_attachment_size': 1048576,
-        'max_attachments_per_message': 2,
-      });
-      final tightened = container.read(serverLimitsControllerProvider);
-      expect(tightened.maxAttachmentBytes, 1048576);
-      expect(tightened.maxAttachmentsPerMessage, 2);
-
-      // A later failure must not leave stale limits in place.
-      controller.applySettings(null);
       expect(
         container.read(serverLimitsControllerProvider),
         AccordServerLimits.fallback,

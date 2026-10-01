@@ -13,7 +13,6 @@ import 'package:bonfire/features/settings/views/privacy_settings_page.dart';
 import 'package:bonfire/features/settings/views/settings_backup.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/onboarding/views/onboarding_tour.dart';
-import 'package:bonfire/features/onboarding/views/onboarding_help.dart';
 import 'package:bonfire/features/updates/views/updates_page.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/user/views/accord_account_settings.dart';
@@ -21,6 +20,7 @@ import 'package:bonfire/features/user/views/accord_profile_edit.dart';
 import 'package:bonfire/features/authentication/models/app_terms.dart';
 import 'package:bonfire/features/authentication/views/terms_gate.dart';
 import 'package:bonfire/shared/app_info.dart';
+import 'package:bonfire/shared/utils/external_url.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
 import 'package:bonfire/theme/app_theme.dart';
@@ -810,7 +810,7 @@ class _AboutSection extends StatelessWidget {
             'How the app, website, and independent servers handle data.',
           ),
           trailing: const Icon(Icons.open_in_new, size: 16),
-          onTap: () => openOnboardingHelpUrl(kDaccordPrivacyPolicyUrl),
+          onTap: () => openTrustedUrl(kDaccordPrivacyPolicyUrl),
         ),
       ],
     );

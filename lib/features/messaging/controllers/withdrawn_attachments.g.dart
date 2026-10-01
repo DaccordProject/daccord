@@ -85,7 +85,7 @@ final class WithdrawnAttachmentsControllerProvider
 }
 
 String _$withdrawnAttachmentsControllerHash() =>
-    r'79bf6ba7a2036c3e3e05228c2caa572f9205903e';
+    r'a5d63158c02c73fe452ea06f96c695ada1675f51';
 
 /// Attachments the server has withdrawn from messages on one connection —
 /// an AutoMod rejection/removal after publication, or any `message.update`

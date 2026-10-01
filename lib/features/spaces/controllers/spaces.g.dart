@@ -10,22 +10,19 @@ part of 'spaces.dart';
 // ignore_for_file: type=lint, type=warning
 /// Holds the current user's space list — the left rail. Populated on gateway
 /// ready (via `users.listSpaces()`) and kept in sync by space
-/// create/update/delete gateway events. The Accord analogue of Bonfire's
-/// `GuildsController`.
+/// create/update/delete gateway events.
 
 @ProviderFor(SpacesController)
 final spacesControllerProvider = SpacesControllerProvider._();
 
 /// Holds the current user's space list — the left rail. Populated on gateway
 /// ready (via `users.listSpaces()`) and kept in sync by space
-/// create/update/delete gateway events. The Accord analogue of Bonfire's
-/// `GuildsController`.
+/// create/update/delete gateway events.
 final class SpacesControllerProvider
     extends $NotifierProvider<SpacesController, List<AccordSpace>?> {
   /// Holds the current user's space list — the left rail. Populated on gateway
   /// ready (via `users.listSpaces()`) and kept in sync by space
-  /// create/update/delete gateway events. The Accord analogue of Bonfire's
-  /// `GuildsController`.
+  /// create/update/delete gateway events.
   SpacesControllerProvider._()
     : super(
         from: null,
@@ -57,8 +54,7 @@ String _$spacesControllerHash() => r'1845af5b427770ccb699dfba5a1f3168763e296b';
 
 /// Holds the current user's space list — the left rail. Populated on gateway
 /// ready (via `users.listSpaces()`) and kept in sync by space
-/// create/update/delete gateway events. The Accord analogue of Bonfire's
-/// `GuildsController`.
+/// create/update/delete gateway events.
 
 abstract class _$SpacesController extends $Notifier<List<AccordSpace>?> {
   List<AccordSpace>? build();

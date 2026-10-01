@@ -17,19 +17,15 @@ String generateAuthPassword() {
 }
 
 /// Whether the credential form is capturing a sign-in or a new registration.
-/// Shared by the primary login screen and the in-app Add-a-Server dialog so the
-/// two surfaces present an identical sign-in / register experience.
 enum AuthMode { signIn, register }
 
 /// The shared credential-capture body: a Sign in / Register toggle, an optional
 /// server-URL field, username, password (with an optional generator in register
 /// mode), and — in register mode — a display name and Terms-of-Service gate.
 ///
-/// This widget is purely presentational: it owns no provider calls and no submit
-/// button. The host (login screen or Add-Server dialog) supplies the
-/// controllers and renders its own error text, submit button, and any secondary
-/// actions around it, so each can wire the appropriate auth method while sharing
-/// one consistent form.
+/// Purely presentational: no provider calls and no submit button. The host
+/// (login screen or Add-Server dialog) supplies the controllers and renders its
+/// own error text, submit button and secondary actions.
 class AuthCredentialsFields extends StatelessWidget {
   const AuthCredentialsFields({
     super.key,
@@ -129,8 +125,7 @@ class AuthCredentialsFields extends StatelessWidget {
               children: [
                 Checkbox(
                   value: tosAccepted,
-                  onChanged:
-                      enabled ? (v) => onTosChanged(v ?? false) : null,
+                  onChanged: enabled ? (v) => onTosChanged(v ?? false) : null,
                 ),
                 Text('I agree to the ', style: theme.textTheme.bodyMedium),
                 GestureDetector(
@@ -145,9 +140,8 @@ class AuthCredentialsFields extends StatelessWidget {
               ],
             ),
           ] else if (tosAvailability == TosAvailability.unknown) ...[
-            // Not an error the user can act on, and never a blocker: the app's
-            // own terms gate already ran. It exists so a server's terms can't
-            // go missing silently (#289).
+            // Never a blocker (the app's own terms gate already ran); it exists
+            // so a server's terms can't go missing silently.
             const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,

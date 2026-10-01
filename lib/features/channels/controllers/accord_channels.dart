@@ -17,10 +17,10 @@ LoadFailedProvider channelsLoadFailedProvider(
   String spaceId,
 ) => loadFailedProvider('channels', serverKey, spaceId);
 
-/// A space's channel list, keyed by space ID. The Accord analogue of Bonfire's
-/// firebridge-backed channel list. Self-loads via `spaces.listChannels` the
-/// first time it's watched (once logged in) and is kept in sync by
-/// channel create/update/delete gateway events. `null` means "not loaded yet".
+/// A space's channel list, keyed by space ID. Self-loads via
+/// `spaces.listChannels` the first time it's watched (once logged in) and is
+/// kept in sync by channel create/update/delete gateway events. `null` means
+/// "not loaded yet".
 @Riverpod(keepAlive: true)
 class AccordChannelsController extends _$AccordChannelsController {
   @override
@@ -44,11 +44,15 @@ class AccordChannelsController extends _$AccordChannelsController {
     // `null` here is a failed request or a malformed payload — the pane has no
     // other way to tell that apart from "still loading".
     if (channels == null) {
-      ref.read(channelsLoadFailedProvider(serverKey, spaceId).notifier).set(true);
+      ref
+          .read(channelsLoadFailedProvider(serverKey, spaceId).notifier)
+          .set(true);
       return;
     }
     state = _sorted(channels);
-    ref.read(channelsLoadFailedProvider(serverKey, spaceId).notifier).set(false);
+    ref
+        .read(channelsLoadFailedProvider(serverKey, spaceId).notifier)
+        .set(false);
   }
 
   void setChannels(List<AccordChannel> channels) => state = _sorted(channels);

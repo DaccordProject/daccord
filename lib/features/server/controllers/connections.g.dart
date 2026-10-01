@@ -57,7 +57,7 @@ final class ConnectionsControllerProvider
 }
 
 String _$connectionsControllerHash() =>
-    r'bb1513d5b526745a9fc98de1e2d992bc72bac716';
+    r'c032ea820ac11ac87c5a55463d1cad14c4240631';
 
 /// Rail-level registry of every connected server (see [AccordConnection]).
 ///
