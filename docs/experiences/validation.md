@@ -95,8 +95,10 @@ python3 tools/experiences/run_fixture.py \
      --dart-define=ACCORD_EXPERIENCE_TEST_URL={server_url}
 ```
 
-For an Android emulator, pass `--bind-address 0.0.0.0 --client-host 10.0.2.2`
-to the fixture helper, select `-d emulator-5554` and pass `--flavor github`.
+For an Android emulator, pass `--android-device emulator-5554` to the fixture
+helper, select `-d emulator-5554` and pass `--flavor github`. The helper uses
+ADB reverse to keep the fixture on device loopback, preserving the SDK's HTTPS
+requirement for remote servers, and removes its port mapping during cleanup.
 The helper substitutes the temporary server URL into the Dart define; the
 new test skips without that define so ordinary UI suites never use an
 unprovisioned directory. Physical iOS validation remains open by user request.
