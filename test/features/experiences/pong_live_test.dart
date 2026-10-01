@@ -242,9 +242,12 @@ void main() {
         // they never modify the authoritative ball, score or simulation clock.
         keepPlaying = true;
         final playTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
-          if (find.byType(ExperienceCanvas).evaluate().isNotEmpty &&
-              remoteSnapshot?.state == 'running') {
-            final target = (canvas().drawings[2].values[3] - 68).clamp(0, 864);
+          final canvases = find.byType(ExperienceCanvas).evaluate();
+          if (canvases.isNotEmpty && remoteSnapshot?.state == 'running') {
+            // Read the mounted frame without a guarded tester API: a native
+            // device can be awaiting pump() when this real timer fires.
+            final frame = canvases.single.widget as ExperienceCanvas;
+            final target = (frame.drawings[2].values[3] - 68).clamp(0, 864);
             localPaddle(target.toDouble());
           }
         });
@@ -311,6 +314,7 @@ void main() {
           stage: 'revoking the disabled game',
         );
         expect(find.textContaining('disabled'), findsWidgets);
+        playTimer.cancel();
         await tester.pumpWidget(const SizedBox());
       });
     },
