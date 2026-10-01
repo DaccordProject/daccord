@@ -355,7 +355,7 @@ Every contribution — however small — goes straight into maintaining and impr
 |---|---|---|---|
 | **this repo** | Flutter client (what you ship) | Dart / Flutter | GPL-3.0 |
 | [`accordserver`](https://github.com/DaccordProject/accordserver) | Accord server backend and desktop host app | Rust | — |
-| [`daccord-editor`](https://github.com/DaccordProject/daccord-editor) | Author and test Lua-based activity plugins for your server | — | — |
+| [`daccord-editor`](https://github.com/DaccordProject/daccord-editor) | Legacy editor (retired for new curated WASM experiences) | — | — |
 | [`legacy-godot`](https://github.com/DaccordProject/daccord/tree/legacy-godot) | The retired Godot client this app replaced | GDScript | MIT |
 
 `accordkit`, `livekit_client`, and `markdown_viewer` are vendored in-tree under `packages/` and maintained in this repository.
@@ -391,3 +391,7 @@ see [adding a server](docs/getting-started/adding-a-server.md#joining-with-a-sav
 YouTube previews offer consent-gated playback on Web and an external link on
 native clients. Appearance settings can hide embeds locally; see
 [link previews](docs/messaging/sending-messages.md#link-previews).
+
+Curated WASM experiences use a bounded portable host and server-owned game state.
+See [the architecture and creator SDK](docs/experiences/architecture.md) and
+[validation evidence](docs/experiences/validation.md). Runtime tests: `cd packages/experience_runtime && dart test`.

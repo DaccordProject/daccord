@@ -240,3 +240,11 @@ Developer Mode. Existing releases predating this gate must not be submitted with
 marker-based recipes. Do not advertise catalogue install commands before acceptance.
 Collapsed rail folders reuse the size-aware space icon renderer for their first
 four resolved members; keep normal and drag previews consistent.
+
+## Curated experiences
+
+`packages/experience_runtime` is the portable bounded WASM host. Guest instructions
+and capabilities are allowlisted; broader Wasm/WASI output must fail closed.
+`tools/experiences/build_reference.py` reproducibly builds reference packages.
+See `docs/experiences/architecture.md` for ABI and lifecycle requirements. Run
+`dart test` in the runtime package for changes to validation or execution.
