@@ -20,6 +20,7 @@ import 'package:http/testing.dart';
 /// `setMicEnabled` answers an unmute with [unmuteError].
 class _FakeSession extends VoiceSession {
   String? micErrorOnConnect;
+  String? connectionError;
   String? unmuteError;
   int connects = 0;
   bool? connectedMuted;
@@ -28,6 +29,9 @@ class _FakeSession extends VoiceSession {
 
   @override
   String? get micError => micErrorOnConnect;
+
+  @override
+  String? get lastError => connectionError;
 
   @override
   Future<void> connect(
@@ -86,12 +90,15 @@ class _FixedSettingsController extends SettingsController {
 /// A [VoiceController] already sitting muted in a channel, for the unmute
 /// cases.
 class _MutedInCallVoiceController extends VoiceController {
+  _MutedInCallVoiceController({this.error});
+  final String? error;
   @override
-  VoiceConnection build() => const VoiceConnection(
+  VoiceConnection build() => VoiceConnection(
     channelId: 'c1',
     spaceId: 's1',
     serverKey: 'server-key',
     selfMute: true,
+    error: error,
   );
 }
 
@@ -177,6 +184,32 @@ void main() {
   );
 
   group('initial mic publish (#325)', () {
+    test(
+      'a failed media connection reports failure and can retry the same channel',
+      () async {
+        final h = _harness();
+        final voice = h.container.read(voiceControllerProvider.notifier);
+        h.session.connectionError = 'Timed out waiting for PeerConnection';
+
+        await voice.join('c1', 's1');
+        expect(
+          h.container.read(voiceControllerProvider).sessionState,
+          VoiceSessionState.failed,
+        );
+        expect(
+          h.container.read(voiceControllerProvider).error,
+          h.session.connectionError,
+        );
+        expect(soundManager.voiceSessionActive, isFalse);
+
+        h.session.connectionError = null;
+        await voice.join('c1', 's1');
+        expect(h.session.connects, 2);
+        expect(h.container.read(voiceControllerProvider).error, isNull);
+        expect(soundManager.voiceSessionActive, isTrue);
+      },
+    );
+
     test('a denied microphone joins muted with the reason surfaced', () async {
       final h = _harness();
       h.session.micErrorOnConnect = micPermissionDeniedMessage;
@@ -208,6 +241,18 @@ void main() {
   });
 
   group('unmute', () {
+    test('a successful microphone retry clears the capture failure', () async {
+      final h = _harness(
+        voice: () => _MutedInCallVoiceController(
+          error: 'Microphone unavailable: capture failed',
+        ),
+      );
+      h.container.read(voiceControllerProvider.notifier).setMute(false);
+      await pump();
+      expect(h.container.read(voiceControllerProvider).selfMute, isFalse);
+      expect(h.container.read(voiceControllerProvider).error, isNull);
+    });
+
     test(
       'an unmute the platform refuses reverts to muted and says why',
       () async {

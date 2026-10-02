@@ -1,6 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
+import 'package:bonfire/features/voice/services/voice_session.dart';
 import 'package:bonfire/features/voice/views/voice_bar.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -33,21 +34,52 @@ AccordSpace _spaceWithEveryonePerms(List<String> permissions) => AccordSpace(
   roles: [AccordRole(id: 'everyone', position: 0, permissions: permissions)],
 );
 
-Widget _host(VoiceConnection state, {List<AccordSpace>? spaces}) => ProviderScope(
-  overrides: [
-    voiceControllerProvider.overrideWith(() => _FakeVoiceController(state)),
-    if (spaces != null)
-      spacesControllerProvider.overrideWith(
-        () => _FakeSpacesController(spaces),
+Widget _host(VoiceConnection state, {List<AccordSpace>? spaces}) =>
+    ProviderScope(
+      overrides: [
+        voiceControllerProvider.overrideWith(() => _FakeVoiceController(state)),
+        if (spaces != null)
+          spacesControllerProvider.overrideWith(
+            () => _FakeSpacesController(spaces),
+          ),
+      ],
+      child: MaterialApp(
+        theme: buildAppTheme(AppThemePreset.dark),
+        home: const Scaffold(body: VoiceBar()),
       ),
-  ],
-  child: MaterialApp(
-    theme: buildAppTheme(AppThemePreset.dark),
-    home: const Scaffold(body: VoiceBar()),
-  ),
-);
+    );
 
 void main() {
+  for (final failed in [false, true]) {
+    testWidgets(
+      '${failed ? 'connection' : 'microphone'} failure stays visible with its full reason',
+      (tester) async {
+        final message = failed
+            ? 'Timed out waiting for PeerConnection'
+            : 'Microphone unavailable: capture failed';
+        await tester.pumpWidget(
+          _host(
+            VoiceConnection(
+              channelId: 'c1',
+              selfMute: true,
+              sessionState: failed
+                  ? VoiceSessionState.failed
+                  : VoiceSessionState.connected,
+              error: message,
+            ),
+          ),
+        );
+        await tester.pump(const Duration(seconds: 5));
+        expect(find.text(message), findsOneWidget);
+        expect(find.byTooltip(message), findsOneWidget);
+        expect(
+          find.text('Retry connection'),
+          failed ? findsOneWidget : findsNothing,
+        );
+      },
+    );
+  }
+
   testWidgets('voice bar renders nothing while disconnected', (tester) async {
     await tester.pumpWidget(_host(const VoiceConnection()));
     await tester.pump();
@@ -89,8 +121,9 @@ void main() {
     expect(find.byIcon(Icons.graphic_eq), findsNothing);
   });
 
-  testWidgets('hides soundboard button in a DM voice call (null spaceId)',
-      (tester) async {
+  testWidgets('hides soundboard button in a DM voice call (null spaceId)', (
+    tester,
+  ) async {
     // DM/group-DM calls have no parent space, so the soundboard must never appear
     // regardless of any permission state.
     await tester.pumpWidget(

@@ -77,6 +77,13 @@ class VoiceParticipantList extends ConsumerWidget {
               const <AccordRole>[];
     final cdnUrl = ref.watchCdnUrl();
 
+    final ensure = ref
+        .read(
+          accordUsersControllerProvider(
+            ref.readActiveServerKey() ?? '',
+          ).notifier,
+        )
+        .ensure;
     final rows =
         [
           for (final vs in bucket.values)
@@ -87,6 +94,7 @@ class VoiceParticipantList extends ConsumerWidget {
                 members: members,
                 users: users,
                 cdnUrl: cdnUrl,
+                ensure: ensure,
               ),
             ),
         ]..sort(

@@ -380,6 +380,13 @@ class _ConnectedBody extends ConsumerWidget {
       members: members,
       users: users,
       cdnUrl: cdnUrl,
+      ensure: ref
+          .read(
+            accordUsersControllerProvider(
+              ref.readActiveServerKey() ?? '',
+            ).notifier,
+          )
+          .ensure,
       myId: myId,
       session: session,
     );
@@ -421,6 +428,7 @@ class _ConnectedBody extends ConsumerWidget {
     required Map<String, AccordMember>? members,
     required Map<String, AccordUser>? users,
     required String? cdnUrl,
+    required void Function(String) ensure,
     required String? myId,
     required VoiceSession? session,
   }) {
@@ -432,6 +440,7 @@ class _ConnectedBody extends ConsumerWidget {
         members: members,
         users: users,
         cdnUrl: cdnUrl,
+        ensure: ensure,
       );
       VideoTrack? camera;
       if (vs.selfVideo && session != null) {

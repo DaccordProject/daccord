@@ -4,6 +4,7 @@ import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
+import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/features/voice/views/voice_participants.dart';
@@ -16,6 +17,13 @@ import 'package:flutter_test/flutter_test.dart';
 const _channelId = 'c1';
 const _selfId = 'u-self';
 const _otherId = 'u-other';
+
+class _FakeUsers extends AccordUsersController {
+  @override
+  Map<String, AccordUser> build(String serverKey) => const {};
+  @override
+  void ensure(String userId) {}
+}
 
 class _FakeVoiceController extends VoiceController {
   _FakeVoiceController(this._state);
@@ -67,6 +75,7 @@ Widget _host({
         ),
       ),
       voiceControllerProvider.overrideWith(() => _FakeVoiceController(voice)),
+      accordUsersControllerProvider('').overrideWith(_FakeUsers.new),
       voiceStatesControllerProvider('').overrideWith(
         () => _FakeVoiceStates({
           _channelId: {for (final id in userIds) id: _state(id)},
@@ -157,7 +166,10 @@ void main() {
   ) async {
     await tester.pumpWidget(
       _host(
-        voice: const VoiceConnection(channelId: 'some-other-channel', isAfk: true),
+        voice: const VoiceConnection(
+          channelId: 'some-other-channel',
+          isAfk: true,
+        ),
         userIds: const [_selfId],
       ),
     );

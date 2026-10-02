@@ -55,15 +55,26 @@ class _VoiceBarState extends ConsumerState<VoiceBar> {
     final voice = ref.watch(voiceControllerProvider);
     if (!voice.isConnected) return const SizedBox.shrink();
 
-    // Drive the 4s error auto-dismiss off the current state.
-    if (voice.error != null) {
+    // Capture/connection failures remain actionable until a retry succeeds.
+    // Dismissing them would make a broken call look healthy again.
+    final persistentError =
+        voice.sessionState == VoiceSessionState.failed ||
+        (voice.selfMute && (voice.error?.startsWith('Microphone ') ?? false));
+    if (persistentError || voice.error == null) {
+      _errorTimer?.cancel();
+    } else {
       _scheduleErrorClear();
     }
 
     final channelName = voice.spaceId == null
         ? null
         : ref
-              .watch(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', voice.spaceId!))
+              .watch(
+                accordChannelsControllerProvider(
+                  ref.readActiveServerKey() ?? '',
+                  voice.spaceId!,
+                ),
+              )
               ?.firstWhereOrNull((c) => c.id == voice.channelId)
               ?.name;
 
@@ -112,12 +123,15 @@ class _VoiceBarState extends ConsumerState<VoiceBar> {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        statusText,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(
-                          context,
-                        ).textTheme.labelMedium!.copyWith(color: statusColor),
+                      child: Tooltip(
+                        message: statusText,
+                        child: Text(
+                          statusText,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.labelMedium!.copyWith(color: statusColor),
+                        ),
                       ),
                     ),
                   ],
@@ -125,6 +139,14 @@ class _VoiceBarState extends ConsumerState<VoiceBar> {
               ),
             ),
             const SizedBox(height: 4),
+            if (voice.sessionState == VoiceSessionState.failed)
+              TextButton.icon(
+                onPressed: () => ref
+                    .read(voiceControllerProvider.notifier)
+                    .join(voice.channelId!, voice.spaceId),
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Retry connection'),
+              ),
             Row(
               children: [
                 _VoiceButton(

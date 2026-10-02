@@ -155,6 +155,9 @@ class McpTools {
       // Developer diagnostics used by the opt-in real-SFU fixture. These are
       // transport observables, not mirrors of Accord's gateway voice state.
       'voice_session_state': voice.sessionState.name,
+      'voice_error': voice.error ?? '',
+      'voice_microphone_error': voiceSession?.micError ?? '',
+      'voice_input_level': voiceSession?.localAudioLevel ?? 0,
       'voice_livekit_error': voiceSession?.lastError ?? '',
       'voice_livekit_room_connected': room?.connectionState.name == 'connected',
       'voice_livekit_room_name': room?.name ?? '',

@@ -90,6 +90,13 @@ class VoiceLobbyBody extends ConsumerWidget {
         members: members,
         users: users,
         cdnUrl: cdnUrl,
+        ensure: ref
+            .read(
+              accordUsersControllerProvider(
+                ref.readActiveServerKey() ?? '',
+              ).notifier,
+            )
+            .ensure,
       );
       avatars.add(
         _LobbyAvatar(

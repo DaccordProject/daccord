@@ -225,7 +225,9 @@ class VoiceController extends _$VoiceController {
   }
 
   Future<void> _joinLocked(String channelId, String? spaceId) async {
-    if (state.channelId == channelId) return;
+    if (state.channelId == channelId && !needsReconnect(state.sessionState)) {
+      return;
+    }
     if (state.isConnected) await _leaveLocked();
 
     // Pin to whichever connection is active *now* — the server whose channel
@@ -286,15 +288,26 @@ class VoiceController extends _$VoiceController {
       outputVolume: settings.outputVolume,
       inputVolume: settings.inputVolume,
     );
-    _applyMicOutcome();
+    _applyConnectOutcome();
+    if (state.sessionState == VoiceSessionState.failed) return;
     soundManager.play('voice_join');
     await _refreshVoiceStates(channelId);
   }
 
-  /// After a (re)connect whose mic could not be captured or published: stay in
-  /// the channel but as *muted*, tell the server so, and surface the reason
-  /// rather than showing a live mic that sends nothing.
-  void _applyMicOutcome() {
+  /// After a (re)connect: report a failed media connection. If only microphone
+  /// capture or publishing failed, we stay in the channel so you can listen,
+  /// mark the mic as muted, tell the server, and surface the reason in the bar
+  /// rather than showing a live mic that sends nothing (#325).
+  void _applyConnectOutcome() {
+    final connectionError = _session?.lastError;
+    if (connectionError != null && state.isConnected) {
+      soundManager.voiceSessionActive = false;
+      state = state.copyWith(
+        sessionState: VoiceSessionState.failed,
+        error: connectionError,
+      );
+      return;
+    }
     final micError = _session?.micError;
     if (micError == null || !state.isConnected || state.selfMute) return;
     state = state.copyWith(selfMute: true, error: micError);
@@ -335,7 +348,16 @@ class VoiceController extends _$VoiceController {
   /// a live mic that isn't, and the reason is surfaced.
   Future<void> _applyMic(VoiceSession session, {required bool enabled}) async {
     final error = await session.setMicEnabled(enabled);
-    if (error == null || !enabled || !state.isConnected || state.selfMute) {
+    if (!identical(session, _session) ||
+        !enabled ||
+        !state.isConnected ||
+        state.selfMute) {
+      return;
+    }
+    if (error == null) {
+      if (state.error?.startsWith('Microphone ') ?? false) {
+        state = state.copyWith(clearError: true);
+      }
       return;
     }
     state = state.copyWith(selfMute: true, error: error);
@@ -421,7 +443,7 @@ class VoiceController extends _$VoiceController {
       selfDeaf: state.selfDeaf,
       relayOnly: ref.read(settingsControllerProvider).voiceRelayOnly,
     );
-    _applyMicOutcome();
+    _applyConnectOutcome();
   }
 
   /// The server removed us from voice (our gateway state's channel went null).
@@ -537,7 +559,7 @@ class VoiceController extends _$VoiceController {
       outputVolume: settings.outputVolume,
       inputVolume: settings.inputVolume,
     );
-    _applyMicOutcome();
+    _applyConnectOutcome();
   }
 
   Future<void> _refreshVoiceStates(String channelId) async {

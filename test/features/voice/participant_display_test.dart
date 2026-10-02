@@ -61,38 +61,32 @@ void main() {
       expect(display.avatarUrl, isNull);
     });
 
-    test(
-      'derives the avatar color from the embedded user on a member row',
-      () {
-        final userWithAccent = AccordUser(id: 'u3', accentColor: 0xFF00FF);
-        final member = AccordMember(userId: 'u3', user: userWithAccent);
-        final display = participantDisplay(
-          'u3',
-          members: {'u3': member},
-          users: const {},
-          cdnUrl: null,
-        );
+    test('derives the avatar color from the embedded user on a member row', () {
+      final userWithAccent = AccordUser(id: 'u3', accentColor: 0xFF00FF);
+      final member = AccordMember(userId: 'u3', user: userWithAccent);
+      final display = participantDisplay(
+        'u3',
+        members: {'u3': member},
+        users: const {},
+        cdnUrl: null,
+      );
 
-        expect(display.color, const Color(0xFFFF00FF));
-      },
-    );
+      expect(display.color, const Color(0xFFFF00FF));
+    });
 
-    test(
-      'falls through to the cached bare user for color when the member has '
-      'no embedded user',
-      () {
-        final userWithAccent = AccordUser(id: 'u4', accentColor: 0x123456);
-        final member = AccordMember(userId: 'u4');
-        final display = participantDisplay(
-          'u4',
-          members: {'u4': member},
-          users: {'u4': userWithAccent},
-          cdnUrl: null,
-        );
+    test('falls through to the cached bare user for color when the member has '
+        'no embedded user', () {
+      final userWithAccent = AccordUser(id: 'u4', accentColor: 0x123456);
+      final member = AccordMember(userId: 'u4');
+      final display = participantDisplay(
+        'u4',
+        members: {'u4': member},
+        users: {'u4': userWithAccent},
+        cdnUrl: null,
+      );
 
-        expect(display.color, const Color(0xFF123456));
-      },
-    );
+      expect(display.color, const Color(0xFF123456));
+    });
 
     test('two different unresolved ids get different fallback colors', () {
       final a = participantDisplay(
@@ -109,6 +103,41 @@ void main() {
       );
 
       expect(a.color, isNot(b.color));
+    });
+
+    test('requests missing profiles even when a member has a nickname', () {
+      final requested = <String>[];
+      final display = participantDisplay(
+        'u1',
+        members: {'u1': AccordMember(userId: 'u1', nickname: 'Space Nick')},
+        users: const {},
+        cdnUrl: null,
+        ensure: requested.add,
+      );
+      expect(display.name, 'Space Nick');
+      expect(requested, ['u1']);
+    });
+
+    test('an incomplete member uses the cached name and avatar', () {
+      final requested = <String>[];
+      final member = AccordMember(userId: 'u1');
+      final display = participantDisplay(
+        'u1',
+        members: {'u1': member},
+        users: {
+          'u1': AccordUser(
+            id: 'u1',
+            displayName: 'Resolved Name',
+            avatar: 'hash',
+          ),
+        },
+        cdnUrl: 'https://cdn.example',
+        ensure: requested.add,
+      );
+      expect(display.name, 'Resolved Name');
+      expect(display.avatarUrl, contains('hash'));
+      expect(requested, isEmpty);
+      expect(member.user, isNull);
     });
   });
 }

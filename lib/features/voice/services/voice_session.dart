@@ -214,9 +214,11 @@ class VoiceSession {
                 'voice in Voice & Video settings. ($e)'
           : '$e';
       debugPrint('LiveKit connect failed: $e');
-      _setState(VoiceSessionState.failed);
       await _releaseTrack(micTrack);
       await disconnect();
+      // Cleanup emits a disconnected event. Preserve the failed outcome after
+      // it finishes so the UI keeps the reason the join failed.
+      _setState(VoiceSessionState.failed);
     }
   }
 
