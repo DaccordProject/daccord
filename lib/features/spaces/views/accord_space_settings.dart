@@ -529,7 +529,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
           if (canManageSpace && ref.watchActiveServerKey() != null)
             ListTile(
               leading: const Icon(Icons.sports_esports_outlined),
-              title: const Text('Game directory & Arcade'),
+              title: const Text('Arcade'),
               subtitle: const Text(
                 'Enable reviewed games and configure this space’s Arcade',
               ),

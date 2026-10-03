@@ -6,6 +6,8 @@ import 'package:bonfire/features/experiences/services/experience_package.dart';
 import 'package:bonfire/features/experiences/views/experience_canvas.dart';
 import 'package:bonfire/features/experiences/views/experience_platform.dart';
 import 'package:bonfire/features/experiences/views/experience_idle_countdown.dart';
+import 'package:bonfire/features/experiences/views/arcade_game_artwork.dart';
+import 'package:bonfire/features/experiences/views/arcade_identity.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
@@ -18,6 +20,43 @@ Object? _require(RestResult result) {
     throw StateError(result.errorMessageOr('Experience unavailable'));
   }
   return result.data;
+}
+
+class _ArcadeParticipant extends ConsumerWidget {
+  const _ArcadeParticipant({
+    required this.serverKey,
+    required this.spaceId,
+    required this.participant,
+    required this.hostUserId,
+  });
+  final String serverKey;
+  final String spaceId;
+  final Map<String, dynamic> participant;
+  final String hostUserId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userId = participant['user_id'] as String;
+    final identity = watchArcadeIdentity(
+      ref,
+      serverKey: serverKey,
+      spaceId: spaceId,
+      userId: userId,
+    );
+    final player = participant['role'] == 'player';
+    return ListTile(
+      leading: ArcadePlayerAvatar(identity: identity, radius: 18),
+      title: Text(identity.name),
+      subtitle: Text(
+        '${player ? 'Player' : 'Spectator'}${userId == hostUserId ? ' · Host' : ''}${participant['slot'] == null ? '' : ' · Seat ${(participant['slot'] as int) + 1}'}',
+      ),
+      trailing: participant['ready'] == true
+          ? const Tooltip(
+              message: 'Ready',
+              child: Icon(Icons.check_circle_outline),
+            )
+          : null,
+    );
+  }
 }
 
 String _errorText(Object e) => e is StateError ? e.message : '$e';
@@ -435,9 +474,24 @@ class _ExperienceSessionViewState extends ConsumerState<ExperienceSessionView>
       );
     }
     final participant = _participant;
+    final winnerId = _session.result?['winner_user_id'] as String?;
+    final winner = winnerId == null
+        ? null
+        : watchArcadeIdentity(
+            ref,
+            serverKey: widget.serverKey,
+            spaceId: widget.spaceId,
+            userId: winnerId,
+          );
     return Scaffold(
       appBar: AppBar(
-        title: Text('${_session.gameId} · ${_session.state}'),
+        title: Text(
+          '${arcadeGameName(_session.gameId)} · ${_session.state == 'lobby'
+              ? 'Lobby'
+              : _session.state == 'running'
+              ? 'Playing'
+              : 'Finished'}',
+        ),
         actions: [
           IconButton(
             onPressed: _refresh,
@@ -463,7 +517,7 @@ class _ExperienceSessionViewState extends ConsumerState<ExperienceSessionView>
                   _session.result!['reason'] == 'idle_timeout'
                       ? 'Game removed after seven days without player activity.'
                       : '${_session.result!['outcome'] == 'win'
-                            ? (_session.result!['winner_user_id'] == _user ? 'You won' : 'Winner: ${_session.result!['winner_user_id']}')
+                            ? (winnerId == _user ? 'You won' : 'Winner: ${winner?.name ?? 'Player'}')
                             : _session.result!['outcome'] == 'draw'
                             ? 'Draw'
                             : 'Cancelled'} · ${_session.result!['reason']}',
@@ -476,12 +530,11 @@ class _ExperienceSessionViewState extends ConsumerState<ExperienceSessionView>
                 ),
               ExperienceIdleCountdown(session: _session),
               for (final p in _session.participants)
-                ListTile(
-                  title: Text(p['user_id'] as String),
-                  subtitle: Text(
-                    '${p['role']}${p['slot'] == null ? '' : ' · Slot ${(p['slot'] as int) + 1}'}',
-                  ),
-                  trailing: p['ready'] == true ? const Icon(Icons.check) : null,
+                _ArcadeParticipant(
+                  serverKey: widget.serverKey,
+                  spaceId: widget.spaceId,
+                  participant: p,
+                  hostUserId: _session.hostUserId,
                 ),
               if (_session.state != 'ended')
                 Wrap(

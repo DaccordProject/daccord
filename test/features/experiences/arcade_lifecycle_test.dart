@@ -121,6 +121,20 @@ void main() {
         token: account.token,
         tokenType: 'Bearer',
         httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/members')) {
+            return http.Response(jsonEncode({'data': []}), 200);
+          }
+          if (request.url.path.contains('/users/')) {
+            return http.Response(
+              jsonEncode({
+                'data': {
+                  'id': request.url.pathSegments.last,
+                  'username': 'owner',
+                },
+              }),
+              200,
+            );
+          }
           if (request.url.path.endsWith('/package')) {
             packages++;
             return http.Response(jsonEncode({'data': release}), 200);
@@ -175,6 +189,22 @@ void main() {
         token: account.token,
         tokenType: 'Bearer',
         httpClient: MockClient((request) {
+          if (request.url.path.endsWith('/members')) {
+            return Future.value(http.Response(jsonEncode({'data': []}), 200));
+          }
+          if (request.url.path.contains('/users/')) {
+            return Future.value(
+              http.Response(
+                jsonEncode({
+                  'data': {
+                    'id': request.url.pathSegments.last,
+                    'username': 'owner',
+                  },
+                }),
+                200,
+              ),
+            );
+          }
           if (request.url.path.endsWith('/package')) {
             requested = true;
             return pending.future;
