@@ -5,6 +5,7 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/experiences/services/experience_package.dart';
 import 'package:bonfire/features/experiences/views/experience_canvas.dart';
 import 'package:bonfire/features/experiences/views/experience_platform.dart';
+import 'package:bonfire/features/experiences/views/experience_idle_countdown.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
@@ -97,6 +98,7 @@ class _ExperienceSessionViewState extends ConsumerState<ExperienceSessionView>
       }
     });
     _timer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (_session.state == 'ended') return;
       if (!_approved) _invalidate('Checking release approval…');
       unawaited(_refresh());
     });
@@ -175,7 +177,7 @@ class _ExperienceSessionViewState extends ConsumerState<ExperienceSessionView>
 
   bool _refreshing = false;
   Future<void> _refresh() async {
-    if (!_valid || _refreshing) return;
+    if (!_valid || _refreshing || _session.state == 'ended') return;
     _refreshing = true;
     final generation = ++_generation;
     final requestedAt = DateTime.now();
@@ -458,11 +460,13 @@ class _ExperienceSessionViewState extends ConsumerState<ExperienceSessionView>
                 ),
               if (_session.result != null)
                 Text(
-                  '${_session.result!['outcome'] == 'win'
-                      ? (_session.result!['winner_user_id'] == _user ? 'You won' : 'Winner: ${_session.result!['winner_user_id']}')
-                      : _session.result!['outcome'] == 'draw'
-                      ? 'Draw'
-                      : 'Cancelled'} · ${_session.result!['reason']}',
+                  _session.result!['reason'] == 'idle_timeout'
+                      ? 'Game removed after seven days without player activity.'
+                      : '${_session.result!['outcome'] == 'win'
+                            ? (_session.result!['winner_user_id'] == _user ? 'You won' : 'Winner: ${_session.result!['winner_user_id']}')
+                            : _session.result!['outcome'] == 'draw'
+                            ? 'Draw'
+                            : 'Cancelled'} · ${_session.result!['reason']}',
                 ),
               if (_session.turnUserId != null)
                 Text(
@@ -470,6 +474,7 @@ class _ExperienceSessionViewState extends ConsumerState<ExperienceSessionView>
                       ? 'Your turn'
                       : 'Waiting for the other player',
                 ),
+              ExperienceIdleCountdown(session: _session),
               for (final p in _session.participants)
                 ListTile(
                   title: Text(p['user_id'] as String),

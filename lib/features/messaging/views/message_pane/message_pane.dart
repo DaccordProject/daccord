@@ -41,6 +41,7 @@ import 'package:bonfire/features/messaging/views/box/accord_embed_box.dart';
 import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
 import 'package:bonfire/features/messaging/views/emoji_picker.dart';
 import 'package:bonfire/features/messaging/views/forum_view.dart';
+import 'package:bonfire/features/experiences/views/arcade.dart';
 import 'package:bonfire/features/messaging/utils/emoticons.dart';
 import 'package:bonfire/features/messaging/views/image_lightbox.dart';
 import 'package:bonfire/features/messaging/views/inline_audio_player.dart';
@@ -356,6 +357,15 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
     }
 
     final serverKey = ref.watchActiveServerKey();
+    if (channel?.type == 'arcade' && serverKey != null && spaceId != null) {
+      return SpaceArcade(
+        key: ValueKey('$serverKey/$spaceId'),
+        serverKey: serverKey,
+        spaceId: spaceId,
+        channelName: channel?.name,
+        embedded: true,
+      );
+    }
     if (serverKey != null) {
       ref.listen(
         readStateControllerProvider(serverKey),

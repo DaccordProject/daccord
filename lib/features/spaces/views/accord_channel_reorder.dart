@@ -108,7 +108,10 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
     // Mirror successful updates into the channel cache. The gateway echo will
     // typically arrive too, but updating optimistically keeps the UI snappy.
     final notifier = ref.read(
-      accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier,
+      accordChannelsControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        widget.spaceId,
+      ).notifier,
     );
     for (final channel in updated) {
       notifier.upsertChannel(channel);
@@ -133,7 +136,10 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
       _error = null;
     });
     final notifier = ref.read(
-      accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier,
+      accordChannelsControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        widget.spaceId,
+      ).notifier,
     );
     final failed = <String>[];
     for (final id in ids) {
@@ -245,7 +251,9 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
                             secondary: Icon(
                               entry.isCategory
                                   ? Icons.folder_outlined
-                                  : (entry.channel.type == 'voice'
+                                  : (entry.channel.type == 'arcade'
+                                        ? Icons.sports_esports_outlined
+                                        : entry.channel.type == 'voice'
                                         ? Icons.volume_up
                                         : (entry.channel.type == 'forum'
                                               ? Icons.forum
@@ -281,7 +289,9 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
                             leading: Icon(
                               entry.isCategory
                                   ? Icons.folder_outlined
-                                  : (entry.channel.type == 'voice'
+                                  : (entry.channel.type == 'arcade'
+                                        ? Icons.sports_esports_outlined
+                                        : entry.channel.type == 'voice'
                                         ? Icons.volume_up
                                         : (entry.channel.type == 'forum'
                                               ? Icons.forum

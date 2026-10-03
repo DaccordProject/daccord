@@ -17,6 +17,8 @@ IconData _glyphFor(String? type) {
       return Icons.forum;
     case 'announcement':
       return Icons.campaign;
+    case 'arcade':
+      return Icons.sports_esports_outlined;
     case 'category':
       return Icons.folder;
     default:

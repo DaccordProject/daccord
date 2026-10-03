@@ -188,18 +188,6 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (spaceId != null && ref.watchActiveServerKey() != null)
-            SpaceArcadeEntry(
-              serverKey: ref.watchActiveServerKey()!,
-              spaceId: spaceId,
-            ),
-          if (bannerUrl != null)
-            CachedNetworkImage(
-              imageUrl: bannerUrl,
-              height: 100,
-              fit: BoxFit.cover,
-              errorWidget: (_, _, _) => const SizedBox.shrink(),
-            ),
           Container(
             height: 48,
             alignment: Alignment.centerLeft,
@@ -305,6 +293,13 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
               ],
             ),
           ),
+          if (bannerUrl != null)
+            CachedNetworkImage(
+              imageUrl: bannerUrl,
+              height: 100,
+              fit: BoxFit.cover,
+              errorWidget: (_, _, _) => const SizedBox.shrink(),
+            ),
           Expanded(
             child: channels == null
                 ? _emptyState(context, spaceId: id)

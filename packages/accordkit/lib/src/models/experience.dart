@@ -51,6 +51,14 @@ class AccordExperienceSession {
   String get hostUserId => json['host_user_id'] as String;
   String? get turnUserId => json['turn_user_id'] as String?;
   int get revision => json['revision'] as int;
+  bool get isActive => state == 'lobby' || state == 'running';
+  DateTime? get idleExpiresAt {
+    final timestamp = json['idle_expires_at'];
+    return timestamp is num
+        ? DateTime.fromMillisecondsSinceEpoch(timestamp.toInt() * 1000)
+        : null;
+  }
+
   List<Map<String, dynamic>> get participants => (json['participants'] as List)
       .map((p) => Map<String, dynamic>.from(p as Map))
       .toList();

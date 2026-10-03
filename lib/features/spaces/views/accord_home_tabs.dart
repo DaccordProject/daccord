@@ -104,6 +104,16 @@ class _TabStripState extends ConsumerState<_TabStrip> {
             tab: tab,
             active: tab.key == activeKey,
             iconUrl: iconUrl,
+            isArcade:
+                ref
+                    .watch(
+                      accordChannelsControllerProvider(
+                        tab.serverKey,
+                        tab.spaceId,
+                      ),
+                    )
+                    ?.any((c) => c.id == tab.channelId && c.type == 'arcade') ??
+                false,
             onTap: () => widget.onSelect(tab),
             onClose: () =>
                 ref.read(openTabsControllerProvider.notifier).close(tab.key),
@@ -253,6 +263,7 @@ class _TabChip extends StatelessWidget {
     required this.tab,
     required this.active,
     required this.iconUrl,
+    this.isArcade = false,
     required this.onTap,
     required this.onClose,
     required this.onContextMenu,
@@ -261,6 +272,7 @@ class _TabChip extends StatelessWidget {
   final OpenTab tab;
   final bool active;
   final String? iconUrl;
+  final bool isArcade;
   final VoidCallback onTap;
   final VoidCallback onClose;
   final void Function(Offset globalPos) onContextMenu;
@@ -302,7 +314,11 @@ class _TabChip extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                 ] else ...[
-                  Icon(Icons.tag, size: 14, color: colors.gray),
+                  Icon(
+                    isArcade ? Icons.sports_esports_outlined : Icons.tag,
+                    size: 14,
+                    color: colors.gray,
+                  ),
                   const SizedBox(width: 4),
                 ],
                 Flexible(
