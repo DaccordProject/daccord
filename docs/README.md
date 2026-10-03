@@ -1,6 +1,6 @@
 # daccord Documentation
 
-End-user documentation for the daccord chat client. This content is designed to be pulled by external services (static site generators, help portals, etc.) to produce website documentation.
+Documentation for daccord users, server operators, and extension creators. This content is designed to be pulled by external services (static site generators, help portals, etc.) to produce website documentation.
 
 ## Structure
 
@@ -14,12 +14,14 @@ docs/
   voice-and-video/       # Voice channels, video, and screen sharing
   customization/         # Themes, settings, and profiles
   administration/        # Server and space management for admins
+  developer/             # Arcade extension creation and local MCP APIs
+  experiences/           # Arcade host API and platform validation references
   troubleshooting/       # Common issues and solutions
 ```
 
 ## Conventions
 
-- **Audience:** Non-technical end-users. Avoid implementation details, API references, and code.
+- **Audience:** Keep user and administration guides accessible to non-technical users. Developer and experience reference pages may include code, APIs, and implementation details needed by creators.
 - **Tone:** Friendly, concise, and direct. Second person ("you").
 - **Format:** Standard Markdown with YAML front matter for metadata.
 - **Front matter fields:**

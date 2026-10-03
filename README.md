@@ -393,11 +393,12 @@ native clients. Appearance settings can hide embeds locally; see
 [link previews](docs/messaging/sending-messages.md#link-previews).
 
 Curated WASM experiences use a bounded portable host and server-owned game state.
-See [the architecture and creator SDK](docs/experiences/architecture.md) and
+See [Creating Arcade Extensions](docs/developer/creating-arcade-extensions.md),
+[the host API reference](docs/experiences/architecture.md), and
 [validation evidence](docs/experiences/validation.md). Runtime tests: `cd packages/experience_runtime && dart test`.
 
 Space owners manage the reviewed directory and Arcade from space settings.
-Members use the single Space Arcade entry above the channel list to create
+Members use the movable Arcade channel in the channel list to create
 open/invite-only lobbies, ready up, spectate, and resume turns. Chess uses legal
 server-validated moves; Pong uses server-owned live snapshots and paddle inputs.
 The host verifies Ed25519 package signatures with `cryptography`, then runs

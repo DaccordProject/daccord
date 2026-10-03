@@ -37,6 +37,7 @@ New to daccord? Start here.
 - [Managing Your Space](administration/managing-your-space.md) -- Channels, roles, and settings
 - [Moderation](administration/moderation.md) -- Keep your community safe
 - [Invites](administration/invites.md) -- Invite people to your server
+- [Managing Arcade](administration/managing-arcade.md) -- Add games, organize the channel, and manage idle lobbies
 
 ## Self-Hosting
 
@@ -44,9 +45,11 @@ New to daccord? Start here.
 - [Running Accord on Your Desktop](self-hosting/desktop-app.md) -- Run a server from your own computer, no setup required
 - [Deploying a Server](self-hosting/deploying-a-server.md) -- Set up an always-on accordserver with Docker or from source
 
-## Plugins
+## For Developers
 
-- [Curated WASM experiences](experiences/architecture.md) — Host API, networking and reference SDK
+- [Creating Arcade Extensions](developer/creating-arcade-extensions.md) -- Build and publish custom packages for your own server
+- [Local MCP Space Management](developer/mcp-space-management.md) -- Automate space and channel setup
+- [Arcade Host API Reference](experiences/architecture.md) -- Runtime, networking, and package boundaries
 
 ## Help
 
