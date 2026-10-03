@@ -13,7 +13,29 @@ and their client forwarding properties. The server has ZIP/source delivery,
 space-installed plugins, voice-channel sessions, arbitrary action forwarding,
 client-submitted leaderboard scores and a `plugin.*` gateway filter. Keep the
 authenticated REST/gateway transport pattern; replace the contracts and state
-authority. Arcade sessions belong to spaces, independently of voice/channels.
+authority. Arcade sessions belong to spaces. Each space has at most one `arcade` channel,
+with the same persisted position and parent category as other leaf channels.
+Installing the first game provisions that channel; upgrades preserve its
+position and name. A database uniqueness constraint prevents duplicate Arcade
+channels, including concurrent creation. Selecting it opens the Arcade in the
+content pane while keeping the sidebar and channel tabs visible.
+
+The channel badge counts visible, unexpired lobbies and running games, including
+games whose turn belongs to another player. Invite-only games are counted only
+for members allowed to see them. The count refreshes on session events and every
+15 seconds. Ended games do not contribute to it.
+
+Games expire after seven days without player activity. The server exposes
+`last_activity_at` and `idle_expires_at` in session snapshots so both the lobby
+list and game screen can show a countdown, highlighted during the final day.
+Player joins, ready/start changes and valid gameplay actions reset the timer;
+spectators, reads, reconnect presence and automatic Pong ticks do not. A
+30-second server maintenance loop ends and removes expired sessions, using the
+session revision to avoid deleting a game that received a concurrent action.
+Viewing an already expired game also triggers cleanup. Installed games and the
+Arcade channel remain available for new lobbies. Other ended results retain the
+existing bounded 30-day history; configured turn timeouts and Pong disconnect
+forfeits continue to apply.
 Legacy executable installations cannot be converted into reviewed WASM packages.
 Retire routes atomically when the replacement is wired; archive old database
 tables through the migration, with no execution or automatic reinstallation.

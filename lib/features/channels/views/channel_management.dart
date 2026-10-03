@@ -15,6 +15,7 @@ const _channelTypes = <({String value, String label, IconData icon})>[
   (value: 'voice', label: 'Voice', icon: Icons.volume_up),
   (value: 'forum', label: 'Forum', icon: Icons.forum),
   (value: 'announcement', label: 'Announcement', icon: Icons.campaign),
+  (value: 'arcade', label: 'Arcade', icon: Icons.sports_esports_outlined),
   (value: 'category', label: 'Category', icon: Icons.folder),
 ];
 
@@ -60,8 +61,7 @@ Future<void> showEditChannelDialog(
 }) {
   return showDialog<void>(
     context: context,
-    builder: (_) =>
-        _ChannelEditorDialog(spaceId: spaceId, channel: channel),
+    builder: (_) => _ChannelEditorDialog(spaceId: spaceId, channel: channel),
   );
 }
 
@@ -80,14 +80,21 @@ Future<bool> confirmAndDeleteChannel(
   final confirmed = await showConfirmDialog(
     context,
     title: 'Delete $noun',
-    message: 'Delete "${channel.name ?? channel.id}"? This cannot be undone.',
+    message: channel.type == 'arcade'
+        ? 'Delete "${channel.name ?? channel.id}"? Current games will end. Installed games remain available in space settings.'
+        : 'Delete "${channel.name ?? channel.id}"? This cannot be undone.',
     confirmLabel: 'Delete',
   );
   if (confirmed != true) return false;
   final client = ref.accordClient;
   if (client == null) return false;
   final ok = await ref
-      .read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', spaceId).notifier)
+      .read(
+        accordChannelsControllerProvider(
+          ref.readActiveServerKey() ?? '',
+          spaceId,
+        ).notifier,
+      )
       .deleteChannel(client, channel.id);
   if (!ok && context.mounted) {
     showInfoSnack(context, 'Failed to delete $noun');
@@ -112,10 +119,12 @@ class _ChannelEditorDialog extends ConsumerStatefulWidget {
 }
 
 class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
-  late final TextEditingController _name =
-      TextEditingController(text: widget.channel?.name ?? '');
-  late final TextEditingController _topic =
-      TextEditingController(text: widget.channel?.topic ?? '');
+  late final TextEditingController _name = TextEditingController(
+    text: widget.channel?.name ?? '',
+  );
+  late final TextEditingController _topic = TextEditingController(
+    text: widget.channel?.topic ?? '',
+  );
   late String _type = widget.channel?.type ?? 'text';
   late String? _parentId = widget.channel?.parentId ?? widget.parentId;
   late bool _nsfw = widget.channel?.nsfw ?? false;
@@ -146,11 +155,15 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
       _busy = true;
       _error = null;
     });
-    final controller =
-        ref.read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier);
+    final controller = ref.read(
+      accordChannelsControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        widget.spaceId,
+      ).notifier,
+    );
     final topic = _topic.text.trim();
     final bool ok;
-    final supportsModeration = _type != 'category';
+    final supportsModeration = _type != 'category' && _type != 'arcade';
     if (_isEdit) {
       final data = <String, dynamic>{
         'name': name,
@@ -180,7 +193,9 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
     } else {
       setState(() {
         _busy = false;
-        _error = _isEdit ? 'Failed to save channel' : 'Failed to create channel';
+        _error = _isEdit
+            ? 'Failed to save channel'
+            : 'Failed to create channel';
       });
     }
   }
@@ -192,7 +207,9 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
     final confirmed = await showConfirmDialog(
       context,
       title: 'Delete channel',
-      message: 'Delete "${channel.name ?? channel.id}"? This cannot be undone.',
+      message: channel.type == 'arcade'
+          ? 'Delete "${channel.name ?? channel.id}"? Current games will end. Installed games remain available in space settings.'
+          : 'Delete "${channel.name ?? channel.id}"? This cannot be undone.',
       confirmLabel: 'Delete',
     );
     if (confirmed != true || !mounted) return;
@@ -200,8 +217,12 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
       _busy = true;
       _error = null;
     });
-    final controller =
-        ref.read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier);
+    final controller = ref.read(
+      accordChannelsControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        widget.spaceId,
+      ).notifier,
+    );
     final ok = await controller.deleteChannel(client, channel.id);
     if (!mounted) return;
     if (ok) {
@@ -219,10 +240,16 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
     final theme = Theme.of(context);
     // Categories the new channel can be nested under (edit keeps the channel's
     // own category fixed for simplicity).
-    final categories = ref
-            .watch(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId))
-            ?.where((c) => c.type == 'category')
-            .toList() ??
+    final channels = ref.watch(
+      accordChannelsControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        widget.spaceId,
+      ),
+    );
+    final canCreateArcade =
+        channels != null && !channels.any((c) => c.type == 'arcade');
+    final categories =
+        channels?.where((c) => c.type == 'category').toList() ??
         const <AccordChannel>[];
     return Dialog(
       child: ConstrainedBox(
@@ -233,8 +260,10 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(_isEdit ? 'Edit channel' : 'Create channel',
-                  style: theme.textTheme.titleMedium),
+              Text(
+                _isEdit ? 'Edit channel' : 'Create channel',
+                style: theme.textTheme.titleMedium,
+              ),
               const SizedBox(height: 16),
               _ChannelNameField(
                 controller: _name,
@@ -247,6 +276,7 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
                   type: _type,
                   parentId: _parentId,
                   categories: categories,
+                  allowArcade: canCreateArcade,
                   busy: _busy,
                   onTypeChanged: (v) => setState(() => _type = v ?? 'text'),
                   onParentChanged: (v) => setState(() => _parentId = v),
@@ -264,7 +294,7 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
                 ),
               if (_type != 'category')
                 _ChannelTopicField(controller: _topic, enabled: !_busy),
-              if (_type != 'category')
+              if (_type != 'category' && _type != 'arcade')
                 _ChannelModerationFields(
                   nsfw: _nsfw,
                   rateLimit: _rateLimit,
@@ -284,9 +314,12 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
                 ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
-                Text(_error!,
-                    style: theme.textTheme.bodySmall!
-                        .copyWith(color: theme.colorScheme.error)),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
               ],
               const SizedBox(height: 20),
               _EditorActionsRow(
@@ -338,6 +371,7 @@ class _CreateTypeSelector extends StatelessWidget {
     required this.type,
     required this.parentId,
     required this.categories,
+    required this.allowArcade,
     required this.busy,
     required this.onTypeChanged,
     required this.onParentChanged,
@@ -346,6 +380,7 @@ class _CreateTypeSelector extends StatelessWidget {
   final String type;
   final String? parentId;
   final List<AccordChannel> categories;
+  final bool allowArcade;
   final bool busy;
   final ValueChanged<String?> onTypeChanged;
   final ValueChanged<String?> onParentChanged;
@@ -365,7 +400,9 @@ class _CreateTypeSelector extends StatelessWidget {
             border: OutlineInputBorder(),
           ),
           items: [
-            for (final t in _channelTypes)
+            for (final t in _channelTypes.where(
+              (t) => t.value != 'arcade' || allowArcade,
+            ))
               DropdownMenuItem(
                 value: t.value,
                 child: Row(
@@ -507,15 +544,18 @@ class _ChannelModerationFields extends StatelessWidget {
           contentPadding: EdgeInsets.zero,
           dense: true,
           title: const Text('Age-restricted (NSFW)'),
-          subtitle: Text('Users must confirm before viewing',
-              style: theme.textTheme.bodySmall),
+          subtitle: Text(
+            'Users must confirm before viewing',
+            style: theme.textTheme.bodySmall,
+          ),
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<int>(
           initialValue: rateLimit,
           decoration: const InputDecoration(
             labelText: 'Slowmode',
-            helperText: 'One message per user per interval; moderators are '
+            helperText:
+                'One message per user per interval; moderators are '
                 'exempt',
             isDense: true,
             border: OutlineInputBorder(),
@@ -593,10 +633,15 @@ class _EditorActionsRow extends StatelessWidget {
         if (isEdit)
           TextButton.icon(
             onPressed: busy ? null : onDelete,
-            icon: Icon(Icons.delete_outline,
-                size: 18, color: theme.colorScheme.error),
-            label: Text('Delete',
-                style: TextStyle(color: theme.colorScheme.error)),
+            icon: Icon(
+              Icons.delete_outline,
+              size: 18,
+              color: theme.colorScheme.error,
+            ),
+            label: Text(
+              'Delete',
+              style: TextStyle(color: theme.colorScheme.error),
+            ),
           ),
         const Spacer(),
         TextButton(

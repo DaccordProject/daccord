@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/experiences/views/experience_platform.dart';
+import 'package:bonfire/features/experiences/views/experience_idle_countdown.dart';
+import 'package:bonfire/features/experiences/views/arcade_activity_badge.dart';
 import 'package:bonfire/features/experiences/views/experience_session_view.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -37,11 +39,15 @@ class SpaceArcade extends ConsumerStatefulWidget {
   final String serverKey;
   final String spaceId;
   final bool manage;
+  final String? channelName;
+  final bool embedded;
   const SpaceArcade({
     super.key,
     required this.serverKey,
     required this.spaceId,
     this.manage = false,
+    this.channelName,
+    this.embedded = false,
   });
   @override
   ConsumerState<SpaceArcade> createState() => _SpaceArcadeState();
@@ -56,6 +62,7 @@ class _SpaceArcadeState extends ConsumerState<SpaceArcade> {
   bool _busy = false;
   String? _error;
   int _generation = 0;
+  Timer? _timer;
   bool get _valid =>
       mounted &&
       _client != null &&
@@ -78,11 +85,17 @@ class _SpaceArcadeState extends ConsumerState<SpaceArcade> {
       if (data['space_id'] == widget.spaceId && _valid) unawaited(_refresh());
     });
     unawaited(_refresh());
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (_valid && !_busy && ModalRoute.of(context)?.isCurrent != false) {
+        unawaited(_refresh());
+      }
+    });
   }
 
   @override
   void dispose() {
     _generation++;
+    _timer?.cancel();
     _events?.cancel();
     super.dispose();
   }
@@ -121,6 +134,12 @@ class _SpaceArcadeState extends ConsumerState<SpaceArcade> {
     setState(() => _busy = true);
     try {
       _require(await request());
+      ref.invalidate(
+        arcadeActivityProvider((
+          serverKey: widget.serverKey,
+          spaceId: widget.spaceId,
+        )),
+      );
       await _refresh();
     } catch (e) {
       if (_valid) setState(() => _error = _errorText(e));
@@ -348,7 +367,12 @@ class _SpaceArcadeState extends ConsumerState<SpaceArcade> {
         : games.where((g) => g['enabled'] == true).toList();
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.manage ? 'Game directory & Arcade' : 'Space Arcade'),
+        automaticallyImplyLeading: !widget.embedded,
+        title: Text(
+          widget.manage
+              ? 'Game directory & Arcade'
+              : widget.channelName ?? 'Space Arcade',
+        ),
         actions: [
           IconButton(
             onPressed: _busy ? null : _refresh,
@@ -406,8 +430,14 @@ class _SpaceArcadeState extends ConsumerState<SpaceArcade> {
                         : Icons.sports_esports_outlined,
                   ),
                   title: Text(session.gameId),
-                  subtitle: Text(
-                    '${session.state} · ${session.participants.where((p) => p['role'] == 'player').length}/2 players${session.turnUserId == _user ? ' · Your turn' : ''}',
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${session.state} · ${session.participants.where((p) => p['role'] == 'player').length}/2 players${session.turnUserId == _user ? ' · Your turn' : ''}',
+                      ),
+                      ExperienceIdleCountdown(session: session),
+                    ],
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _open(session),

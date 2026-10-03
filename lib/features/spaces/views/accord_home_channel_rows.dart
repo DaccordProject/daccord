@@ -225,6 +225,8 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
         return Icons.forum;
       case 'announcement':
         return Icons.campaign;
+      case 'arcade':
+        return Icons.sports_esports_outlined;
       default:
         return Icons.tag;
     }
@@ -237,6 +239,7 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
     final isVoice = channel.type == 'voice';
     final enabled =
         isVoice ||
+        channel.type == 'arcade' ||
         channel.type == 'text' ||
         channel.type == 'forum' ||
         channel.type == 'announcement';
@@ -323,7 +326,14 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
                       ),
                     ),
                   ),
-                  if (isVoice && voiceCount > 0)
+                  if (channel.type == 'arcade' &&
+                      activeKey != null &&
+                      widget.spaceId != null)
+                    ArcadeActivityBadge(
+                      serverKey: activeKey,
+                      spaceId: widget.spaceId!,
+                    )
+                  else if (isVoice && voiceCount > 0)
                     Text(
                       '$voiceCount',
                       style: Theme.of(
