@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/channels/controllers/muted_channels.dart';
+import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -70,12 +73,30 @@ class ArcadeActivityBadge extends ConsumerWidget {
     super.key,
     required this.serverKey,
     required this.spaceId,
+    this.channelId,
   });
   final String serverKey;
   final String spaceId;
+  final String? channelId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (channelId != null) {
+      final mutes = ref.watch(mutedChannelsControllerProvider(serverKey));
+      final silenced =
+          ref.watch(
+            settingsControllerProvider.select(
+              (settings) =>
+                  settings.channelNotificationLevel(serverKey, channelId!),
+            ),
+          ) ==
+          AccordSettings.channelNotifNothing;
+      if (mutes.isLoading ||
+          mutes.value?.contains(channelId) == true ||
+          silenced) {
+        return const SizedBox.shrink();
+      }
+    }
     final activity = ref.watch(
       arcadeActivityProvider((serverKey: serverKey, spaceId: spaceId)),
     );

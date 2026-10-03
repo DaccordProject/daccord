@@ -165,5 +165,5 @@ Migrations run automatically on startup, so the database schema is always kept u
 
 Curated games require `EXPERIENCES_ENABLED=true` and `EXPERIENCE_TRUSTED_KEYS`
 (operator-provisioned Ed25519 publication keys). Owners manage reviewed versions
-through Game directory & Arcade in space settings. Legacy plugin archives are
+through Arcade in space settings. Legacy plugin archives are
 not executable or installable; see [the host contract](../experiences/architecture.md).

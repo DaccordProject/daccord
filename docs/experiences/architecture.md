@@ -20,6 +20,12 @@ position and name. A database uniqueness constraint prevents duplicate Arcade
 channels, including concurrent creation. Selecting it opens the Arcade in the
 content pane while keeping the sidebar and channel tabs visible.
 
+The Arcade screen leads with lobbies named for their hosts, player names and avatars,
+and the idle countdown. A single Create lobby button opens an illustrated game picker,
+then open/invite-only setup with member-name search. Member nicknames and user profiles
+resolve through the account-qualified caches; raw account IDs are never shown as names.
+Muted Arcade channels and channels set to Nothing hide the activity badge.
+
 The channel badge counts visible, unexpired lobbies and running games, including
 games whose turn belongs to another player. Invite-only games are counted only
 for members allowed to see them. The count refreshes on session events and every

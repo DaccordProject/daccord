@@ -332,6 +332,7 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
                     ArcadeActivityBadge(
                       serverKey: activeKey,
                       spaceId: widget.spaceId!,
+                      channelId: channel.id,
                     )
                   else if (isVoice && voiceCount > 0)
                     Text(

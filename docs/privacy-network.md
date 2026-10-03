@@ -59,7 +59,7 @@ previews in appearance settings without changing the underlying messages.
 
 ## Curated game experiences
 
-Space Arcade requests stay on the selected community server. That server checks
+Arcade requests stay on the selected community server. That server checks
 the curated directory over HTTPS against operator-provisioned publication keys.
 The client verifies the exact signed package and pinned session before running
 the bounded WASM presentation/input code. Guest code has no account credentials,

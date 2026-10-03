@@ -9,6 +9,14 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/experiences/views/arcade_activity_badge.dart';
 import 'package:bonfire/features/experiences/views/experience_idle_countdown.dart';
 import 'package:bonfire/features/experiences/views/arcade.dart';
+import 'package:bonfire/features/experiences/views/arcade_game_artwork.dart';
+import 'package:bonfire/features/experiences/views/arcade_game_picker.dart';
+import 'package:bonfire/features/experiences/views/arcade_lobby_setup.dart';
+import 'package:bonfire/features/experiences/views/arcade_lobby_tile.dart';
+import 'package:bonfire/features/channels/controllers/muted_channels.dart';
+import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:bonfire/shared/models/server_entity_key.dart';
 import 'package:bonfire/features/messaging/views/message_pane/message_pane.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
@@ -43,6 +51,20 @@ class _Connections extends ConnectionsController {
   );
 }
 
+class _Settings extends SettingsController {
+  @override
+  AccordSettings build() => const AccordSettings();
+  void silence(String serverKey, String channelId, bool silenced) =>
+      state = state.copyWith(
+        channelNotifications: silenced
+            ? {
+                ServerEntityKey(serverKey, channelId).encoded:
+                    AccordSettings.channelNotifNothing,
+              }
+            : {},
+      );
+}
+
 void main() {
   final account = AccordSession(
     server: AccordServer.fromBaseUrl('https://arcade.test'),
@@ -51,30 +73,328 @@ void main() {
     userId: 'owner',
     username: 'owner',
   );
-  Widget scope(AccordClient client, Widget child) => ProviderScope(
-    overrides: [
-      accordAuthProvider.overrideWith(() => _Auth(client, account)),
-      connectionsControllerProvider.overrideWith(() => _Connections(account)),
-    ],
-    child: MaterialApp(
-      theme: ThemeData(
-        extensions: const [
-          BonfireThemeExtension(
-            foreground: Color(0xff2f3136),
-            background: Color(0xff36393f),
-            dirtyWhite: Colors.white70,
-            gray: Colors.grey,
-            darkGray: Color(0xff202225),
-            primary: Colors.blue,
-            red: Colors.red,
-            green: Colors.green,
-            yellow: Colors.yellow,
+  Widget scope(AccordClient client, Widget child, {double textScale = 1}) =>
+      ProviderScope(
+        overrides: [
+          accordAuthProvider.overrideWith(() => _Auth(client, account)),
+          connectionsControllerProvider.overrideWith(
+            () => _Connections(account),
           ),
+          settingsControllerProvider.overrideWith(_Settings.new),
         ],
-      ),
-      home: Scaffold(body: child),
-    ),
+        child: MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
+          theme: ThemeData(
+            extensions: const [
+              BonfireThemeExtension(
+                foreground: Color(0xff2f3136),
+                background: Color(0xff36393f),
+                dirtyWhite: Colors.white70,
+                gray: Colors.grey,
+                darkGray: Color(0xff202225),
+                primary: Colors.blue,
+                red: Colors.red,
+                green: Colors.green,
+                yellow: Colors.yellow,
+              ),
+            ],
+          ),
+          home: Scaffold(body: child),
+        ),
+      );
+
+  Map<String, dynamic> manifest(String id, String name, {int players = 2}) => {
+    'id': id,
+    'name': name,
+    'description': '$name with friends',
+    'publisher': 'Daccord',
+    'version': '1.0.0',
+    'host_api': 1,
+    'runtime': 'wasm',
+    'authority': 'server',
+    'session_mode': id == 'pong' ? 'real_time' : 'turn_based',
+    'min_players': players,
+    'max_players': players,
+    'max_spectators': 8,
+    'platforms': ['linux', 'windows', 'macos', 'android', 'web'],
+    'capabilities': [],
+    'module_sha256': 'fixture',
+  };
+
+  Map<String, dynamic> lobby({
+    String host = '123456789',
+    String game = 'chess',
+  }) => {
+    'id': 'lobby',
+    'space_id': 'space',
+    'game_id': game,
+    'version': '1.0.0',
+    'digest': 'fixture',
+    'mode': 'turn_based',
+    'state': 'lobby',
+    'host_user_id': host,
+    'revision': 1,
+    'participants': [
+      {'user_id': host, 'role': 'player', 'slot': 0, 'ready': false},
+    ],
+    'game': {},
+    'idle_expires_at':
+        DateTime.now().add(const Duration(days: 7)).millisecondsSinceEpoch ~/
+        1000,
+  };
+
+  testWidgets(
+    'muting hides the count and unmuting restores it; Nothing also silences it',
+    (tester) async {
+      final client = AccordClient(
+        baseUrl: account.server.baseUrl,
+        httpClient: MockClient(
+          (request) async => http.Response(
+            jsonEncode({
+              'data': request.url.path.endsWith('/mutes')
+                  ? []
+                  : request.url.path.endsWith('/arcade')
+                  ? {'active_sessions': 3}
+                  : {},
+            }),
+            200,
+          ),
+        ),
+      );
+      addTearDown(client.dispose);
+      await tester.pumpWidget(
+        scope(
+          client,
+          ArcadeActivityBadge(
+            serverKey: account.key,
+            spaceId: 'space',
+            channelId: 'arcade-channel',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(Badge), findsOneWidget);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ArcadeActivityBadge)),
+      );
+      await container
+          .read(mutedChannelsControllerProvider(account.key).notifier)
+          .setMuted('arcade-channel', true);
+      await tester.pumpAndSettle();
+      expect(find.byType(Badge), findsNothing);
+      expect(find.text('3'), findsNothing);
+      await container
+          .read(mutedChannelsControllerProvider(account.key).notifier)
+          .setMuted('arcade-channel', false);
+      await tester.pumpAndSettle();
+      expect(find.byType(Badge), findsOneWidget);
+      (container.read(settingsControllerProvider.notifier) as _Settings)
+          .silence(account.key, 'arcade-channel', true);
+      await tester.pumpAndSettle();
+      expect(find.byType(Badge), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
   );
+
+  testWidgets(
+    'lobbies show resolved host and player names, one create button opens illustrated game choices',
+    (tester) async {
+      final client = AccordClient(
+        baseUrl: account.server.baseUrl,
+        httpClient: MockClient((request) async {
+          Object data;
+          if (request.url.path.endsWith('/members')) {
+            data = [
+              {
+                'user': {
+                  'id': '123456789',
+                  'username': 'host',
+                  'display_name': 'Alex',
+                },
+                'nickname': 'Captain Alex',
+              },
+            ];
+          } else if (request.url.path.contains('/users/')) {
+            data = {
+              'id': '123456789',
+              'username': 'host',
+              'display_name': 'Alex',
+            };
+          } else if (request.url.path.endsWith('/sessions')) {
+            data = [lobby()];
+          } else {
+            data = {
+              'enabled': true,
+              'experiences': [
+                {'enabled': true, 'manifest': manifest('chess', 'Chess')},
+                {'enabled': true, 'manifest': manifest('pong', 'Pong')},
+              ],
+            };
+          }
+          return http.Response(jsonEncode({'data': data}), 200);
+        }),
+      );
+      addTearDown(client.dispose);
+      await tester.pumpWidget(
+        scope(
+          client,
+          SpaceArcade(serverKey: account.key, spaceId: 'space', embedded: true),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Arcade'), findsOneWidget);
+      expect(find.text('Captain Alex’s Chess'), findsOneWidget);
+      expect(find.text('Captain Alex'), findsOneWidget);
+      expect(find.text('123456789'), findsNothing);
+      expect(find.text('Create lobby'), findsOneWidget);
+      expect(find.text('Pong'), findsNothing);
+      expect(find.byType(ArcadeLobbyTile), findsOneWidget);
+      await tester.tap(find.text('Create lobby'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ArcadeGamePicker), findsOneWidget);
+      expect(find.text('Chess'), findsOneWidget);
+      expect(find.text('Pong'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(ArcadeGamePicker),
+          matching: find.byType(ArcadeGameArtwork),
+        ),
+        findsNWidgets(2),
+      );
+      await tester.tap(find.text('Pong'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ArcadeLobbySetup), findsOneWidget);
+      expect(find.text('Pong lobby'), findsOneWidget);
+      expect(find.textContaining('Member IDs'), findsNothing);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets(
+    'invite-only lobby searches names and submits selected member IDs internally',
+    (tester) async {
+      ArcadeLobbyChoice? choice;
+      final searches = <String>[];
+      final client = AccordClient(
+        baseUrl: account.server.baseUrl,
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/search')) {
+            searches.add(request.url.queryParameters['query']!);
+          }
+          return http.Response(
+            jsonEncode({
+              'data': [
+                {
+                  'user': {
+                    'id': '555555555',
+                    'username': 'friend',
+                    'display_name': 'Sam',
+                  },
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+      addTearDown(client.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () async {
+                  choice = await showDialog<ArcadeLobbyChoice>(
+                    context: context,
+                    builder: (_) => ArcadeLobbySetup(
+                      client: client,
+                      spaceId: 'space',
+                      currentUserId: 'owner',
+                      game: AccordExperienceManifest.fromJson(
+                        manifest('chess', 'Chess'),
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Setup'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Setup'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Invite-only'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Sam');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(searches, ['Sam']);
+      expect(find.text('555555555'), findsNothing);
+      await tester.tap(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Create lobby'));
+      await tester.pumpAndSettle();
+      expect(choice?.inviteOnly, isTrue);
+      expect(choice?.invited, ['555555555']);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets('Arcade, lobby and picker fit a narrow phone with larger text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final client = AccordClient(
+      baseUrl: account.server.baseUrl,
+      httpClient: MockClient((request) async {
+        final Object data = request.url.path.endsWith('/members')
+            ? []
+            : request.url.path.contains('/users/')
+            ? {'id': '123456789', 'username': 'a-very-long-player-name'}
+            : request.url.path.endsWith('/sessions')
+            ? [lobby()]
+            : {
+                'enabled': true,
+                'experiences': [
+                  {'enabled': true, 'manifest': manifest('chess', 'Chess')},
+                ],
+              };
+        return http.Response(jsonEncode({'data': data}), 200);
+      }),
+    );
+    addTearDown(client.dispose);
+    await tester.pumpWidget(
+      scope(
+        client,
+        SpaceArcade(serverKey: account.key, spaceId: 'space', embedded: true),
+        textScale: 1.3,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.ensureVisible(find.text('Create lobby'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Create lobby'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Chess'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets('badge counts active games and lobbies, then updates to zero', (
     tester,
