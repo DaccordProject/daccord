@@ -80,7 +80,9 @@ Future<bool> confirmAndDeleteChannel(
   final confirmed = await showConfirmDialog(
     context,
     title: 'Delete $noun',
-    message: 'Delete "${channel.name ?? channel.id}"? This cannot be undone.',
+    message: channel.type == 'arcade'
+        ? 'Delete "${channel.name ?? channel.id}"? Current games will end. Installed games remain available in space settings.'
+        : 'Delete "${channel.name ?? channel.id}"? This cannot be undone.',
     confirmLabel: 'Delete',
   );
   if (confirmed != true) return false;
@@ -205,7 +207,9 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
     final confirmed = await showConfirmDialog(
       context,
       title: 'Delete channel',
-      message: 'Delete "${channel.name ?? channel.id}"? This cannot be undone.',
+      message: channel.type == 'arcade'
+          ? 'Delete "${channel.name ?? channel.id}"? Current games will end. Installed games remain available in space settings.'
+          : 'Delete "${channel.name ?? channel.id}"? This cannot be undone.',
       confirmLabel: 'Delete',
     );
     if (confirmed != true || !mounted) return;
