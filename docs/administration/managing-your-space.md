@@ -71,3 +71,9 @@ You can set per-channel permission overrides for specific roles:
 ## Invites
 
 See [Invites](invites.md) for details on inviting people to your server.
+
+## Arcade
+
+Open **Arcade** in space settings to enable reviewed games and manage the
+space's Arcade. See [Managing Arcade](managing-arcade.md) for channel placement,
+notifications, idle cleanup, and custom extensions.

@@ -1,4 +1,14 @@
-# Curated experiences, host API 1
+---
+title: Arcade Host API Reference
+description: The bounded WASM profile, authoritative game state, and lifecycle contract for Arcade extensions.
+order: 1
+section: experiences
+---
+
+# Arcade Host API Reference
+
+Start with [Creating Arcade Extensions](../developer/creating-arcade-extensions.md)
+for a working package and private-directory setup.
 
 The master server reviews and distributes immutable signed WASM game releases.
 Community servers pin enabled versions and own lobbies, membership, turns,
@@ -7,13 +17,11 @@ submits scoped actions. No guest receives a credential or an HTTP/socket API.
 
 ## Legacy inventory and cutover
 
-The client has no Lua/native execution UI. Its only legacy consumers are SDK
-contracts/tests: `plugin_manifest.dart`, `plugins_api.dart`, six gateway streams
-and their client forwarding properties. The server has ZIP/source delivery,
-space-installed plugins, voice-channel sessions, arbitrary action forwarding,
-client-submitted leaderboard scores and a `plugin.*` gateway filter. Keep the
-authenticated REST/gateway transport pattern; replace the contracts and state
-authority. Arcade sessions belong to spaces. Each space has at most one `arcade` channel,
+The former Lua/native plugin contracts, ZIP/source delivery, voice-channel
+activity sessions, arbitrary action forwarding, client-submitted leaderboard
+scores, and `plugin.*` gateway events have been removed. Arcade uses reviewed
+WASM packages and server-owned state over authenticated REST/gateway transport.
+Arcade sessions belong to spaces. Each space has at most one `arcade` channel,
 with the same persisted position and parent category as other leaf channels.
 Installing the first game provisions that channel; upgrades preserve its
 position and name. A database uniqueness constraint prevents duplicate Arcade
@@ -43,8 +51,8 @@ Arcade channel remain available for new lobbies. Other ended results retain the
 existing bounded 30-day history; configured turn timeouts and Pong disconnect
 forfeits continue to apply.
 Legacy executable installations cannot be converted into reviewed WASM packages.
-Retire routes atomically when the replacement is wired; archive old database
-tables through the migration, with no execution or automatic reinstallation.
+The old routes are retired and their database tables remain inert for export,
+with no execution or automatic reinstallation.
 
 ## Runtime decision
 
