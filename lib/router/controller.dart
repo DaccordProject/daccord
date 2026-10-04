@@ -10,10 +10,9 @@ import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:bonfire/router/navigator_key.dart';
 
-/// The root navigator, so deep-link handling (in `main.dart`) can show the
-/// Add-a-Server dialog and route over whatever screen is current.
-final rootNavigatorKey = GlobalKey<NavigatorState>();
+export 'package:bonfire/router/navigator_key.dart';
 
 /// Sends the sign-in locations (`/`, `/login`, `/register`) home when a
 /// settled [AccordAuthLoggedIn] session exists. In-progress / MFA /

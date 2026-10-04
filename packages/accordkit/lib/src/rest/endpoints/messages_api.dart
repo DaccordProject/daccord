@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:convert';
 
 import '../../models/message.dart';
 import '../../e2ee/private_chat_encryption.dart';
@@ -7,10 +8,54 @@ import '../../models/message_upload.dart';
 import '../endpoint_base.dart';
 import '../multipart_form.dart';
 import '../rest_result.dart';
+import '../message_send_check.dart';
 
 /// Message operations within a channel: list, create, edit, delete, pin,
 /// threads/forum posts, search, and the typing indicator.
 class MessagesApi extends EndpointBase {
+  /// Applied to every create/edit/upload caller before encryption or upload.
+  MessageSendGuard? sendGuard;
+
+  Future<MessageSendCheck> _check(
+      String channelId, Map<String, dynamic> data) async {
+    try {
+      final guard = sendGuard;
+      if (guard == null) return const MessageSendCheck.allow();
+      return await guard(channelId, _immutable(data) as Map<String, dynamic>);
+    } catch (_) {
+      return MessageSendCheck.hold(AccordError(
+          code: 'message_check_failed',
+          message: 'Message checks failed. Your message was held; try again.'));
+    }
+  }
+
+  RestResult? _held(MessageSendCheck check) {
+    try {
+      final error = check.failure;
+      return error == null ? null : RestResult.failure(0, error);
+    } catch (_) {
+      return RestResult.failure(
+          0,
+          AccordError(
+              code: 'message_check_failed',
+              message:
+                  'Message checks failed. Your message was held; try again.'));
+    }
+  }
+
+  // Detach caller-owned maps before awaiting assessment/encryption.
+  Map<String, dynamic> _snapshot(Map<String, dynamic> data) =>
+      (jsonDecode(jsonEncode(data)) as Map).cast<String, dynamic>();
+
+  Object? _immutable(Object? value) => value is Map
+      ? Map<String, dynamic>.unmodifiable({
+          for (final entry in value.entries)
+            entry.key as String: _immutable(entry.value),
+        })
+      : value is List
+          ? List<Object?>.unmodifiable(value.map(_immutable))
+          : value;
+
   final PrivateChatEncryption? encryption;
   final Set<String> _privateChannels = {};
 
@@ -98,6 +143,10 @@ class MessagesApi extends EndpointBase {
   /// as a failure whose [AccordError.retryAfter] says how long. Exactly one
   /// request is made per call.
   Future<RestResult> create(String channelId, Map<String, dynamic> data) async {
+    data = _snapshot(data);
+    final check = await _check(channelId, data);
+    final held = _held(check);
+    if (held != null) return held;
     try {
       if (await _private(channelId)) {
         data = (await encryption!.encrypt(channelId, data)).data;
@@ -105,6 +154,8 @@ class MessagesApi extends EndpointBase {
     } catch (e) {
       return _failure(e);
     }
+    final stale = _held(check);
+    if (stale != null) return stale;
     final result = await rest.makeRequest(
       'POST',
       '/channels/$channelId/messages',
@@ -134,6 +185,10 @@ class MessagesApi extends EndpointBase {
     Map<String, dynamic> data,
     List<Map<String, dynamic>> files,
   ) async {
+    data = _snapshot(data);
+    final check = await _check(channelId, data);
+    final held = _held(check);
+    if (held != null) return held;
     try {
       if (await _private(channelId)) {
         final encrypted =
@@ -155,6 +210,8 @@ class MessagesApi extends EndpointBase {
           (file['content_type'] ?? 'application/octet-stream').toString();
       form.addFile(name, filename, content, contentType: ct);
     }
+    final stale = _held(check);
+    if (stale != null) return stale;
     final result = await rest.makeMultipartRequest(
         'POST', '/channels/$channelId/messages/upload', form,
         retryOnRateLimit: false);
@@ -171,6 +228,10 @@ class MessagesApi extends EndpointBase {
   /// Edits an existing message.
   Future<RestResult> edit(
       String channelId, String messageId, Map<String, dynamic> data) async {
+    data = _snapshot(data);
+    final check = await _check(channelId, data);
+    final held = _held(check);
+    if (held != null) return held;
     try {
       if (await _private(channelId)) {
         final original = await fetch(channelId, messageId);
@@ -192,9 +253,11 @@ class MessagesApi extends EndpointBase {
     } catch (e) {
       return _failure(e);
     }
+    final stale = _held(check);
+    if (stale != null) return stale;
     final result = await rest.makeRequest(
         'PATCH', '/channels/$channelId/messages/$messageId',
-        body: data);
+        body: data, retryOnRateLimit: false);
     return _decode(result);
   }
 

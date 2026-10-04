@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:bonfire/features/e2em/models/e2em_preferences.dart';
 import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/spaces/models/space_folder.dart';
@@ -88,6 +89,11 @@ class SettingsController extends _$SettingsController {
             : scoped(state.lastChannelId),
       ),
     );
+  }
+
+  void setE2em(E2emPreferences preferences) {
+    preferences.validate();
+    _update(state.copyWith(e2em: preferences.copyWith()));
   }
 
   void setThemePreset(AppThemePreset preset) =>

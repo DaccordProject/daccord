@@ -407,6 +407,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.0.3"
+  e2em_local:
+    dependency: "direct main"
+    description:
+      path: "sdk/dart"
+      ref: "46e1b9c4b533e91cbf84fa50eae981e050bc15bd"
+      resolved-ref: "46e1b9c4b533e91cbf84fa50eae981e050bc15bd"
+      url: "https://github.com/E2EMorg/e2em.git"
+    source: git
+    version: "0.1.2"
   experience_runtime:
     dependency: "direct main"
     description:
@@ -1051,6 +1060,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.5.2"
+  posix:
+    dependency: transitive
+    description:
+      name: posix
+      sha256: bc1bad54ad2b735816e31f8d4600cfde6c7839975085ddfbca48b6c9f7c4044e
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.5.2"
   process:
     dependency: transitive
     description:

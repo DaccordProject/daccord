@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'package:bonfire/features/authentication/repositories/encryption_key_store.dart';
 
+import 'package:bonfire/features/e2em/services/e2em_runtime.dart';
+import 'package:bonfire/features/e2em/services/e2em_send_guard.dart';
+import 'package:bonfire/features/e2em/views/e2em_warning.dart';
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
@@ -1002,6 +1005,13 @@ class AccordAuth extends _$AccordAuth {
             ],
     );
     _connections[key] = _Conn(client: client, session: session);
+    client.messages.sendGuard = E2emSendGuard(
+      runtime: ref.read(e2emRuntimeProvider),
+      preferences: () => ref.read(settingsControllerProvider).e2em,
+      confirmWarning: confirmE2emWarning,
+      isSessionCurrent: () =>
+          ref.mounted && _connections[key]?.client == client,
+    ).call;
     ref
         .read(accordConnectionCoordinatorProvider)
         .attach(

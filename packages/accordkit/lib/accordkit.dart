@@ -14,6 +14,7 @@ export 'src/rest/accord_rest.dart';
 export 'src/rest/endpoint_base.dart';
 export 'src/rest/multipart_form.dart';
 export 'src/rest/rest_result.dart';
+export 'src/rest/message_send_check.dart';
 
 // REST endpoints
 export 'src/rest/endpoints/admin_api.dart';

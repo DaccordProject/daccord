@@ -28,6 +28,7 @@ import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:bonfire/features/e2em/views/e2em_settings_page.dart';
 
 /// Client settings: appearance (theme preset + accent), notifications, account.
 ///
@@ -84,6 +85,8 @@ class AccordSettingsScreen extends ConsumerWidget {
               _SoundsSection(settings: settings, controller: controller),
               const Divider(height: 24),
               const _VoiceVideoSection(),
+              const Divider(height: 24),
+              const E2emSettingsSection(),
               const Divider(height: 24),
               _AccountSection(
                 session: session,
@@ -316,6 +319,7 @@ class _CategoryPane extends ConsumerWidget {
         _NotificationsSection(settings: settings, controller: controller),
         _SoundsSection(settings: settings, controller: controller),
         const _VoiceVideoSection(),
+        const E2emSettingsSection(),
       ],
       SettingsCategory.system => <Widget>[
         // Store builds update through the store and never expose the GitHub

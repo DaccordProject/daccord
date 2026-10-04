@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:bonfire/features/e2em/models/e2em_preferences.dart';
 import 'package:bonfire/features/spaces/models/space_folder.dart';
 import 'package:bonfire/features/voice/utils/afk_logic.dart';
 import 'package:bonfire/shared/models/server_entity_key.dart';
@@ -102,6 +103,7 @@ class AccordSettings {
     this.lastSpaceId = '',
     this.lastChannelId = '',
     this.compactMode = false,
+    this.e2em = const E2emPreferences(),
     this.showEmbeds = true,
     this.convertEmoticons = true,
     this.reducedMotion = false,
@@ -275,6 +277,9 @@ class AccordSettings {
   /// cozy density. Mirrors the reference's layout-density setting.
   final bool compactMode;
 
+  /// Profile-owned outgoing text rules, without runtime credentials.
+  final E2emPreferences e2em;
+
   /// Local display preference, independent of message suppression flags.
   final bool showEmbeds;
 
@@ -353,6 +358,7 @@ class AccordSettings {
     String? lastSpaceId,
     String? lastChannelId,
     bool? compactMode,
+    E2emPreferences? e2em,
     bool? showEmbeds,
     bool? convertEmoticons,
     bool? reducedMotion,
@@ -407,6 +413,7 @@ class AccordSettings {
       lastSpaceId: lastSpaceId ?? this.lastSpaceId,
       lastChannelId: lastChannelId ?? this.lastChannelId,
       compactMode: compactMode ?? this.compactMode,
+      e2em: e2em ?? this.e2em,
       showEmbeds: showEmbeds ?? this.showEmbeds,
       convertEmoticons: convertEmoticons ?? this.convertEmoticons,
       reducedMotion: reducedMotion ?? this.reducedMotion,
@@ -577,6 +584,7 @@ class AccordSettings {
     'lastSpaceId': lastSpaceId,
     'lastChannelId': lastChannelId,
     'compactMode': compactMode,
+    'e2em': e2em.toJson(),
     'showEmbeds': showEmbeds,
     'convertEmoticons': convertEmoticons,
     'reducedMotion': reducedMotion,
@@ -674,6 +682,7 @@ class AccordSettings {
       lastSpaceId: (json['lastSpaceId'] as String?) ?? '',
       lastChannelId: (json['lastChannelId'] as String?) ?? '',
       compactMode: json['compactMode'] as bool? ?? false,
+      e2em: E2emPreferences.fromJson(json['e2em']),
       showEmbeds: json['showEmbeds'] as bool? ?? true,
       convertEmoticons: json['convertEmoticons'] as bool? ?? true,
       reducedMotion: json['reducedMotion'] as bool? ?? false,

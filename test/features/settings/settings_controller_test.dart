@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:bonfire/features/e2em/models/e2em_preferences.dart';
 
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
@@ -39,6 +40,32 @@ void main() {
 
   AccordSettings stateOf(ProviderContainer c) =>
       c.read(settingsControllerProvider);
+
+  test(
+    'E2EM rules persist across rebuilds and backups without runtime secrets',
+    () {
+      final container = makeContainer();
+      final selected = const E2emPreferences(
+        enabled: true,
+        categories: ['pii.email'],
+        customRules: ['Keep launch dates private.'],
+        response: E2emResponse.review,
+        threshold: 0.5,
+      );
+      controllerOf(container).setE2em(selected);
+      expect(stateOf(makeContainer()).e2em.toJson(), selected.toJson());
+      final backup = controllerOf(container).exportJson();
+      expect(backup['e2em'], selected.toJson());
+      expect(
+        controllerOf(container).importJson({
+          ...backup,
+          'e2em': {'enabled': true, 'response': 'allow'},
+        }),
+        isFalse,
+      );
+      expect(stateOf(container).e2em.toJson(), selected.toJson());
+    },
+  );
 
   group('addRecentEmoji', () {
     test('adds a new token to the front', () {
