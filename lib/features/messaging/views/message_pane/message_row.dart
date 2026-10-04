@@ -526,11 +526,13 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                         ),
                       if (_editing)
                         _buildEditor(theme, colors)
-                      else if (message.content.isNotEmpty)
+                      else if (message.type == 'member_join' ||
+                          message.content.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 2),
-                          child: AccordMessageContent(
-                            content: message.content,
+                          child: MessageBody(
+                            message: message,
+                            authorName: _authorName,
                             spaceId: widget.spaceId,
                           ),
                         ),
@@ -621,7 +623,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         onSelected: () => _openThread(message),
       ),
       ...buildMessageActionEntries(
-        content: message.content,
+        content: accordMessageText(message, authorName: _authorName),
         canEdit: widget.isOwn,
         canDelete: canDelete,
         onEdit: () => _startEdit(message),
@@ -800,9 +802,8 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
             )
             .ensure,
       );
-      preview = referenced.content.isEmpty
-          ? '(attachment)'
-          : referenced.content;
+      final content = accordMessageText(referenced, authorName: name);
+      preview = content.isEmpty ? '(attachment)' : content;
     }
     return Padding(
       padding: const EdgeInsets.only(bottom: 2, left: 2),

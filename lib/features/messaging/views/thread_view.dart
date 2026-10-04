@@ -14,7 +14,8 @@ import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/messaging/controllers/thread_replies.dart';
-import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
+import 'package:bonfire/features/messaging/utils/message_display.dart';
+import 'package:bonfire/features/messaging/views/message_body.dart';
 import 'package:bonfire/features/messaging/views/message_author_header.dart';
 import 'package:bonfire/features/messaging/views/post_composer_dialog.dart';
 import 'package:bonfire/features/messaging/utils/message_visibility.dart';
@@ -626,7 +627,7 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
     final name = accordAuthorNameOf(authorId, member: member, user: user);
     final entries = [
       ...buildMessageActionEntries(
-        content: message.content,
+        content: accordMessageText(message, authorName: name),
         canEdit: widget.isOwn,
         canDelete: _canDelete,
         onEdit: () => _edit(message),
@@ -775,9 +776,11 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
                       edited: message.editedAt != null,
                     ),
                     const SizedBox(height: 2),
-                    if (message.content.isNotEmpty)
-                      AccordMessageContent(
-                        content: message.content,
+                    if (message.type == 'member_join' ||
+                        message.content.isNotEmpty)
+                      MessageBody(
+                        message: message,
+                        authorName: name,
                         spaceId: widget.spaceId,
                       ),
                   ],

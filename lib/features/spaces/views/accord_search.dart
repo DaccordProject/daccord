@@ -4,6 +4,7 @@ import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/messaging/utils/message_display.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
@@ -188,10 +189,11 @@ class _SearchDialogState extends ConsumerState<_SearchDialog>
           users: users,
           ensure: ensureUser,
         );
+        final content = accordMessageText(message, authorName: name);
         return ListTile(
           title: Text(name, style: theme.textTheme.titleSmall),
           subtitle: Text(
-            message.content.isEmpty ? '(attachment)' : message.content,
+            content.isEmpty ? '(attachment)' : content,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),

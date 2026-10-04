@@ -4,10 +4,7 @@
 # To override one release, add `# Release version: x.y.z` and the user-facing
 # text below it. The script rejects missing or stale version markers before any
 # store upload.
-# Release version: 0.2.25
+# Release version: 0.2.26
 
-• Arcade brings Chess and Pong to desktop, Android and web communities with games enabled.
-• Move Arcade like any channel, see active lobby counts, and hide its badge by muting it.
-• Find friends by name in lobbies, choose from illustrated games, and invite members by username or nickname.
-• Idle games show a countdown and are removed after seven days without player activity on updated community servers.
-• Voice participant profiles load more reliably, and decrypted video data is cleared when attachments or accounts change.
+• Server join messages now show each member’s current name, including older messages that previously displayed an email address.
+• Join message names stay consistent in chat, threads, pinned messages, search results, reply previews and copied text.

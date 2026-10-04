@@ -18,6 +18,11 @@ daccord supports basic Markdown formatting in messages:
 - `` `code` `` for `inline code`
 - ``` ```code block``` ``` for code blocks
 
+Server join messages show the member's current nickname, display name or
+username, matching the author above the message. Older join messages also
+follow name changes in chat, threads, pins, search results, reply previews and
+copied text.
+
 ## Replying
 
 To reply to a specific message:
