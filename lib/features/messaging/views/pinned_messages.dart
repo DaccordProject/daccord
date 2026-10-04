@@ -5,6 +5,7 @@ import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/utils/message_visibility.dart';
+import 'package:bonfire/features/messaging/utils/message_display.dart';
 import 'package:bonfire/features/spaces/views/accord_reports.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
@@ -217,6 +218,10 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
                         users: users,
                         ensure: ensureUser,
                       );
+                      final content = accordMessageText(
+                        message,
+                        authorName: name,
+                      );
                       final author =
                           members?[message.authorId]?.user ??
                           users[message.authorId];
@@ -258,9 +263,7 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
                         key: ValueKey(message.id),
                         title: authorName,
                         subtitle: Text(
-                          message.content.isEmpty
-                              ? '(attachment)'
-                              : message.content,
+                          content.isEmpty ? '(attachment)' : content,
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                         ),
