@@ -71,7 +71,7 @@ final class PresenceControllerProvider
 }
 
 String _$presenceControllerHash() =>
-    r'e190da042249837c6d610799f3d894b2f3fd548b';
+    r'5215467acb6d4a203b24ce5be0afc5ecf867f8ab';
 
 /// Per-connection presence cache seeded from READY and `presence.update` for
 /// every connection; offline transitions wait [offlineGrace] so reconnect blips
