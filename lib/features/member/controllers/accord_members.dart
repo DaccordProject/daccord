@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/shared/controllers/load_failed.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -30,99 +33,157 @@ LoadFailedProvider membersLoadFailedProvider(
 /// `null` means "not loaded yet".
 @Riverpod(keepAlive: false)
 class AccordMembersController extends _$AccordMembersController {
+  int _generation = 0;
+  Map<String, AccordMember?>? _deltas;
+  final _profileDeltas = <String, AccordUser>{};
+
   @override
   Map<String, AccordMember>? build(String serverKey, String spaceId) {
     final key = (serverKey: serverKey, spaceId: spaceId);
     activeMemberSpaces.add(key);
-    ref.onDispose(() => activeMemberSpaces.remove(key));
-
+    ref.onDispose(() {
+      activeMemberSpaces.remove(key);
+      _generation++;
+    });
     final client = ref.watchAccordClientFor(serverKey);
-    if (client != null) {
-      _load(client, spaceId);
-    }
+    if (client != null) unawaited(reload(client));
     return null;
   }
 
-  Future<void> _load(AccordClient client, String spaceId) async {
-    // Retry so a transient blip or a still-warming server doesn't strand the
-    // roster on a spinner. The 20s timeout sits under AccordRest's own
-    // per-attempt bound so a hung socket fails (and is reported) sooner.
-    //
-    // Writes to `membersLoadFailedProvider` must stay after the first `await`:
-    // `build` calls `_load` synchronously, and Riverpod forbids a provider
-    // mutating another during initialization.
-    for (var attempt = 0; attempt < 3; attempt++) {
-      List<AccordMember>? list;
-      try {
-        // `withUser` asks the server to embed each member's user object, so
-        // `_resolveUsers` finds them already populated and skips the per-member
-        // fetch. Older servers ignore the flag; the fallback fetch runs then.
-        list =
-            (await client.members
-                    .list(spaceId, query: {'limit': 100}, withUser: true)
-                    .timeout(const Duration(seconds: 20)))
-                .listOrLog<AccordMember>('members for $spaceId');
-      } catch (e) {
-        debugPrint('Failed to load members for $spaceId: $e');
+  bool _current(AccordClient client, int generation) =>
+      ref.mounted &&
+      generation == _generation &&
+      ref.isCurrentAccordClient(serverKey, client);
+
+  /// Loads all pages atomically, retaining gateway changes received while the
+  /// snapshot is in flight. A fresh READY can supersede an older request.
+  Future<void> reload(AccordClient client) async {
+    final generation = ++_generation;
+    final deltas = <String, AccordMember?>{};
+    _deltas = deltas;
+    _profileDeltas.clear();
+    final members = <String, AccordMember>{};
+    final cursors = <String>{};
+    String? after;
+    try {
+      while (true) {
+        RestResult? result;
+        List<AccordMember>? page;
+        for (var attempt = 0; attempt < 3; attempt++) {
+          try {
+            result = await client.members
+                .list(
+                  spaceId,
+                  query: {'limit': 100, if (after != null) 'after': after},
+                  withUser: true,
+                )
+                .timeout(const Duration(seconds: 20));
+            page = result.listOrLog<AccordMember>('members for $spaceId');
+          } catch (e) {
+            debugPrint('Failed to load members for $spaceId: $e');
+          }
+          if (!_current(client, generation)) return;
+          if (page != null) break;
+          if (attempt < 2) {
+            await Future<void>.delayed(Duration(seconds: attempt + 1));
+            if (!_current(client, generation)) return;
+          }
+        }
+        if (page == null) throw StateError('Member page failed');
+        for (final member in page) {
+          if (member.userId.isNotEmpty) members[member.userId] = member;
+        }
+        final cursor = result!.extras['cursor'];
+        if (cursor is Map && cursor['has_more'] == false) break;
+        if (page.isEmpty) {
+          if (cursor is Map && cursor['has_more'] == true) {
+            throw StateError('Empty member page with more results');
+          }
+          break;
+        }
+        // Older servers omit cursors: a full page still needs an after fetch.
+        if (cursor is! Map && page.length < 100) break;
+        final next = cursor is Map
+            ? cursor['after']?.toString()
+            : page.last.userId;
+        if (next == null || next.isEmpty || !cursors.add(next)) {
+          throw StateError('Member pagination did not advance');
+        }
+        after = next;
       }
-      if (!ref.mounted) return;
-      if (list != null) {
-        if (!ref.isCurrentAccordClient(serverKey, client)) return;
-        final members = {for (final member in list) member.userId: member};
-        state = members;
-        ref
-            .read(membersLoadFailedProvider(serverKey, spaceId).notifier)
-            .set(false);
-        await _resolveUsers(client, members);
-        return;
+      if (!_current(client, generation)) return;
+      for (final entry in deltas.entries) {
+        if (entry.value == null) {
+          members.remove(entry.key);
+        } else {
+          members[entry.key] = entry.value!;
+        }
       }
-      // Back off before retrying (1s, then 2s); no wait after the final try.
-      if (attempt < 2) {
-        await Future.delayed(Duration(seconds: attempt + 1));
-        if (!ref.mounted) return;
+      for (final entry in _profileDeltas.entries) {
+        members[entry.key]?.user = entry.value;
       }
-    }
-    if (ref.mounted && ref.isCurrentAccordClient(serverKey, client)) {
+      _deltas = null;
+      state = members;
+      ref
+          .read(membersLoadFailedProvider(serverKey, spaceId).notifier)
+          .set(false);
+      await Future.wait([
+        _resolveUsers(client, members, generation),
+        _refreshPresences(client, generation),
+      ]);
+    } catch (e) {
+      if (!_current(client, generation)) return;
+      debugPrint('Failed to load complete roster for $spaceId: $e');
+      _deltas = null;
       ref
           .read(membersLoadFailedProvider(serverKey, spaceId).notifier)
           .set(true);
     }
   }
 
-  /// Fills each member's [AccordMember.user] the server didn't embed from the
-  /// user cache, fetching any still-missing users, then refreshes state so the
-  /// roster and message authors rebuild with real identities. Mirrors the
-  /// reference client.
+  Future<void> _refreshPresences(AccordClient client, int generation) async {
+    final notifier = ref.read(presenceControllerProvider(serverKey).notifier);
+    final baseline = ref.read(presenceControllerProvider(serverKey));
+    try {
+      final result = await client.members
+          .presences(spaceId)
+          .timeout(const Duration(seconds: 15));
+      if (!_current(client, generation) || !result.ok || result.data is! List) {
+        return;
+      }
+      notifier.mergeSnapshot(
+        (result.data as List).whereType<AccordPresence>(),
+        baseline: baseline,
+        homeDomain: Uri.parse(client.config.baseUrl).host,
+      );
+    } catch (e) {
+      // Older servers may lack the endpoint; READY/live updates still work.
+      debugPrint('Could not refresh presences for $spaceId: $e');
+    }
+  }
+
+  /// Enrich only records still in the current roster. Never restore a captured
+  /// map: a member may leave or be replaced while the user request is pending.
   Future<void> _resolveUsers(
     AccordClient client,
     Map<String, AccordMember> members,
+    int generation,
   ) async {
-    final usersController = ref.read(
-      accordUsersControllerProvider(serverKey).notifier,
-    );
-    final missing = <String>[];
-    for (final member in members.values) {
-      if (member.user != null) continue;
-      final known = usersController.cached(member.userId);
-      if (known != null) {
-        member.user = known;
-      } else if (member.userId.isNotEmpty) {
-        missing.add(member.userId);
-      }
-    }
-
+    final users = ref.read(accordUsersControllerProvider(serverKey).notifier);
     await Future.wait([
-      for (final userId in missing)
-        usersController.resolve(userId, client: client).then((user) {
-          if (user != null) members[userId]?.user = user;
-        }),
+      for (final member in members.values)
+        if (member.user == null && member.userId.isNotEmpty)
+          () async {
+            final user =
+                users.cached(member.userId) ??
+                await users.resolve(member.userId, client: client);
+            if (user == null || !_current(client, generation)) return;
+            final current = state?[member.userId];
+            if (!identical(current, member) || current?.user != null) return;
+            current!.user = users.cached(member.userId) ?? user;
+            state = {...state!};
+          }(),
     ]);
-    if (!ref.mounted) return;
-
-    // Replace the map identity so watchers rebuild with enriched members.
-    if (state != null && ref.isCurrentAccordClient(serverKey, client)) {
-      state = {...members};
-    }
   }
 
   /// Refreshes the cached [AccordMember.user] for [user] when that user is a
@@ -130,6 +191,9 @@ class AccordMembersController extends _$AccordMembersController {
   /// change (e.g. the current user edits their own profile, or a USER_UPDATE
   /// arrives) without reloading. No-op when the user isn't in the cache.
   void applyUserUpdate(AccordUser user) {
+    if (_deltas != null) _profileDeltas[user.id] = user;
+    final pending = _deltas?[user.id];
+    if (pending != null) pending.user = user;
     final current = state;
     final member = current?[user.id];
     if (member == null) return;
@@ -137,17 +201,23 @@ class AccordMembersController extends _$AccordMembersController {
     state = {...current!};
   }
 
-  /// Inserts [member], or replaces it in place if already present.
+  /// Inserts a gateway member without losing a resolved identity.
   void upsertMember(AccordMember member) {
-    final current = {...(state ?? const <String, AccordMember>{})};
-    current[member.userId] = member;
-    state = current;
+    if (member.userId.isEmpty) return;
+    member.user ??= state?[member.userId]?.user;
+    _deltas?[member.userId] = member;
+    if (state == null && _deltas != null) return;
+    state = {...?state, member.userId: member};
+    final client = ref.accordClient;
+    if (client != null) {
+      unawaited(_resolveUsers(client, {member.userId: member}, _generation));
+    }
   }
 
   void removeMember(String userId) {
+    _deltas?[userId] = null;
     final current = state;
     if (current == null || !current.containsKey(userId)) return;
-    final copy = {...current}..remove(userId);
-    state = copy;
+    state = {...current}..remove(userId);
   }
 }

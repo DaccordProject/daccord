@@ -32,17 +32,24 @@ String _membersJson(List<String> userIds) => jsonEncode([
 /// [responder] instead of real HTTP, so `AccordMembersController._load`'s
 /// retry/timeout/failure-flag behaviour can be driven deterministically.
 ProviderContainer makeContainer(
-  Future<http.Response> Function(http.Request request) responder,
-) {
+  Future<http.Response> Function(http.Request request) responder, {
+  AccordClient? clientOverride,
+}) {
   final server = AccordServer.fromBaseUrl('https://accord.example.test');
-  final client = AccordClient(
-    token: 'test-token',
-    tokenType: 'Bearer',
-    baseUrl: server.baseUrl,
-    gatewayUrl: server.gatewayUrl,
-    cdnUrl: server.cdnUrl,
-    httpClient: MockClient(responder),
-  );
+  final client =
+      clientOverride ??
+      AccordClient(
+        token: 'test-token',
+        tokenType: 'Bearer',
+        baseUrl: server.baseUrl,
+        gatewayUrl: server.gatewayUrl,
+        cdnUrl: server.cdnUrl,
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/presences'))
+            return http.Response('', 404);
+          return responder(request);
+        }),
+      );
   final session = AccordSession(
     server: server,
     token: 'test-token',

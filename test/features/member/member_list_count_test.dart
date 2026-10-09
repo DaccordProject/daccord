@@ -3,14 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('rosterOfflineCount', () {
-    test('uses complete space metadata instead of the loaded page size', () {
+    test('uses complete loaded roster instead of stale metadata', () {
       expect(
         rosterOfflineCount(
           memberCount: 237,
           presenceCount: 4,
           loadedOfflineCount: 96,
         ),
-        233,
+        96,
       );
     });
 

@@ -393,6 +393,78 @@ void main() {
     });
   });
 
+  group('scoped presence snapshots', () {
+    test('preserves gateway updates received during the REST request', () {
+      final c = makeContainer();
+      ctl(c, _keyA).upsert(presence('alice', 'idle'), homeDomain: _domainA);
+      final baseline = stateOf(c, _keyA);
+      ctl(c, _keyA).upsert(presence('alice', 'dnd'));
+      ctl(c, _keyA).mergeSnapshot(
+        [presence('alice', 'online'), presence('bob', 'online')],
+        baseline: baseline,
+        homeDomain: _domainA,
+      );
+      expect(accordPresenceStatus(stateOf(c, _keyA), 'alice'), 'dnd');
+      expect(accordPresenceStatus(stateOf(c, _keyA), 'bob'), 'online');
+    });
+    test(
+      'a snapshot cannot cancel an offline event waiting for grace',
+      () async {
+        final c = makeContainer();
+        ctl(c, _keyA).upsert(presence('alice', 'online'));
+        final baseline = stateOf(c, _keyA);
+        ctl(c, _keyA).upsert(presence('alice', 'offline'));
+        ctl(
+          c,
+          _keyA,
+        ).mergeSnapshot([presence('alice', 'online')], baseline: baseline);
+        await pastGrace();
+        expect(accordPresenceStatus(stateOf(c, _keyA), 'alice'), 'offline');
+      },
+    );
+    test('learning the domain preserves pending offline deadlines', () async {
+      final c = makeContainer();
+      ctl(c, _keyA)
+        ..upsert(presence('alice', 'online'))
+        ..upsert(presence('alice', 'offline'));
+      ctl(c, _keyA).upsert(presence('bob', 'online'), homeDomain: _domainA);
+      await pastGrace();
+      expect(
+        accordPresenceStatus(stateOf(c, _keyA), 'alice@$_domainA'),
+        'offline',
+      );
+    });
+    test('does not clear users visible through other spaces', () {
+      final c = makeContainer();
+      ctl(c, _keyA).seed([presence('other-space', 'online')]);
+      final baseline = stateOf(c, _keyA);
+      ctl(
+        c,
+        _keyA,
+      ).mergeSnapshot([presence('new-space', 'idle')], baseline: baseline);
+      expect(accordPresenceStatus(stateOf(c, _keyA), 'other-space'), 'online');
+      expect(accordPresenceStatus(stateOf(c, _keyA), 'new-space'), 'idle');
+    });
+    test(
+      'selecting Invisible takes effect immediately and cancels offline holds',
+      () async {
+        final c = makeContainer();
+        ctl(c, _keyA)
+          ..upsert(presence('alice', 'online'))
+          ..upsert(presence('alice', 'offline'));
+        ctl(c, _keyA).upsert(presence('alice', 'invisible'));
+        expect(
+          accordIsVisibleStatus(
+            accordPresenceStatus(stateOf(c, _keyA), 'alice'),
+          ),
+          isFalse,
+        );
+        await pastGrace();
+        expect(accordPresenceStatus(stateOf(c, _keyA), 'alice'), 'invisible');
+      },
+    );
+  });
+
   group('status helpers', () {
     test('unknown user defaults to offline with no custom status', () {
       expect(accordPresenceStatus(const PresenceMap(), 'nobody'), 'offline');

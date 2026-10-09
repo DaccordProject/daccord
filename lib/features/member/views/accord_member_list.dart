@@ -54,7 +54,10 @@ class _Roster extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final members = ref.watch(
-      accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId),
+      accordMembersControllerProvider(
+        ref.watchActiveServerKey() ?? '',
+        spaceId,
+      ),
     );
     // One selector for everything read off the cached space, so a rebuild
     // only walks spacesControllerProvider's list once instead of twice.
@@ -187,7 +190,9 @@ List<_RosterSection> _buildSections(
   );
 
   for (final member in members) {
-    if (accordPresenceStatus(presences, member.userId) == 'offline') {
+    if (!accordIsVisibleStatus(
+      accordPresenceStatus(presences, member.userId),
+    )) {
       offlineSection.members.add(member);
       continue;
     }
@@ -224,22 +229,13 @@ List<_RosterSection> _buildSections(
   return sections;
 }
 
-/// Uses the server's space summary for the complete offline total while the
-/// roster itself stays bounded to its initial page. Older servers omit these
-/// fields, in which case the visible rows remain the best available count.
+/// The roster loads every page, so counts use the same current rows and
+/// presence grace as grouping rather than an older space-summary snapshot.
 int rosterOfflineCount({
   required Object? memberCount,
   required Object? presenceCount,
   required int loadedOfflineCount,
-}) {
-  final total = memberCount is num ? memberCount.toInt() : null;
-  final online = presenceCount is num ? presenceCount.toInt() : null;
-  if (total == null || online == null || total < 0 || online < 0) {
-    return loadedOfflineCount;
-  }
-  final reported = total > online ? total - online : 0;
-  return reported > loadedOfflineCount ? reported : loadedOfflineCount;
-}
+}) => loadedOfflineCount;
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.label, required this.count});
@@ -290,7 +286,7 @@ class _MemberRow extends ConsumerWidget {
         : accordRoleColor(colorRole.color);
     final initial = accordInitial(name);
     // Offline members read as muted, matching the reference roster.
-    final dimmed = status == 'offline';
+    final dimmed = !accordIsVisibleStatus(status);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),

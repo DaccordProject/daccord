@@ -127,6 +127,19 @@ VoidCallback handleAccordEvents(
       // A READY after the first is a re-identify on a fresh session, which
       // replays nothing, so re-fetch every open pane (the active server's).
       if (hadReady && isActive()) {
+        for (final key in [...activeMemberSpaces]) {
+          if (key.serverKey != serverKey) continue;
+          unawaited(
+            ref
+                .read(
+                  accordMembersControllerProvider(
+                    key.serverKey,
+                    key.spaceId,
+                  ).notifier,
+                )
+                .reload(client),
+          );
+        }
         for (final key in [...activeMessageChannels]) {
           if (key.serverKey != serverKey) continue;
           unawaited(

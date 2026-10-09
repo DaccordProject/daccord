@@ -1,4 +1,5 @@
 import '../../models/member.dart';
+import '../../models/presence.dart';
 import '../endpoint_base.dart';
 import '../rest_result.dart';
 
@@ -15,6 +16,12 @@ class MembersApi extends EndpointBase {
     final result =
         await rest.makeRequest('GET', '/spaces/$spaceId/members', query: q);
     return result.deserializeArray(AccordMember.fromJson);
+  }
+
+  /// Current member-scoped presence snapshot, including explicit offline rows.
+  Future<RestResult> presences(String spaceId) async {
+    final result = await rest.makeRequest('GET', '/spaces/$spaceId/presences');
+    return result.deserializeArray(AccordPresence.fromJson);
   }
 
   /// Searches members by username or nickname.
