@@ -52,6 +52,7 @@ export 'src/models/audit_log_entry.dart';
 export 'src/models/automod_upload.dart';
 export 'src/models/call_signal.dart';
 export 'src/models/channel.dart';
+export 'src/models/device_ban.dart';
 export 'src/models/embed.dart';
 export 'src/models/emoji.dart';
 export 'src/models/invite.dart';

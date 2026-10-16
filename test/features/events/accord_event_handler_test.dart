@@ -1,15 +1,23 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/authentication/models/accord_session.dart';
+import 'package:bonfire/features/channels/controllers/open_tabs.dart';
+import 'package:bonfire/features/channels/models/open_tab.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/events/services/accord_event_handler.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/features/server/controllers/connections.dart';
+import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/user/controllers/blocked_users.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -211,5 +219,121 @@ void main() {
     expect(state.isUnread('dm1'), isFalse);
     expect(state.isUnread('c1'), isTrue);
     expect(state.mentionCount('c1'), 0);
+  });
+
+  group('losing a space', () {
+    late Directory tempDir;
+
+    setUp(() async {
+      // The open-tab strip persists to the settings box.
+      tempDir = Directory.systemTemp.createTempSync('event-handler-test');
+      Hive.init(tempDir.path);
+      await Hive.openBox('accord-settings');
+    });
+
+    tearDown(() async {
+      await Hive.deleteBoxFromDisk('accord-settings');
+      await Hive.close();
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    });
+
+    test('our own member.leave removes the space and its tabs', () async {
+      final connection = _FakeGatewayConnection();
+      final client = AccordClient(
+        baseUrl: 'https://accord.example.test',
+        gatewayUrl: 'wss://accord.example.test/ws',
+        connectionFactory: (_) => connection,
+      );
+      addTearDown(client.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          settingsControllerProvider.overrideWith(_QuietSettings.new),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final session = AccordSession(
+        server: AccordServer.fromBaseUrl('https://accord.example.test'),
+        token: 't',
+        userId: 'u-self',
+        username: 'self',
+      );
+      expect(session.key, _serverKey);
+      final spaces = [
+        AccordSpace(id: 's1', name: 'Banned from'),
+        AccordSpace(id: 's2', name: 'Still in'),
+      ];
+      container.read(connectionsControllerProvider.notifier)
+        ..register(session)
+        ..setActive(_serverKey)
+        ..setSpaces(_serverKey, spaces);
+      final spacesCtl = container.read(spacesControllerProvider.notifier);
+      for (final space in spaces) {
+        spacesCtl.upsertSpace(space);
+      }
+      container.read(openTabsControllerProvider.notifier)
+        ..open(
+          const OpenTab(
+            channelId: 'c2',
+            spaceId: 's2',
+            serverKey: _serverKey,
+            name: 'general',
+          ),
+        )
+        ..open(
+          const OpenTab(
+            channelId: 'c1',
+            spaceId: 's1',
+            serverKey: _serverKey,
+            name: 'general',
+          ),
+        );
+
+      addTearDown(
+        handleAccordEvents(
+          container.read(_refProvider),
+          client,
+          serverKey: _serverKey,
+          currentUserId: 'u-self',
+          selfDomain: 'accord.example.test',
+          isActive: () => true,
+        ),
+      );
+      client.login();
+      await Future<void>.delayed(Duration.zero);
+
+      List<String> railIds() => [
+        for (final s
+            in container.read(connectionsControllerProvider).active!.spaces)
+          s.id,
+      ];
+      List<String> activeIds() => [
+        for (final s in container.read(spacesControllerProvider)!) s.id,
+      ];
+
+      // Somebody else leaving changes nothing about our spaces.
+      connection.receive({
+        'op': GatewayOpcodes.event,
+        'type': 'member.leave',
+        'data': {'space_id': 's1', 'user_id': 'u-other'},
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(railIds(), ['s1', 's2']);
+
+      // Our own removal may echo back qualified to our home domain.
+      connection.receive({
+        'op': GatewayOpcodes.event,
+        'type': 'member.leave',
+        'data': {'space_id': 's1', 'user_id': 'u-self@accord.example.test'},
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      expect(railIds(), ['s2']);
+      expect(activeIds(), ['s2']);
+      final tabs = container.read(openTabsControllerProvider);
+      expect(tabs.tabs.map((t) => t.spaceId), ['s2']);
+      // The viewed tab was in the lost space, so the home screen falls back.
+      expect(tabs.activeTab, isNull);
+    });
   });
 }

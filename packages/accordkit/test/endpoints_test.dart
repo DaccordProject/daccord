@@ -48,6 +48,27 @@ void main() {
       final result = await UsersApi(rest).listRelationships();
       expect((result.data as List).single, isA<AccordRelationship>());
     });
+
+    test('registerDevice puts the fingerprint', () async {
+      rest = mockRest(log: log, responder: (_) => http.Response('', 204));
+      final result = await UsersApi(rest).registerDevice('ab' * 32);
+      expect(req.method, 'PUT');
+      expect(req.url.path, '/api/v1/users/@me/device');
+      expect(req.jsonBody, {'device_fingerprint': 'ab' * 32});
+      expect(result.ok, isTrue);
+    });
+
+    test('registerDevice surfaces a banned-device 403', () async {
+      rest = mockRest(
+        log: log,
+        responder: (_) =>
+            jsonError('forbidden', 'this device is banned', status: 403),
+      );
+      final result = await UsersApi(rest).registerDevice('ab' * 32);
+      expect(result.ok, isFalse);
+      expect(result.statusCode, 403);
+      expect(result.error?.message, 'this device is banned');
+    });
   });
 
   group('SpacesApi', () {
@@ -442,6 +463,71 @@ void main() {
       final result = await AdminApi(rest).listUsers();
       expect(req.url.path, '/api/v1/admin/users');
       expect((result.data as List).single, isA<AccordUser>());
+    });
+
+    final banJson = {
+      'id': '30',
+      'fingerprint': 'cd' * 32,
+      'user_id': '5',
+      'username': 'spammer',
+      'reason': 'spam',
+      'banned_by': '1',
+      'created_at': '2026-10-01T00:00:00Z',
+    };
+
+    test('banUserDevices posts the reason and types the bans', () async {
+      rest = mockRest(
+        log: log,
+        responder: (_) => jsonData({
+          'banned': 1,
+          'bans': [banJson],
+        }),
+      );
+      final result = await AdminApi(rest).banUserDevices('5', reason: 'spam');
+      expect(req.method, 'POST');
+      expect(req.url.path, '/api/v1/admin/users/5/device-bans');
+      expect(req.jsonBody, {'reason': 'spam'});
+      final data = result.data as Map<String, dynamic>;
+      expect(data['banned'], 1);
+      final ban = (data['bans'] as List).single as AccordDeviceBan;
+      expect(ban.username, 'spammer');
+      expect(ban.fingerprint, 'cd' * 32);
+    });
+
+    test('banUserDevices omits a missing reason', () async {
+      rest = mockRest(
+        log: log,
+        responder: (_) => jsonData({'banned': 0, 'bans': []}),
+      );
+      await AdminApi(rest).banUserDevices('5');
+      expect(req.jsonBody ?? const {}, isEmpty);
+    });
+
+    test('listDeviceBans forwards paging and deserializes', () async {
+      rest = mockRest(
+        log: log,
+        responder: (_) => jsonData([
+          {...banJson, 'user_id': null, 'username': null, 'reason': null},
+        ]),
+      );
+      final result = await AdminApi(rest)
+          .listDeviceBans(query: {'after': '30', 'limit': 50});
+      expect(req.method, 'GET');
+      expect(req.url.path, '/api/v1/admin/device-bans');
+      expect(req.url.queryParameters['after'], '30');
+      expect(req.url.queryParameters['limit'], '50');
+      final ban = (result.data as List).single as AccordDeviceBan;
+      expect(ban.userId, isNull);
+      expect(ban.username, isNull);
+      expect(ban.toJson().containsKey('reason'), isFalse);
+    });
+
+    test('deleteDeviceBan deletes by id', () async {
+      rest = mockRest(log: log, responder: (_) => http.Response('', 204));
+      final result = await AdminApi(rest).deleteDeviceBan('30');
+      expect(req.method, 'DELETE');
+      expect(req.url.path, '/api/v1/admin/device-bans/30');
+      expect(result.ok, isTrue);
     });
   });
 

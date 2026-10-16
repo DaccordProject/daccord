@@ -12,8 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Instance-admin "Users" tab: paginated user list with search, admin-flag
-/// toggle, disable/enable, password reset and delete. Mirrors the reference
-/// `server_management_panel` Users page. Uses `client.adminApi.*`.
+/// toggle, disable/enable, password reset, device ban and delete. Mirrors the
+/// reference `server_management_panel` Users page. Uses `client.adminApi.*`.
 class AdminUsersTab extends ConsumerStatefulWidget {
   const AdminUsersTab({super.key});
 
@@ -93,19 +93,63 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab>
       danger: disable,
     );
     if (ok != true) return;
-    final client = _client;
-    if (client == null) return;
     setState(() => _busy = true);
+    await _updateDisabled(user, disable);
+    if (mounted) setState(() => _busy = false);
+  }
+
+  /// Applies the disabled flag without confirmation; reports failure through
+  /// the tab's error banner. Callers own the [_busy] bracket.
+  Future<bool> _updateDisabled(AccordUser user, bool disable) async {
+    final client = _client;
+    if (client == null) return false;
     final result = await client.adminApi.updateUser(user.id, {
       'disabled': disable,
     });
-    if (!mounted) return;
-    setState(() => _busy = false);
+    if (!mounted) return false;
     if (!result.ok) {
       setState(() => error = result.errorOr('Failed to update user'));
-      return;
+      return false;
     }
     setState(() => user.disabled = disable);
+    return true;
+  }
+
+  /// Bans every device recorded for [user], then — by default — disables the
+  /// account too: a device ban alone leaves its existing sessions working.
+  Future<void> _banDevices(AccordUser user) async {
+    final request = await showDialog<({String? reason, bool disable})>(
+      context: context,
+      builder: (ctx) => _BanDevicesDialog(username: user.username),
+    );
+    if (request == null) return;
+    final client = _client;
+    if (client == null) return;
+    setState(() => _busy = true);
+    final result = await client.adminApi.banUserDevices(
+      user.id,
+      reason: request.reason,
+    );
+    if (!mounted) return;
+    if (!result.ok) {
+      setState(() {
+        _busy = false;
+        error = result.errorOr('Failed to ban devices');
+      });
+      return;
+    }
+    final data = result.data;
+    final banned = data is Map ? asInt(data['banned']) : 0;
+    if (request.disable && !user.disabled) await _updateDisabled(user, true);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    showInfoSnack(
+      context,
+      banned == 0
+          ? 'No devices recorded for this account yet — devices are recorded '
+                'when someone signs in with an up-to-date app.'
+          : 'Banned $banned ${banned == 1 ? 'device' : 'devices'}',
+    );
   }
 
   Future<void> _resetPassword(AccordUser user) async {
@@ -158,6 +202,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab>
 
   @override
   Widget build(BuildContext context) {
+    final selfId = ref.watchUserId();
     return AdminListScaffold(
       error: error,
       loading: loading,
@@ -202,6 +247,11 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab>
             onToggleDisabled: () => _setDisabled(items[i], !items[i].disabled),
             onResetPassword: () => _resetPassword(items[i]),
             onDelete: () => _delete(items[i]),
+            // Not for yourself, other admins or bots (no device to ban).
+            onBanDevices:
+                items[i].id == selfId || items[i].isAdmin || items[i].bot
+                ? null
+                : () => _banDevices(items[i]),
           );
         },
       ),
@@ -217,6 +267,7 @@ class _UserRow extends StatelessWidget {
     required this.onToggleDisabled,
     required this.onResetPassword,
     required this.onDelete,
+    required this.onBanDevices,
   });
 
   final AccordUser user;
@@ -225,6 +276,9 @@ class _UserRow extends StatelessWidget {
   final VoidCallback onToggleDisabled;
   final VoidCallback onResetPassword;
   final VoidCallback onDelete;
+
+  /// Null hides the entry.
+  final VoidCallback? onBanDevices;
 
   @override
   Widget build(BuildContext context) {
@@ -268,6 +322,8 @@ class _UserRow extends StatelessWidget {
               onToggleDisabled();
             case 'reset':
               onResetPassword();
+            case 'ban-devices':
+              onBanDevices?.call();
             case 'delete':
               onDelete();
           }
@@ -283,12 +339,93 @@ class _UserRow extends StatelessWidget {
           ),
           if (!user.bot)
             const PopupMenuItem(value: 'reset', child: Text('Reset password')),
+          if (onBanDevices != null)
+            PopupMenuItem(
+              value: 'ban-devices',
+              child: Text('Ban devices…', style: TextStyle(color: colors.red)),
+            ),
           PopupMenuItem(
             value: 'delete',
             child: Text('Delete user', style: TextStyle(color: colors.red)),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Confirms an instance device ban for [username], collecting an optional
+/// reason and whether to disable the account as well. Pops a
+/// `({String? reason, bool disable})` record, or null when cancelled.
+class _BanDevicesDialog extends StatefulWidget {
+  const _BanDevicesDialog({required this.username});
+
+  final String username;
+
+  @override
+  State<_BanDevicesDialog> createState() => _BanDevicesDialogState();
+}
+
+class _BanDevicesDialogState extends State<_BanDevicesDialog> {
+  final _reason = TextEditingController();
+  bool _disable = true;
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final reason = _reason.text.trim();
+    Navigator.of(
+      context,
+    ).pop((reason: reason.isEmpty ? null : reason, disable: _disable));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return AlertDialog(
+      title: Text('Ban devices — ${widget.username}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Bans every device this account has signed in from on this '
+            "server, so it can't register new accounts or sign in from them.",
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _reason,
+            maxLength: 512,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Reason (optional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          CheckboxListTile(
+            value: _disable,
+            onChanged: (value) => setState(() => _disable = value ?? false),
+            title: const Text('Also disable this account'),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          style: FilledButton.styleFrom(backgroundColor: colors.red),
+          child: const Text('Ban devices'),
+        ),
+      ],
     );
   }
 }

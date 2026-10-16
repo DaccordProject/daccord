@@ -1,11 +1,13 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 
 /// Confirms, then leaves [space] on the [serverKey] connection — also deleting
 /// the user's messages and data there when [deleteData] — and drops it from
@@ -46,12 +48,7 @@ Future<void> leaveSpace(
     }
     return;
   }
-  container
-      .read(connectionsControllerProvider.notifier)
-      .removeSpace(serverKey, space.id);
-  if (container.read(connectionsControllerProvider).activeKey == serverKey) {
-    container.read(spacesControllerProvider.notifier).removeSpace(space.id);
-  }
+  forgetSpace(container.read, serverKey, space.id);
   if (!context.mounted) return;
   showInfoSnack(
     context,
@@ -59,4 +56,22 @@ Future<void> leaveSpace(
         ? "Left '${space.name}' and deleted your data"
         : "Left '${space.name}'",
   );
+}
+
+/// Drops [spaceId] from the [serverKey] connection's rail cache, the active
+/// space list (when that connection is active) and the open-tab strip. The
+/// home screen then falls back to another space, which is what moves a user
+/// off a space they were viewing. Shared by leaving a space and by losing it
+/// (deleted, kicked or banned). [read] is a `Ref.read` or
+/// `ProviderContainer.read`.
+void forgetSpace(
+  T Function<T>(ProviderListenable<T> provider) read,
+  String serverKey,
+  String spaceId,
+) {
+  read(connectionsControllerProvider.notifier).removeSpace(serverKey, spaceId);
+  if (read(connectionsControllerProvider).activeKey == serverKey) {
+    read(spacesControllerProvider.notifier).removeSpace(spaceId);
+  }
+  read(openTabsControllerProvider.notifier).removeForSpace(serverKey, spaceId);
 }

@@ -181,6 +181,7 @@ When in doubt about Accord behaviour, read `packages/accordkit` (the vendored SD
   volatile dependency versions or test counts.
 - Keep changes minimal and reuse-first; this is a port, not a rewrite.
 - Session credential references remain random and profile-local. Platform vault operations share an isolate-wide queue because the Linux backend rewrites the entire vault; see `test/features/authentication/session_credential_vault_test.dart`.
+- Auth bodies and each gateway READY carry a per-server `device_fingerprint` (`lib/features/authentication/services/device_fingerprint.dart`): SHA-256 of a stable device id plus the server's endpoint identity; the raw id never leaves the device, and its vault fallback reuses the shared vault queue. Failures omit the field and never block sign-in. Tests asserting auth bodies or READY requests should override `deviceFingerprintProvider`.
 - Don't reintroduce Discord endpoints, Discord branding, or Firebase push without explicit instruction.
 
 ## Read state

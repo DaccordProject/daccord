@@ -23,6 +23,7 @@ import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
+import 'package:bonfire/features/spaces/utils/leave_space.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -121,6 +122,7 @@ VoidCallback handleAccordEvents(
             .read(pendingUploadsControllerProvider(serverKey).notifier)
             .reconcile(client),
       );
+      registerDeviceOnReady(ref, client, serverKey: serverKey);
       if (isActive()) {
         seedVoiceStatesFromReady(ref, data, serverKey: serverKey);
       }
@@ -356,12 +358,7 @@ VoidCallback handleAccordEvents(
     client.onSpaceDelete.listen((data) {
       final id = data['id']?.toString() ?? data['space_id']?.toString();
       if (id == null) return;
-      ref
-          .read(connectionsControllerProvider.notifier)
-          .removeSpace(serverKey, id);
-      if (isActive()) {
-        ref.read(spacesControllerProvider.notifier).removeSpace(id);
-      }
+      forgetSpace(ref.read, serverKey, id);
     }),
   );
 
@@ -471,7 +468,6 @@ VoidCallback handleAccordEvents(
   subs.add(client.onMemberUpdate.listen(cacheMember));
   subs.add(
     client.onMemberLeave.listen((data) {
-      if (!isActive()) return;
       final spaceId = data['space_id']?.toString();
       final userId =
           data['user_id']?.toString() ??
@@ -479,6 +475,15 @@ VoidCallback handleAccordEvents(
               ? (data['user'] as Map)['id']?.toString()
               : null);
       if (spaceId == null || userId == null) return;
+      // Our own membership ending (kicked, banned, or left on another device)
+      // takes the space away on every connection, exactly like a deletion —
+      // otherwise a banned user could keep browsing the stale space and DM
+      // its members. Federation may qualify our ID, hence [isSameUser].
+      if (isSameUser(userId, currentUserId, localDomain: selfDomain)) {
+        forgetSpace(ref.read, serverKey, spaceId);
+        return;
+      }
+      if (!isActive()) return;
       if (!activeMemberSpaces.contains((
         serverKey: serverKey,
         spaceId: spaceId,

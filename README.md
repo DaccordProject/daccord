@@ -55,7 +55,7 @@ This client is the front door: one native app for every screen you own.
 - 🌐 **Multi-server** — connect to many Daccord servers at once and switch between them seamlessly. Your work crew and your gaming crew, side by side.
 - 📁 **Space folders** — collapsed folders show a 2×2 preview of their first four available space icons.
 - 🧭 **Discovery** — browse public spaces from the server directory and join them, even before you've signed in anywhere.
-- 🛡️ **Server admin tools** — manage channels, roles, permissions, bans, invites, and custom emoji without ever leaving the app.
+- 🛡️ **Server admin tools** — manage channels, roles, permissions, bans (including instance-wide device bans against ban evasion), invites, and custom emoji without ever leaving the app.
 - 🔗 **Destination-aware app links** — `daccord://` links open the right server, space, channel, thread, or message once the owning account is ready.
 
 **The app itself**

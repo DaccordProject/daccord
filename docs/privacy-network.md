@@ -44,6 +44,25 @@ On Android, iOS, macOS, Windows, and Linux, reusable session tokens are stored t
 
 Web browsers do not expose an OS credential vault to Flutter applications. On Web, the secure-storage plugin uses a non-exportable WebCrypto key to protect values kept in origin-scoped local storage. This reduces offline portability but does not protect a token from script executing in the same origin or from a compromised browser profile. Web deployments must use HTTPS and strong security headers, and users should treat the browser profile as part of the trust boundary.
 
+## Device fingerprint
+
+To let server administrators ban a device rather than only an account (see
+[Moderation](administration/moderation.md#device-bans-server-administrators)),
+daccord sends each Accord server a device fingerprint when you register, sign in
+or complete two-factor sign-in, and each time the app connects to that server.
+
+The fingerprint is a SHA-256 hash of a device identifier combined with that
+server's address, so every server receives a different value and servers can't
+match the same device between them. The identifier itself never leaves the
+device. It is the operating system's device ID (Android's `ANDROID_ID`, the
+Windows device ID, the Linux machine ID or the macOS hardware UUID); on iOS, on
+the web, or where that is unavailable, it is a random ID generated once and kept
+in the platform credential vault — on the web, in browser storage that clearing
+site data removes. Guest sessions send no fingerprint.
+
+Servers use the fingerprint only for abuse prevention. Older servers ignore it,
+and sign-in never fails because the fingerprint couldn't be computed.
+
 ## What self-hosting controls
 
 Self-hosting keeps community accounts, messages, uploads, and the configured voice service under infrastructure you choose. daccord does not proxy those services. You can also replace the default public directory URL in settings. Ancillary update checks and explicitly initiated external requests remain separate from your server traffic as described above.

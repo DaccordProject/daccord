@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/authentication/services/device_fingerprint.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
@@ -8,6 +9,7 @@ import 'package:bonfire/features/server/utils/space_cache.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Seeds the voice-state cache from the gateway READY payload's `voice_states`
@@ -163,4 +165,42 @@ Future<void> _hydrateRoles(
       ? spaces.length
       : maxConcurrentFetches;
   await Future.wait([for (var i = 0; i < workerCount; i++) worker()]);
+}
+
+/// Records this device against the [serverKey] connection's session, once per
+/// READY, so sessions restored from a saved token (which never pass through
+/// sign-in) are still covered by device bans. Fire-and-forget: servers
+/// predating device bans answer 404/405, and every failure is ignored.
+///
+/// A 403 means the device is banned and the server has revoked this session's
+/// token; the next authenticated request then fails with 401, which signs the
+/// account out through `AccordAuth`'s unauthorized handling.
+void registerDeviceOnReady(
+  Ref ref,
+  AccordClient client, {
+  required String serverKey,
+}) {
+  final session = ref
+      .read(connectionsControllerProvider)
+      .connectionFor(serverKey)
+      ?.session;
+  // Guests and bots have no device to ban.
+  if (session == null || session.isGuest || session.tokenType == 'Bot') return;
+  final fingerprints = ref.read(deviceFingerprintProvider);
+  unawaited(() async {
+    try {
+      final fingerprint = await fingerprints.forServer(session.server.baseUrl);
+      if (fingerprint == null) return;
+      final result = await client.users.registerDevice(fingerprint);
+      // The server revoked this session's token along with the 403, so sign
+      // the account out now (the 401 path) instead of leaving its cached
+      // view up until some later request happens to fail.
+      if (result.statusCode == 403) {
+        debugPrint('This device is banned on ${session.server.baseUrl}.');
+        client.rest.onUnauthorized?.call();
+      }
+    } catch (error) {
+      debugPrint('Device registration failed: $error');
+    }
+  }());
 }

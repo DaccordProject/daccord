@@ -1,4 +1,5 @@
 import 'package:bonfire/features/automod/views/automod_panel.dart';
+import 'package:bonfire/features/admin/views/admin_device_bans_tab.dart';
 import 'package:bonfire/features/admin/views/admin_reports_tab.dart';
 import 'package:bonfire/features/admin/views/admin_settings_tab.dart';
 import 'package:bonfire/features/admin/views/admin_spaces_tab.dart';
@@ -10,8 +11,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 /// Instance-level (server-wide) administration panel — visible only to instance
-/// admins (`session.isAdmin`). Five tabs extending the reference client's
-/// `server_management_panel`: Spaces, Users, Reports, Settings, AutoMod.
+/// admins (`session.isAdmin`). Six tabs extending the reference client's
+/// `server_management_panel`: Spaces, Users, Devices, Reports, Settings,
+/// AutoMod.
 /// Non-admins are shown an access-denied placeholder rather than the tabs.
 class AccordAdminPanel extends ConsumerWidget {
   const AccordAdminPanel({super.key});
@@ -21,7 +23,7 @@ class AccordAdminPanel extends ConsumerWidget {
     final colors = BonfireThemeExtension.of(context);
     final isAdmin = ref.watchIsAdmin();
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Scaffold(
         backgroundColor: colors.background,
         appBar: AppBar(
@@ -38,6 +40,7 @@ class AccordAdminPanel extends ConsumerWidget {
                   tabs: [
                     Tab(text: 'Spaces'),
                     Tab(text: 'Users'),
+                    Tab(text: 'Devices'),
                     Tab(text: 'Reports'),
                     Tab(text: 'Settings'),
                     Tab(text: 'AutoMod'),
@@ -50,6 +53,7 @@ class AccordAdminPanel extends ConsumerWidget {
                 children: [
                   AdminSpacesTab(),
                   AdminUsersTab(),
+                  AdminDeviceBansTab(),
                   AdminReportsTab(),
                   AdminSettingsTab(),
                   AutomodPanel(),

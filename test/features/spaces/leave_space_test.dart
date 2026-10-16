@@ -4,6 +4,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -27,6 +28,18 @@ class _Auth extends AccordAuth {
   AccordClient? clientForKey(String key) => client;
 }
 
+/// Records which space's tabs were closed, without the Hive-backed strip.
+class _Tabs extends OpenTabsController {
+  final closed = <String>[];
+
+  @override
+  OpenTabsState build() => const OpenTabsState();
+
+  @override
+  void removeForSpace(String serverKey, String spaceId) =>
+      closed.add('$serverKey $spaceId');
+}
+
 void main() {
   for (final leavingActive in [true, false]) {
     for (final closeWhileLeaving in [true, false]) {
@@ -43,8 +56,12 @@ void main() {
               return response.future;
             }),
           );
+          final tabs = _Tabs();
           final container = ProviderContainer(
-            overrides: [accordAuthProvider.overrideWith(() => _Auth(client))],
+            overrides: [
+              accordAuthProvider.overrideWith(() => _Auth(client)),
+              openTabsControllerProvider.overrideWith(() => tabs),
+            ],
           );
           addTearDown(container.dispose);
           addTearDown(client.dispose);
@@ -119,6 +136,10 @@ void main() {
             container.read(spacesControllerProvider),
             leavingActive ? isEmpty : hasLength(1),
           );
+          // Its tabs close, so a viewer falls back to another space.
+          expect(tabs.closed, [
+            '${leavingActive ? active.key : background.key} same-id',
+          ]);
         },
       );
     }

@@ -19,9 +19,15 @@ import java.io.File
 /// Also hosts `com.daccord.app/background_connection`, which starts/stops the
 /// [BackgroundConnectionService] foreground service (see
 /// `lib/features/notifications/controllers/background_connection.dart`).
+///
+/// And `com.daccord.app/device_id`, whose `androidId` returns
+/// `Settings.Secure.ANDROID_ID` — the raw input to the per-server device
+/// fingerprint (see `lib/features/authentication/services/device_fingerprint.dart`).
+/// The raw value is hashed on the Dart side and never sent anywhere.
 class MainActivity : FlutterActivity() {
     private val channelName = "com.daccord.app/installer"
     private val backgroundChannelName = "com.daccord.app/background_connection"
+    private val deviceIdChannelName = "com.daccord.app/device_id"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -58,6 +64,24 @@ class MainActivity : FlutterActivity() {
                     "stop" -> {
                         BackgroundConnectionService.stop(this)
                         result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, deviceIdChannelName)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "androidId" -> {
+                        try {
+                            result.success(
+                                Settings.Secure.getString(
+                                    contentResolver,
+                                    Settings.Secure.ANDROID_ID,
+                                ),
+                            )
+                        } catch (e: Exception) {
+                            result.error("device_id_failed", e.message, null)
+                        }
                     }
                     else -> result.notImplemented()
                 }
