@@ -3,8 +3,9 @@
 /// unit-tested.
 ///
 /// Only messages that mention you (directly, by role, or via a non-suppressed
-/// `@everyone`) notify, never your own messages, never the channel you're
-/// currently looking at, and only while notifications are enabled.
+/// `@everyone`) notify, never your own messages or a blocked account's, never
+/// the channel you're currently looking at, and only while notifications are
+/// enabled.
 class MessageNotificationGate {
   const MessageNotificationGate._();
 
@@ -26,6 +27,8 @@ class MessageNotificationGate {
   /// [notificationsEnabled] mirrors `AccordSettings.notificationsEnabled`;
   /// [suppressEveryone] mirrors `AccordSettings.suppressEveryone`.
   /// [isOwnMessage] is true when the message author is the current user;
+  /// [fromBlockedUser] is true when the author is an account the user blocked,
+  /// which silences it unconditionally — even a per-channel `'all'` level;
   /// [isVisibleChannel] is true when the message lands in the channel currently
   /// on screen. [mentionsMe] folds direct + role mentions; [mentionEveryone] is
   /// the raw `@everyone`/`@here` flag (gated here by [suppressEveryone]).
@@ -46,6 +49,7 @@ class MessageNotificationGate {
     required bool notificationsEnabled,
     required bool suppressEveryone,
     required bool isOwnMessage,
+    bool fromBlockedUser = false,
     required bool isVisibleChannel,
     required bool mentionsMe,
     required bool mentionEveryone,
@@ -55,6 +59,7 @@ class MessageNotificationGate {
   }) {
     if (!notificationsEnabled) return false;
     if (isOwnMessage) return false;
+    if (fromBlockedUser) return false;
     if (isVisibleChannel) return false;
     if (spaceMuted) return false;
     // The user-set per-channel level overrides the mention default, but is

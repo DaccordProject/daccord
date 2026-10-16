@@ -12,6 +12,7 @@ void main() {
     bool notificationsEnabled = true,
     bool suppressEveryone = false,
     bool isOwnMessage = false,
+    bool fromBlockedUser = false,
     bool isVisibleChannel = false,
     bool mentionsMe = false,
     bool mentionEveryone = false,
@@ -22,6 +23,7 @@ void main() {
     notificationsEnabled: notificationsEnabled,
     suppressEveryone: suppressEveryone,
     isOwnMessage: isOwnMessage,
+    fromBlockedUser: fromBlockedUser,
     isVisibleChannel: isVisibleChannel,
     mentionsMe: mentionsMe,
     mentionEveryone: mentionEveryone,
@@ -37,6 +39,12 @@ void main() {
 
     test('a message with no mention does not notify', () {
       expect(notify(), isFalse);
+    });
+
+    test('a blocked account never notifies', () {
+      expect(notify(fromBlockedUser: true, mentionsMe: true), isFalse);
+      expect(notify(fromBlockedUser: true, isDirectMessage: true), isFalse);
+      expect(notify(fromBlockedUser: true, channelLevel: 'all'), isFalse);
     });
 
     group('@everyone', () {

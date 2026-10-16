@@ -12,8 +12,10 @@ const int accordBlockedRelationship = 2;
 /// The accounts this connection has blocked, by user id.
 ///
 /// Blocking is what the report dialog offers where no moderator will see the
-/// report, and it promises the blocked account's messages stop being shown, so
-/// the message surfaces filter on this set (App Review 1.2).
+/// report, and it promises the blocked account can't reach you: DM surfaces
+/// filter their messages on this set, and the gateway handler drops their DMs,
+/// mentions, sounds and call rings (App Review 1.2). Their messages in shared
+/// space channels stay visible.
 ///
 /// The server's relationship list is the source of truth: [refresh] seeds the
 /// set on gateway READY and the relationship events re-run it. The local

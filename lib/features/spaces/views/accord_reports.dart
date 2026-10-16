@@ -226,8 +226,8 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
         });
         return;
       }
-      // Filters their messages out of every pane straight away, which is what
-      // the checkbox promised.
+      // Silences them (and filters their DMs) straight away, which is what the
+      // checkbox promised.
       ref.blockedUsers.block(reportedUserId);
     }
 
@@ -245,8 +245,8 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
     if (_delivered) 'Moderators will review it shortly.',
     if (widget.targetType == 'message') 'The message is now hidden for you.',
     if (_blocked)
-      'The account is blocked: they can no longer message you, and their '
-          'messages are hidden.',
+      'The account is blocked: they can no longer message you directly or '
+          'notify you.',
   ];
 
   String get _outcomeTitle {
@@ -370,8 +370,8 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                           style: theme.textTheme.bodyMedium,
                         ),
                         subtitle: Text(
-                          'They can no longer message you, and their messages '
-                          'are hidden from your view.',
+                          'They can no longer message you directly or notify '
+                          'you.',
                           style: theme.textTheme.bodySmall!.copyWith(
                             color: colors.gray,
                           ),

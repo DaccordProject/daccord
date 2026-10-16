@@ -4,6 +4,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
+import 'package:bonfire/features/user/controllers/blocked_users.dart';
 import 'package:bonfire/features/voice/controllers/missed_calls.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:flutter/foundation.dart';
@@ -249,10 +250,18 @@ class CallController extends _$CallController {
 
   // ── Gateway-driven transitions (called from the event handler) ────────────────
 
-  /// A `call.ring` arrived. Ignored if it's our own ring or we're already in the
-  /// call; otherwise shows the incoming-call UI and starts the ringtone.
+  /// A `call.ring` arrived. Ignored if it's our own ring, a blocked account's,
+  /// or we're already in the call; otherwise shows the incoming-call UI and
+  /// starts the ringtone.
   void handleRing(AccordCallSignal sig, String serverKey, String myUserId) {
     if (sig.callerId == myUserId) return;
+    final callerId = sig.callerId;
+    if (callerId != null &&
+        ref
+            .read(blockedUsersControllerProvider(serverKey))
+            .contains(callerId)) {
+      return;
+    }
     if (ref.read(voiceControllerProvider).channelId == sig.channelId) return;
     // Already ringing for this channel — keep the existing prompt (and its
     // running expiry timer).

@@ -144,7 +144,8 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     final confirmed = await _confirm(
       title: 'Block user',
       message:
-          'Blocked users can\'t DM you and their messages are hidden. Continue?',
+          'Blocked users can\'t message you directly or notify you. Their '
+          'messages in spaces stay visible. Continue?',
       action: 'Block',
     );
     if (confirmed != true) return;
@@ -154,7 +155,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
       }),
       failure: 'Failed to block user',
       closeOnSuccess: true,
-      // Applies the "their messages are hidden" half of the promise right away
+      // Applies the block (DMs hidden, notifications silenced) right away
       // rather than at the next relationship fetch (#290).
       onSuccess: () => ref.blockedUsers.block(widget.userId),
     );

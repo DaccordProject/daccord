@@ -10,7 +10,7 @@ library;
 
 /// Bumped whenever [appTermsBody] changes materially. Acceptance is recorded
 /// against this number, so a bump re-prompts everyone.
-const int appTermsVersion = 1;
+const int appTermsVersion = 2;
 
 const String appTermsTitle = 'Terms of Use & Community Guidelines';
 
@@ -25,7 +25,7 @@ const String appTermsContactUrl =
     'https://github.com/DaccordProject/daccord/issues';
 
 const String appTermsBody = '''
-Last updated: 30 August 2026
+Last updated: 16 October 2026
 
 1. Accepting these terms
 
@@ -71,7 +71,9 @@ moderators, who are expected to act on them promptly — typically within 24
 hours — by removing content, or by kicking or banning the account responsible.
 
 You can also block any account at any time. Blocking stops that account from
-messaging you and hides its content from you. Blocking is yours alone: it takes
+messaging you directly, hides its direct messages from you, and silences its
+notifications and calls. Its messages in shared spaces stay visible, so you can
+still report them to that space's moderators. Blocking is yours alone: it takes
 effect immediately and does not require anyone's approval.
 
 Reporting content does not guarantee a particular outcome, and moderation

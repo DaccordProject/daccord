@@ -60,7 +60,11 @@ Map<String, String> _msgJson(String id, String content, String authorId) => {
 };
 
 class _Harness {
-  _Harness({Set<String> hidden = const {}, Set<String> blocked = const {}}) {
+  _Harness({
+    Set<String> hidden = const {},
+    Set<String> blocked = const {},
+    this.spaceId,
+  }) {
     final responder = MockClient((request) async {
       requests.add('${request.method} ${request.url.path}');
       if (request.method == 'GET' &&
@@ -126,16 +130,22 @@ class _Harness {
   }
 
   final List<String> requests = [];
+  final String? spaceId;
   late final AccordClient client;
   late final ProviderContainer container;
 
-  /// A DM pane: no space, so nothing here can fall back to space moderation.
+  /// A DM pane by default: no space, so nothing here can fall back to space
+  /// moderation. Pass [spaceId] for a space channel.
   Widget get app => UncontrolledProviderScope(
     container: container,
     child: MaterialApp(
       theme: buildAppTheme(AppThemePreset.dark),
-      home: const Scaffold(
-        body: MessagePane(channel: null, channelId: _channelId, spaceId: null),
+      home: Scaffold(
+        body: MessagePane(
+          channel: null,
+          channelId: _channelId,
+          spaceId: spaceId,
+        ),
       ),
     ),
   );
@@ -168,7 +178,10 @@ void main() {
       ),
     );
     await _tick(tester);
-    expect(find.widgetWithText(PopupMenuItem<String>, 'Report'), findsOneWidget);
+    expect(
+      find.widgetWithText(PopupMenuItem<String>, 'Report'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.widgetWithText(PopupMenuItem<String>, 'Report'));
     await _tick(tester);
@@ -212,7 +225,7 @@ void main() {
     expect(_body('from them'), findsNothing);
   });
 
-  testWidgets('a blocked account\'s messages are hidden, as the block claims', (
+  testWidgets('a blocked account\'s direct messages are hidden', (
     tester,
   ) async {
     final harness = _Harness(blocked: {_themId});
@@ -222,5 +235,17 @@ void main() {
 
     expect(_body('from me'), findsOneWidget);
     expect(_body('from them'), findsNothing);
+  });
+
+  testWidgets('a blocked account\'s space messages stay visible', (
+    tester,
+  ) async {
+    final harness = _Harness(blocked: {_themId}, spaceId: 's1');
+    addTearDown(harness.dispose);
+    await tester.pumpWidget(harness.app);
+    await _tick(tester);
+
+    expect(_body('from me'), findsOneWidget);
+    expect(_body('from them'), findsOneWidget);
   });
 }

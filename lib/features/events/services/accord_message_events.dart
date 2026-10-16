@@ -17,6 +17,7 @@ import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:bonfire/features/notifications/utils/notification_gate.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/features/user/controllers/blocked_users.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -52,12 +53,21 @@ void bindMessageEvents(
       final isVisibleChannel =
           active && isAccordChannelVisible(serverKey, message.channelId);
       final settings = ref.read(settingsControllerProvider);
-      final countsAsMention = MessageNotificationGate.countsAsMention(
-        mentionsMe: mentionsMe,
-        mentionEveryone: message.mentionEveryone,
-        suppressEveryone: settings.suppressEveryone,
-      );
       final isDirectMessage = message.spaceId == null;
+      // A blocked account never reaches you: its DMs are dropped outright (the
+      // pane filters them too), and its space messages still land in the
+      // channel but never notify, chime or count as a mention.
+      final blockedAuthor = ref
+          .read(blockedUsersControllerProvider(serverKey))
+          .contains(message.authorId);
+      if (blockedAuthor && isDirectMessage) return;
+      final countsAsMention =
+          !blockedAuthor &&
+          MessageNotificationGate.countsAsMention(
+            mentionsMe: mentionsMe,
+            mentionEveryone: message.mentionEveryone,
+            suppressEveryone: settings.suppressEveryone,
+          );
       final spaceMuted =
           !isDirectMessage &&
           settings.isSpaceMuted(serverKey, message.spaceId!);
@@ -147,6 +157,7 @@ void bindMessageEvents(
       // active connection, which owns that pointer.
       final notify = MessageNotificationGate.shouldNotify(
         notificationsEnabled: settings.notificationsEnabled,
+        fromBlockedUser: blockedAuthor,
         suppressEveryone: settings.suppressEveryone,
         isOwnMessage: isOwn,
         isVisibleChannel: isVisibleChannel,
@@ -185,6 +196,7 @@ void bindMessageEvents(
       if (settings.soundsEnabled &&
           !spaceMuted &&
           !isOwn &&
+          !blockedAuthor &&
           settings.channelNotificationLevel(serverKey, message.channelId) !=
               'nothing') {
         soundManager.playForMessage(

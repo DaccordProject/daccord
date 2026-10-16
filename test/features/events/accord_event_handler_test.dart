@@ -7,6 +7,7 @@ import 'package:bonfire/features/events/services/accord_event_handler.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:bonfire/features/user/controllers/blocked_users.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -36,6 +37,16 @@ class _QuietSettings extends SettingsController {
   @override
   AccordSettings build() =>
       const AccordSettings(notificationsEnabled: false, soundsEnabled: false);
+}
+
+/// Seeds the blocked set without the relationship fetch.
+class _FakeBlockedUsers extends BlockedUsersController {
+  _FakeBlockedUsers(this.initial);
+
+  final Set<String> initial;
+
+  @override
+  Set<String> build(String serverKey) => initial;
 }
 
 const _serverKey = 'u-self@https://accord.example.test';
@@ -138,5 +149,67 @@ void main() {
     expect(state.isUnread('c1'), isFalse);
     // The ack is what stops READY's `unread` array from re-lighting the channel.
     expect(acked, contains('POST /api/v1/channels/c1/ack {"message_id":"m7"}'));
+  });
+
+  test('a blocked account never lights a DM or counts as a mention', () async {
+    final connection = _FakeGatewayConnection();
+    final client = AccordClient(
+      baseUrl: 'https://accord.example.test',
+      gatewayUrl: 'wss://accord.example.test/ws',
+      connectionFactory: (_) => connection,
+    );
+    addTearDown(client.dispose);
+    final container = ProviderContainer(
+      overrides: [
+        settingsControllerProvider.overrideWith(_QuietSettings.new),
+        blockedUsersControllerProvider(
+          _serverKey,
+        ).overrideWith(() => _FakeBlockedUsers({'u-blocked'})),
+      ],
+    );
+    addTearDown(container.dispose);
+    addTearDown(
+      handleAccordEvents(
+        container.read(_refProvider),
+        client,
+        serverKey: _serverKey,
+        currentUserId: 'u-self',
+        selfDomain: 'accord.example.test',
+        isActive: () => true,
+      ),
+    );
+    client.login();
+    await Future<void>.delayed(Duration.zero);
+
+    // A DM from the blocked account is dropped outright.
+    connection.receive({
+      'op': GatewayOpcodes.event,
+      'type': 'message.create',
+      'data': {
+        'id': 'm1',
+        'channel_id': 'dm1',
+        'author_id': 'u-blocked',
+        'content': 'let me in',
+      },
+    });
+    // A space mention from them still lands, but as a plain unread.
+    connection.receive({
+      'op': GatewayOpcodes.event,
+      'type': 'message.create',
+      'data': {
+        'id': 'm2',
+        'channel_id': 'c1',
+        'space_id': 's1',
+        'author_id': 'u-blocked',
+        'content': 'hey @self',
+        'mentions': ['u-self'],
+      },
+    });
+    await Future<void>.delayed(Duration.zero);
+
+    final state = container.read(readStateControllerProvider(_serverKey));
+    expect(state.isUnread('dm1'), isFalse);
+    expect(state.isUnread('c1'), isTrue);
+    expect(state.mentionCount('c1'), 0);
   });
 }
