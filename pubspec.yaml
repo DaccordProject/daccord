@@ -92,6 +92,10 @@ dependencies:
   # Pinned to 9.x: the livekit_client fork pulls win32 ^5 (via device_info_plus),
   # and package_info_plus >=10 requires win32 ^6, which conflicts.
   package_info_plus: ^9.0.0
+  # Stable per-device identifier for the abuse-prevention device fingerprint
+  # (lib/features/authentication/services/device_fingerprint.dart). Already
+  # resolved transitively by the livekit_client fork; 12.x keeps win32 ^5.
+  device_info_plus: ^12.3.0
   # Desktop window control — restore/persist last window size & position.
   window_manager: ^0.4.3
 

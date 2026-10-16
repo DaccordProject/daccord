@@ -191,6 +191,10 @@ release reuses it:
   hand before API submissions work.
 - **Google Play:** the store listing, content rating and Data safety
   declarations — already complete for this app.
+- Both privacy declarations should account for the abuse-prevention device
+  fingerprint (a per-server hash of a device identifier, sent only to the
+  Accord server the user signs in to — see `docs/privacy-network.md`) when they
+  are next reviewed.
 
 **macOS is not there yet** — see the next section.
 
@@ -707,7 +711,8 @@ SPACES, ROLES, AND MODERATION
     is why they are not visible on a brand-new account. Sign in as the demo
     admin account (also supplied) to reach them.
 18. Server administrators additionally get a "Server administration" entry in
-    Settings → Account, with instance-wide user, space, and report management.
+    Settings → Account, with instance-wide user, space, device-ban and report
+    management.
 
 ACCOUNT AND PRIVACY
 19. Settings → Account has profile editing, password and two-factor

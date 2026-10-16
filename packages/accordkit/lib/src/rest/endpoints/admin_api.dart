@@ -1,5 +1,7 @@
+import '../../models/device_ban.dart';
 import '../../models/space.dart';
 import '../../models/user.dart';
+import '../../utils/json_utils.dart';
 import '../endpoint_base.dart';
 import '../rest_result.dart';
 
@@ -55,5 +57,42 @@ class AdminApi extends EndpointBase {
       String userId, Map<String, dynamic> data) {
     return rest.makeRequest('POST', '/admin/users/$userId/reset-password',
         body: data);
+  }
+
+  /// Bans every device recorded for [userId] on this instance, so none of
+  /// them can register or sign in again. Does not disable the account — use
+  /// [updateUser] with `{"disabled": true}` for that. On success
+  /// [RestResult.data] is `{"banned": int, "bans": List<AccordDeviceBan>}`.
+  Future<RestResult> banUserDevices(String userId, {String? reason}) async {
+    final result = await rest.makeRequest(
+      'POST',
+      '/admin/users/$userId/device-bans',
+      body: {if (reason != null) 'reason': reason},
+    );
+    final d = result.data;
+    if (result.ok && d is Map<String, dynamic>) {
+      result.data = {
+        ...d,
+        'bans': [
+          for (final ban in asList(d['bans']) ?? const [])
+            if (ban is Map<String, dynamic>) AccordDeviceBan.fromJson(ban),
+        ],
+      };
+    }
+    return result;
+  }
+
+  /// Lists device bans, newest first. Page with `after` (a ban ID) and
+  /// `limit` in [query].
+  Future<RestResult> listDeviceBans(
+      {Map<String, dynamic> query = const {}}) async {
+    final result =
+        await rest.makeRequest('GET', '/admin/device-bans', query: query);
+    return result.deserializeArray(AccordDeviceBan.fromJson);
+  }
+
+  /// Lifts a device ban.
+  Future<RestResult> deleteDeviceBan(String banId) {
+    return rest.makeRequest('DELETE', '/admin/device-bans/$banId');
   }
 }

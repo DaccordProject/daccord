@@ -21,6 +21,10 @@ Right-click a member in the member list to access moderation actions:
 
 These actions require the appropriate permissions for your role.
 
+A kicked or banned member's client drops the space as soon as the server tells
+it, closing any of its open tabs — they can't keep browsing it, or start direct
+messages with its members, from a stale view.
+
 ## Managing Bans
 
 1. Open space settings.
@@ -72,3 +76,40 @@ The audit log records all administrative actions taken in your space:
 4. Use the filter and search to find specific events.
 
 Each entry shows who performed the action, what was affected, and when it happened.
+
+## Device bans (server administrators)
+
+Space bans stop an account. When someone keeps returning with fresh accounts,
+a server (instance) administrator can ban their devices too:
+
+1. Open **Server administration** (Settings → Account) and go to **Users**.
+2. Open the account's **⋮** menu and choose **Ban devices…**. The entry is
+   hidden for your own account, other administrators and bots.
+3. Optionally give a reason. **Also disable this account** is checked by
+   default: a device ban alone doesn't sign the account out or stop it, so
+   leave it checked unless you only want to block new sign-ups.
+4. Confirm with **Ban devices**.
+
+This bans every device the account has signed in from on this server. A banned
+device can't register a new account or sign in to any account on the server,
+and a session already open on it is ended the next time it connects. If the
+snackbar says no devices were recorded, the account has only used older apps
+since the server started recording devices; disabling the account still
+applies.
+
+The **Devices** tab lists every device ban, newest first, with the account it
+came from, a shortened device fingerprint, the reason, when it was made and by
+whom. **Unban** lifts one; it does not re-enable a disabled account (do that
+from **Users**).
+
+Device bans raise the cost of ban evasion; they are not airtight:
+
+- A modified client can simply not send a fingerprint, and servers accept
+  sign-ins without one so that older apps keep working.
+- The web app has no hardware identifier, so it uses a random ID kept in the
+  browser's site storage. Clearing site data or using another browser profile
+  produces a new device.
+- Each server sees a different fingerprint for the same device, so a ban never
+  carries over to another server. See
+  [Network Behavior and Privacy](../privacy-network.md#device-fingerprint) for
+  how fingerprints are derived.

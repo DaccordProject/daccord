@@ -53,4 +53,14 @@ class PlatformSessionCredentialVault implements SessionCredentialVault {
   @override
   Future<void> delete(String reference) =>
       _serialized(() => _storage.delete(key: _key(reference)));
+
+  /// Reads an app-level secret stored under the literal [key], outside the
+  /// session namespace (e.g. the generated device id). Shares the queue above,
+  /// so it can't race a session write on the Linux whole-vault backend.
+  Future<String?> readKey(String key) =>
+      _serialized(() => _storage.read(key: key));
+
+  /// Writes an app-level secret under the literal [key]; see [readKey].
+  Future<void> writeKey(String key, String value) =>
+      _serialized(() => _storage.write(key: key, value: value));
 }

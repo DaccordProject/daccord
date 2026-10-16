@@ -5,6 +5,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_session_store.dart';
+import 'package:bonfire/features/authentication/services/device_fingerprint.dart';
 import 'package:bonfire/features/authentication/utils/credential_validation.dart';
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/channels/controllers/muted_channels.dart';
@@ -680,6 +681,21 @@ class AccordAuth extends _$AccordAuth {
   // add-a-server returns [AddServerOutcome]s so the home screen isn't bounced
   // to login).
 
+  // Each also sends this device's per-server fingerprint so a server can
+  // refuse a banned device ("… is not available from this device"); that 403
+  // message reaches the user verbatim like any other auth error.
+
+  /// The `device_fingerprint` body field for [server], or nothing when the
+  /// fingerprint can't be computed promptly — sign-in never waits long on it
+  /// or fails because of it. Servers predating device bans ignore the field.
+  Future<Map<String, String>> _deviceField(AccordServer server) async {
+    final fingerprint = await ref
+        .read(deviceFingerprintProvider)
+        .forServer(server.baseUrl)
+        .timeout(const Duration(seconds: 3), onTimeout: () => null);
+    return {if (fingerprint != null) 'device_fingerprint': fingerprint};
+  }
+
   Future<_AuthAttempt> _attemptLogin(
     AccordServer server, {
     required String username,
@@ -690,6 +706,7 @@ class AccordAuth extends _$AccordAuth {
       final result = await authClient.auth.login({
         'username': username,
         'password': password,
+        ...await _deviceField(server),
       });
       if (!result.ok) {
         return _AuthAttempt.error(result.error?.message ?? 'Login failed');
@@ -719,6 +736,7 @@ class AccordAuth extends _$AccordAuth {
         'username': username,
         'password': password,
         'display_name': (dn == null || dn.isEmpty) ? username : dn,
+        ...await _deviceField(server),
       });
       if (!result.ok) {
         return _AuthAttempt.error(
@@ -743,6 +761,7 @@ class AccordAuth extends _$AccordAuth {
       final result = await authClient.auth.loginMfa({
         'ticket': ticket,
         'code': code,
+        ...await _deviceField(server),
       });
       if (!result.ok) {
         return _AuthAttempt.error(

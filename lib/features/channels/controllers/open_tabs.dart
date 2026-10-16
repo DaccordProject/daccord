@@ -135,6 +135,19 @@ class OpenTabsController extends _$OpenTabsController {
     _commit(OpenTabsState(tabs: tabs, activeKey: activeKey));
   }
 
+  /// Removes the tabs of one space the user no longer has (left, kicked,
+  /// banned or deleted). Clears the active tab when it was one of them, so the
+  /// home screen falls back to another space instead of a dead channel.
+  void removeForSpace(String serverKey, String spaceId) {
+    bool inSpace(OpenTab t) => t.serverKey == serverKey && t.spaceId == spaceId;
+    if (!state.tabs.any(inSpace)) return;
+    final tabs = state.tabs.whereNot(inSpace).toList();
+    final activeKey = tabs.any((t) => t.key == state.activeKey)
+        ? state.activeKey
+        : null;
+    _commit(OpenTabsState(tabs: tabs, activeKey: activeKey));
+  }
+
   /// Drops tabs whose owning server isn't in [serverKeys]. Used on session
   /// restore to prune tabs left behind by accounts that have since been logged
   /// out (otherwise they'd linger in the strip as stale duplicates).

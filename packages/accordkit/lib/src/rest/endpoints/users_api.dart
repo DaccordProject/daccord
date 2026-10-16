@@ -58,6 +58,15 @@ class UsersApi extends EndpointBase {
     return result;
   }
 
+  /// Records this device's per-server [fingerprint] against the current
+  /// session. 204 on success; 403 when the device is banned (the server also
+  /// revokes the session's token). Servers predating device bans answer
+  /// 404/405.
+  Future<RestResult> registerDevice(String fingerprint) {
+    return rest.makeRequest('PUT', '/users/@me/device',
+        body: {'device_fingerprint': fingerprint});
+  }
+
   /// Deletes the current user's account.
   Future<RestResult> deleteMe([Map<String, dynamic> data = const {}]) {
     return rest.makeRequest('DELETE', '/users/@me', body: data);
