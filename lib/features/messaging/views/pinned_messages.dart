@@ -135,7 +135,9 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
     final colors = BonfireThemeExtension.of(context);
     // Watched here rather than inside the FutureBuilder, which builds outside
     // this widget's build phase.
-    final visibility = ref.watchMessageVisibility();
+    final visibility = ref.watchMessageVisibility(
+      directMessage: widget.spaceId == null,
+    );
     final currentUserId = ref.watchUserId();
     final members = widget.spaceId == null
         ? null

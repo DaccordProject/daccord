@@ -61,3 +61,9 @@ message from your view and offers to block the sender, which is pre-selected
 here: a DM has no space moderators, so blocking is what stops the contact. See
 [Moderation](../administration/moderation.md) for what happens to a report after you
 file it.
+
+Blocking hides the account's direct messages and stops it notifying you: its
+DMs, mentions, message sounds and call rings are all dropped. Its messages in
+shared space channels stay visible (without notifying), so the conversation
+around them still makes sense and you can report them to that space's
+moderators. Unblock from Friends → **Blocked**.

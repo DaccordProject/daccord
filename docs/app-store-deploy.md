@@ -299,10 +299,13 @@ Blocking was already in place (member popout, DM relationship actions) and is
 now reachable from the two places a reviewer actually lands: the account-level
 profile a DM user tap opens, and a visible overflow button in the 1:1 DM header
 (the menu behind it was long-press/right-click only). A blocked account's
-messages are filtered out of every message surface — see `MessageVisibility`
+direct messages are filtered out of every DM surface — see `MessageVisibility`
 (`lib/features/messaging/utils/message_visibility.dart`) over
-`BlockedUsersController` — so the promise the block makes is one the client
-keeps rather than one only the server could.
+`BlockedUsersController` — and the gateway handler drops its DMs, mentions,
+sounds and call rings, so the promise the block makes is one the client keeps
+rather than one only the server could. Since 0.2.27 its messages in shared
+space channels stay visible (without notifying); the app terms (version 2) say
+so.
 
 Do not re-gate the terms on a server response: nothing a signed-out client can
 read is guaranteed to be there, and the gate has to hold before any server is
@@ -450,10 +453,10 @@ popout, which carries **Report user** beside **Block user**.
 **4 — Blocking an abusive user.** In a space, tap a member's avatar and use
 **Block user** in the popout. In a DM, use **Block** on the profile or the
 header menu. Also worth showing: the report dialog's **"Also block …"**
-checkbox, whose subtitle promises *"They can no longer message you, and their
-messages are hidden from your view."* — a promise the client keeps via
-`MessageVisibility`, so demonstrate a blocked account's messages disappearing
-from the pane.
+checkbox, whose subtitle promises *"They can no longer message you directly or
+notify you."* — a promise the client keeps via `MessageVisibility` and the
+gateway handler, so demonstrate a blocked account's DM messages disappearing
+from the DM pane.
 
 #### Before a retake
 
@@ -484,7 +487,7 @@ explicit instead of asking the reviewer to infer either from the video:
 > is the provider's remote-control overlay. Terms before authentication:
 > [00:00–00:00]. Space-message reporting and “Report submitted” confirmation:
 > [00:00–00:00]. Direct-message reporting and “Report submitted” confirmation:
-> [00:00–00:00]. Blocking and the blocked user's messages disappearing:
+> [00:00–00:00]. Blocking and the blocked user's direct messages disappearing:
 > [00:00–00:00].
 
 ## Guideline 2.3.10: what the iOS screenshots may show

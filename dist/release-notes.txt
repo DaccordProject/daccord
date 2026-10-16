@@ -4,7 +4,7 @@
 # To override one release, add `# Release version: x.y.z` and the user-facing
 # text below it. The script rejects missing or stale version markers before any
 # store upload.
-# Release version: 0.2.26
+# Release version: 0.2.27
 
-• Server join messages now show each member’s current name, including older messages that previously displayed an email address.
-• Join message names stay consistent in chat, threads, pinned messages, search results, reply previews and copied text.
+• Blocking someone now stops their direct messages, mentions, sounds and call rings, while their messages in shared channels stay visible.
+• Member lists now include every member, and online status recovers more reliably after reconnecting.

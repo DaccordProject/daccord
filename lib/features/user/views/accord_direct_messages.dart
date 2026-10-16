@@ -358,7 +358,9 @@ Future<void> _blockDmUser(
   final confirmed = await showConfirmDialog(
     context,
     title: 'Block user',
-    message: 'Blocked users cannot DM you and their messages are hidden.',
+    message:
+        'Blocked users can\'t message you directly or notify you. Their '
+        'messages in spaces stay visible.',
     confirmLabel: 'Block',
     danger: true,
   );

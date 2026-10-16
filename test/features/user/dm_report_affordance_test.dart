@@ -110,7 +110,7 @@ void main() {
 
     expect(find.text('Block user'), findsOneWidget);
     expect(
-      find.textContaining('Blocked users cannot DM you'),
+      find.textContaining('Blocked users can\'t message you directly'),
       findsOneWidget,
     );
   });

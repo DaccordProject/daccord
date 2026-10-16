@@ -323,9 +323,12 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
         widget.root.id,
       ),
     );
-    // Reported replies and blocked authors are filtered here as they are in the
-    // message pane — a hide made in one surface applies in all of them (#290).
-    final visibility = ref.watchMessageVisibility();
+    // Reported replies (and, in a DM, blocked authors) are filtered here as
+    // they are in the message pane — a hide made in one surface applies in all
+    // of them (#290).
+    final visibility = ref.watchMessageVisibility(
+      directMessage: widget.spaceId == null,
+    );
     final replies = loadedReplies == null
         ? null
         : visibility.filter(loadedReplies);

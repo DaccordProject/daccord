@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/user/controllers/blocked_users.dart';
 import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/missed_calls.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
@@ -32,6 +33,12 @@ class _FakeVoiceController extends VoiceController {
   }
 }
 
+/// 'u9' is blocked on the `u1@s` connection, without the relationship fetch.
+class _FakeBlockedUsers extends BlockedUsersController {
+  @override
+  Set<String> build(String serverKey) => const {'u9'};
+}
+
 AccordCallSignal _ring(
   String channelId, {
   String caller = 'u2',
@@ -60,6 +67,9 @@ void main() {
       overrides: [
         voiceControllerProvider.overrideWith(_FakeVoiceController.new),
         callRingtoneProvider.overrideWithValue(_SilentRingtone()),
+        blockedUsersControllerProvider(
+          'u1@s',
+        ).overrideWith(_FakeBlockedUsers.new),
       ],
     );
   });
@@ -178,6 +188,13 @@ void main() {
 
     test('our own ring echo is ignored and never counts as missed', () {
       call().handleRing(_ring('dm1', caller: me), 'u1@s', me);
+      expect(container.read(callControllerProvider).incoming, isNull);
+      call().handleCancelOrEnd(_cancel('dm1'));
+      expect(missed(), isEmpty);
+    });
+
+    test('a blocked caller never rings and never counts as missed', () {
+      call().handleRing(_ring('dm1', caller: 'u9'), 'u1@s', me);
       expect(container.read(callControllerProvider).incoming, isNull);
       call().handleCancelOrEnd(_cancel('dm1'));
       expect(missed(), isEmpty);

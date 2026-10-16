@@ -391,10 +391,12 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
         channelId,
       ),
     );
-    // Messages the user reported, and everything from an account they blocked,
-    // are dropped from their own view — moderation elsewhere is neither instant
-    // nor guaranteed (#290).
-    final visibility = ref.watchMessageVisibility();
+    // Messages the user reported, and in a DM everything from an account they
+    // blocked, are dropped from their own view — moderation elsewhere is
+    // neither instant nor guaranteed (#290).
+    final visibility = ref.watchMessageVisibility(
+      directMessage: spaceId == null,
+    );
     final messages = loadedMessages == null
         ? loadedMessages
         : visibility.filter(loadedMessages);
