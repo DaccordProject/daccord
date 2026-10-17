@@ -63,7 +63,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab>
   Map<String, dynamic> _query({String? after}) {
     final q = <String, dynamic>{'limit': _userPageSize};
     final search = _search.text.trim();
-    if (search.isNotEmpty) q['query'] = search;
+    if (search.isNotEmpty) q['search'] = search;
     if (after != null) q['after'] = after;
     return q;
   }
