@@ -79,7 +79,8 @@ import 'package:collection/collection.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show ValueListenable, ValueNotifier, kIsWeb, visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pasteboard/pasteboard.dart';
@@ -107,11 +108,16 @@ class MessagePane extends ConsumerStatefulWidget {
     this.canManageMessagesOverride,
     this.onUserTap,
     this.onUserContextMenu,
+    this.composerTitle,
   });
 
   final AccordChannel? channel;
   final String? channelId;
   final String? spaceId;
+
+  /// What the composer placeholder names instead of [channel]'s name: DMs
+  /// pass the conversation title (their channel has no name).
+  final String? composerTitle;
 
   /// Renders the channel's *text chat only*, in the slimmer presentation used
   /// by the voice channel view's side panel (see [VoiceTextPanel]): a compact
@@ -182,6 +188,10 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
 
   AccordMessage? _replyTo;
   final ScrollController _scroll = ScrollController();
+
+  /// Set to a message id to open that row's inline editor (↑ in the empty
+  /// composer edits the current user's last message).
+  final _editRequest = ValueNotifier<String?>(null);
 
   /// Multi-select state for bulk message deletion (gated on `manage_messages`).
   /// Entered via long-press on a message; while active, tapping a row toggles
@@ -285,7 +295,21 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
     _scroll.removeListener(_onScroll);
     _readLifecycle?.dispose();
     _scroll.dispose();
+    _editRequest.dispose();
     super.dispose();
+  }
+
+  /// Opens the inline editor on the newest message the current user sent in
+  /// this channel, if one is loaded.
+  void _editLastOwnMessage(List<AccordMessage>? messages, String? userId) {
+    if (messages == null || userId == null) return;
+    final last = messages.lastWhereOrNull(
+      (m) => m.authorId == userId && m.webhookId == null,
+    );
+    if (last == null) return;
+    // Re-notify even when the same message is asked for twice in a row.
+    _editRequest.value = null;
+    _editRequest.value = last.id;
   }
 
   /// Watches for the user scrolling near the top of the history (with
@@ -762,6 +786,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                         message: message,
                         grouped: grouped,
                         narrow: panel,
+                        editRequest: _editRequest,
                         author: author,
                         authorUser: authorUser,
                         nameColor: colorRole == null
@@ -793,7 +818,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
               channelId: channelId,
               channelName: panel
                   ? (widget.panelTitle ?? channel?.name)
-                  : channel?.name,
+                  : (widget.composerTitle ?? channel?.name),
               spaceId: spaceId,
               canMentionEveryone: canMentionEveryone,
               slowmodeSeconds: slowmodeSeconds,
@@ -813,6 +838,8 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                           .ensure,
                     ),
               onCancelReply: () => setState(() => _replyTo = null),
+              onEditLastMessage: () =>
+                  _editLastOwnMessage(loadedMessages, currentUserId),
             ),
           ),
         ],

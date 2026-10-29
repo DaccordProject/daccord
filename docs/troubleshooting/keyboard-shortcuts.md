@@ -12,17 +12,22 @@ section: troubleshooting
 | Shortcut | Action |
 |----------|--------|
 | Enter | Send message |
-| Shift+Enter | New line in message (desktop apps: Windows, macOS and Linux) |
+| Shift+Enter | New line in message (desktop and web) |
+| ↑ (empty composer) | Edit your last message in the channel |
+| Escape | Cancel a reply, or close the @mention list |
+| Tab / Enter (with the @mention list open) | Insert the highlighted mention; ↑/↓ move the highlight |
 | Ctrl+V / Cmd+V | Paste image or text from clipboard |
 
 ## Editing a Message
 
 | Shortcut | Action |
 |----------|--------|
-| Enter | Save edited message |
+| Enter | Save the edited message |
+| Shift+Enter | New line |
+| Escape | Cancel the edit |
 
-Use the visible **Cancel** button to discard an edit. To start editing, open
-the message's context menu and choose **Edit**.
+The visible **Cancel** button discards an edit too. To start editing, press ↑ in
+the empty composer, or open the message's context menu and choose **Edit**.
 
 ## Mobile / Touch
 

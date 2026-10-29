@@ -22,10 +22,15 @@ class _MessageRow extends ConsumerStatefulWidget {
     this.nameColor,
     this.onUserTap,
     this.onUserContextMenu,
+    this.editRequest,
   });
 
   final AccordMessage message;
   final String channelId;
+
+  /// The pane asks a row to open its inline editor by setting this to the
+  /// row's message id (↑ in the empty composer edits your last message).
+  final ValueListenable<String?>? editRequest;
 
   /// Whether this message continues a group from the same author (see
   /// [_isGrouped]). Grouped rows hide the avatar/name/timestamp header and show
@@ -105,6 +110,32 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   bool _busy = false;
   TextEditingController? _editController;
 
+  /// Focus of the inline editor, so Enter saves, Shift+Enter breaks the line
+  /// and Escape cancels — a multi-line field's own `onSubmitted` never fires.
+  FocusNode? _editFocus;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.editRequest?.addListener(_onEditRequest);
+  }
+
+  @override
+  void didUpdateWidget(_MessageRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.editRequest != widget.editRequest) {
+      oldWidget.editRequest?.removeListener(_onEditRequest);
+      widget.editRequest?.addListener(_onEditRequest);
+    }
+  }
+
+  void _onEditRequest() {
+    final message = _message;
+    if (widget.editRequest?.value != message.id) return;
+    if (_editing || !widget.isOwn || widget.selecting) return;
+    _startEdit(message);
+  }
+
   /// The message the inline editor was opened on. The edit is committed against
   /// this id rather than the currently-bound one, so an in-progress edit can
   /// never be saved onto a neighbouring message.
@@ -122,7 +153,9 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
 
   @override
   void dispose() {
+    widget.editRequest?.removeListener(_onEditRequest);
     _editController?.dispose();
+    _editFocus?.dispose();
     super.dispose();
   }
 
@@ -168,7 +201,17 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     setState(() {
       _editing = true;
       _editingMessageId = message.id;
-      _editController = TextEditingController(text: message.content);
+      _editController = TextEditingController(text: message.content)
+        // Caret at the end, where an edit usually continues.
+        ..selection = TextSelection.collapsed(offset: message.content.length);
+      _editFocus?.dispose();
+      _editFocus = FocusNode(onKeyEvent: _onEditKey);
+    });
+    // `autofocus` yields when something else (the composer, after ↑) already
+    // holds focus; take it once the field exists, so Enter/Escape and typing
+    // go to the editor and not to the composer underneath.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _editing) _editFocus?.requestFocus();
     });
   }
 
@@ -178,7 +221,39 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
       _editingMessageId = null;
       _editController?.dispose();
       _editController = null;
+      _editFocus?.dispose();
+      _editFocus = null;
     });
+  }
+
+  /// Enter saves, Shift+Enter inserts a newline, Escape cancels. On Linux
+  /// Shift+Enter is left to GTK, which inserts the newline itself (see
+  /// [composerUsesNativeNewlines]).
+  KeyEventResult _onEditKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final controller = _editController;
+    if (controller == null) return KeyEventResult.ignored;
+    final mods = HardwareKeyboard.instance;
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      if (event is KeyDownEvent && !_busy) _cancelEdit();
+      return KeyEventResult.handled;
+    }
+    final composing = controller.value.composing;
+    if (composing.isValid && !composing.isCollapsed) {
+      return KeyEventResult.ignored;
+    }
+    if (isShiftEnterChord(event, mods)) {
+      if (composerUsesNativeNewlines) return KeyEventResult.ignored;
+      controller.value = insertAtSelection(controller.value, '\n');
+      return KeyEventResult.handled;
+    }
+    if (isPlainEnter(event, mods)) {
+      if (event is KeyDownEvent) _saveEdit();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   Future<void> _saveEdit() async {
@@ -885,6 +960,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         children: [
           TextField(
             controller: _editController,
+            focusNode: _editFocus,
             autofocus: true,
             enabled: !_busy,
             minLines: 1,
