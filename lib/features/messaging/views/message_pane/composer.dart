@@ -21,12 +21,17 @@ class _Composer extends ConsumerStatefulWidget {
     this.replyingTo,
     this.replyName,
     this.onCancelReply,
+    this.onEditLastMessage,
   });
 
   final String channelId;
   final String? channelName;
   final String? spaceId;
   final bool canMentionEveryone;
+
+  /// ↑ in an empty composer: opens the inline editor on the current user's
+  /// most recent message in this channel (null when there is none).
+  final VoidCallback? onEditLastMessage;
 
   /// The channel's slowmode in seconds, or 0 when it's off or the current
   /// user is exempt (see `effectiveSlowmodeSeconds`). Starts a local cooldown
@@ -73,6 +78,10 @@ class _ComposerState extends ConsumerState<_Composer> {
   /// handle replaces its `[start, end)` range of `_controller.text`.
   ({int start, int end, String query})? _mention;
 
+  /// The mention popup row ↑/↓ have moved to; back to the top on every new
+  /// query.
+  int _mentionIndex = 0;
+
   /// Captured once so `dispose()` can persist the draft without touching `ref`,
   /// which Riverpod tears down before `dispose()` runs. Safe because
   /// `SettingsController` is `keepAlive`, so this notifier outlives the widget.
@@ -97,14 +106,52 @@ class _ComposerState extends ConsumerState<_Composer> {
   }
 
   KeyEventResult _onComposerKey(FocusNode node, KeyEvent event) {
-    // Browsers deliver clipboard contents through the focused HTML editor's
-    // paste/input event. Consuming Ctrl/Cmd+V cancels that event, and the async
-    // Clipboard API may be unavailable or require a separate permission.
-    if (kIsWeb) return KeyEventResult.ignored;
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
     final mods = HardwareKeyboard.instance;
+    final key = event.logicalKey;
+    final plain =
+        !mods.isShiftPressed &&
+        !mods.isControlPressed &&
+        !mods.isMetaPressed &&
+        !mods.isAltPressed;
+    // While the mention popup has candidates it owns ↑/↓, Tab, Enter and
+    // Escape; Enter used to send the half-typed `@idr` instead.
+    if (_mention != null && widget.spaceId != null) {
+      final result = _onMentionKey(event, mods);
+      if (result != null) return result;
+    }
+    if (event is KeyDownEvent && key == LogicalKeyboardKey.escape) {
+      if (widget.replyingTo != null && widget.onCancelReply != null) {
+        widget.onCancelReply!();
+        return KeyEventResult.handled;
+      }
+    }
+    // ↑ in an empty composer edits the last message you sent.
+    if (event is KeyDownEvent &&
+        key == LogicalKeyboardKey.arrowUp &&
+        plain &&
+        _controller.text.isEmpty &&
+        widget.onEditLastMessage != null) {
+      widget.onEditLastMessage!();
+      return KeyEventResult.handled;
+    }
+    if (kIsWeb) {
+      // Browsers deliver clipboard contents through the focused HTML editor's
+      // paste/input event. Consuming Ctrl/Cmd+V cancels that event, and the
+      // async Clipboard API may be unavailable or require a separate
+      // permission, so paste stays with the browser. Shift+Enter is still
+      // claimed: the HTML editor behind a `send` field submits on it exactly
+      // like the desktop embedders do, and it sent the message instead of
+      // breaking the line.
+      if (isShiftEnterChord(event, mods) && !_isComposing) {
+        _insertAtCursor('\n');
+        _onChanged(_controller.text);
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
     if (composerUsesNativeNewlines) {
       if (_awaitingNativeEdits) {
         // A plain-Enter send is waiting for GTK's earlier edits. Keys must not
@@ -136,6 +183,55 @@ class _ComposerState extends ConsumerState<_Composer> {
     // Consume and handle the paste ourselves (image / large-text aware).
     _handlePaste();
     return KeyEventResult.handled;
+  }
+
+  /// Keyboard for the mention popup: ↑/↓ move the highlight, Tab or Enter
+  /// insert the highlighted handle, Escape closes it. Null when the key isn't
+  /// the popup's or it has no candidates, so Enter still sends.
+  KeyEventResult? _onMentionKey(KeyEvent event, HardwareKeyboard mods) {
+    final key = event.logicalKey;
+    final isEnter = isPlainEnter(event, mods);
+    final isTab = key == LogicalKeyboardKey.tab;
+    final isUp = key == LogicalKeyboardKey.arrowUp;
+    final isDown = key == LogicalKeyboardKey.arrowDown;
+    final isEscape = key == LogicalKeyboardKey.escape;
+    if (!(isEnter || isTab || isUp || isDown || isEscape)) return null;
+    if (isEscape) {
+      if (event is KeyDownEvent) setState(() => _mention = null);
+      return KeyEventResult.handled;
+    }
+    final entries = _mentionEntries();
+    if (entries.isEmpty) return null;
+    final index = _mentionIndex.clamp(0, entries.length - 1);
+    if (isUp || isDown) {
+      // Dart's % is never negative for a positive divisor, so ↑ on the first
+      // row wraps to the last.
+      setState(
+        () => _mentionIndex = (index + (isDown ? 1 : -1)) % entries.length,
+      );
+      return KeyEventResult.handled;
+    }
+    if (event is KeyDownEvent) _pickMention(entries[index].handle);
+    return KeyEventResult.handled;
+  }
+
+  /// The popup's current candidates, in the order it shows them.
+  List<_MentionEntry> _mentionEntries() {
+    final spaceId = widget.spaceId;
+    final mention = _mention;
+    if (spaceId == null || mention == null) return const [];
+    final members = ref.read(
+      accordMembersControllerProvider(_serverKey, spaceId),
+    );
+    final space = ref
+        .read(spacesControllerProvider)
+        ?.firstWhereOrNull((s) => s.id == spaceId);
+    return _mentionCandidates(
+      members,
+      space?.roles ?? const <AccordRole>[],
+      mention.query,
+      allowBroadcast: widget.canMentionEveryone,
+    );
   }
 
   /// Whether the IME has reported a composition. Enter is left to the IME
@@ -270,6 +366,12 @@ class _ComposerState extends ConsumerState<_Composer> {
   @override
   void didUpdateWidget(_Composer oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // A reply started from a message's hover bar or menu lands the caret
+    // here: typing straight after "Reply" went nowhere otherwise.
+    final reply = widget.replyingTo;
+    if (reply != null && reply.id != oldWidget.replyingTo?.id) {
+      _focusNode.requestFocus();
+    }
     final nextServerKey = ref.readActiveServerKey() ?? '';
     if (oldWidget.channelId != widget.channelId ||
         nextServerKey != _serverKey) {
@@ -365,7 +467,10 @@ class _ComposerState extends ConsumerState<_Composer> {
         ? null
         : findMentionTrigger(text, _controller.value.selection);
     if (mention == null && _mention == null) return;
-    setState(() => _mention = mention);
+    setState(() {
+      if (mention?.query != _mention?.query) _mentionIndex = 0;
+      _mention = mention;
+    });
   }
 
   /// Replaces the active `@query` with `@handle ` and dismisses the popup.
@@ -563,11 +668,17 @@ class _ComposerState extends ConsumerState<_Composer> {
     final limits = ref.watch(serverLimitsControllerProvider);
     final atAttachmentLimit =
         _attachments.length >= limits.maxAttachmentsPerMessage;
+    final name = widget.channelName;
+    // DMs have no `#`: the pane passes the conversation's title, and the
+    // placeholder reads "Message @name". A nameless channel stays "Message"
+    // rather than a dangling "Message #".
     final hint = _dragging
         ? 'Drop files to attach'
-        : widget.channelName != null
-        ? 'Message #${widget.channelName}'
-        : 'Message';
+        : name == null || name.isEmpty
+        ? 'Message'
+        : widget.spaceId == null
+        ? 'Message @$name'
+        : 'Message #$name';
     final now = DateTime.now();
     final cooldown = _cooldown != null && _cooldown!.isActive(now)
         ? _cooldown
@@ -725,6 +836,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                   query: _mention!.query,
                   allowBroadcast: widget.canMentionEveryone,
                   onPick: _pickMention,
+                  highlighted: _mentionIndex,
                 ),
               Row(
                 children: [

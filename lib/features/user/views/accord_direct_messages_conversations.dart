@@ -832,6 +832,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
       channel: _channel,
       channelId: _channel.id,
       spaceId: null,
+      composerTitle: title,
       canManageMessagesOverride: true,
       headerLeading: Row(
         mainAxisSize: MainAxisSize.min,
