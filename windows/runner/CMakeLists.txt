@@ -37,6 +37,9 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 # taskbar_badge.cpp needs for its PluginRegistrarWindows method channel — it is
 # not part of flutter_wrapper_app, so without it the runner fails to link.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app flutter_wrapper_plugin)
+# app_links supplies SendAppLink (main.cpp): a second launch forwards its
+# daccord:// link to the running instance's window before exiting.
+target_link_libraries(${BINARY_NAME} PRIVATE app_links_plugin)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 # GDI+ draws the taskbar overlay badge (taskbar_badge.cpp); the ITaskbarList3
 # COM object it feeds comes from the default ole32/uuid libs.
