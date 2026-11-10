@@ -3,9 +3,17 @@ enum EncryptionDeviceStatus { pending, active, revoked }
 
 /// Whether this device can read and send private chats.
 ///
-/// [unknown] until [PrivateChatEncryption.initialize] completes (or after it
-/// failed); [pending] while another device still has to approve this one.
-enum PrivateChatSetup { unknown, active, pending }
+/// - [unknown] until [PrivateChatEncryption.initialize] completes (or after
+///   it failed).
+/// - [pending] while another device still has to approve this one; show
+///   [PrivateChatEncryption.linkCode] (re-read it on every `pending` event).
+/// - [approved] once another device approved it: the user must confirm on
+///   this device that both showed the same code
+///   ([PrivateChatEncryption.confirmApproval] / `rejectApproval`).
+/// - [blocked] when the server reports account keys this device cannot
+///   verify (or an older account than it already knew): sending and
+///   decryption stay blocked.
+enum PrivateChatSetup { unknown, active, pending, approved, blocked }
 
 /// A device registered for the signed-in account's private chats.
 class EncryptionDevice {
