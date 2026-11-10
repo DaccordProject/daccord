@@ -4,7 +4,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'private_chat_encryption_test.dart' show MemoryKeys;
+import 'e2ee_test_server.dart' show MemoryKeys;
 
 void main() {
   test(
@@ -28,8 +28,18 @@ void main() {
         encryptionUserId: 'bob',
         encryptionStore: store,
         httpClient: MockClient((r) async {
-          final data = r.method == 'PUT'
-              ? jsonDecode(r.body)
+          // v2 startup: bob's v1 identity is account version 1 and this
+          // device certifies itself with it.
+          final identity = (fixture['identities'] as Map)['bob'];
+          final data = r.url.path.endsWith('/users/@me/encryption')
+              ? {
+                  'user_context': 'bob',
+                  'account': {'version': 1, ...(identity as Map)},
+                  'successions': [],
+                  'devices': [],
+                }
+              : r.method == 'PUT'
+              ? {...jsonDecode(r.body) as Map, 'status': 'active'}
               : {
                   'channel_id': 'chat',
                   'self_user_id': 'bob',

@@ -3,143 +3,8 @@ import 'dart:typed_data';
 import 'package:accordkit/accordkit.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 
-class MemoryKeys implements EncryptionKeyStore {
-  final Map<String, String> values = {};
-  bool failWrites = false;
-  @override
-  Future<String?> read(String key) async => values[key];
-  @override
-  Future<void> write(String key, String value) async {
-    if (failWrites) throw StateError('vault unavailable');
-    values[key] = value;
-  }
-}
-
-class Harness {
-  final identities = <String, Map<String, dynamic>>{};
-  final current = <String>['alice', 'bob'];
-  final requests = <Map<String, dynamic>>[];
-  final stores = <String, MemoryKeys>{};
-  final clients = <String, AccordClient>{};
-  String? wireContent;
-  bool rejectDiscovery = false;
-  final sealedFiles = <List<int>>[];
-  AccordClient client(String id, {MemoryKeys? store}) => clients.putIfAbsent(
-    id,
-    () => AccordClient(
-      token: id,
-      tokenType: 'Bearer',
-      baseUrl: 'https://chat.test',
-      cdnUrl: 'https://chat.test/cdn',
-      encryptionStore: store ?? stores.putIfAbsent(id, MemoryKeys.new),
-      encryptionUserId: id,
-      httpClient: MockClient((request) async {
-        final path = request.url.path;
-        final body = request.body.isEmpty
-            ? null
-            : request.headers['content-type']?.startsWith('multipart/') == true
-            ? null
-            : jsonDecode(request.body);
-        if (path.endsWith('/users/@me/encryption')) {
-          final existing = identities[id];
-          if (existing != null && jsonEncode(existing) != jsonEncode(body))
-            return http.Response(
-              jsonEncode({
-                'error': {'message': 'Import the existing identity backup.'},
-              }),
-              409,
-            );
-          identities[id] = (body as Map).cast<String, dynamic>();
-          return _ok(body);
-        }
-        if (path.endsWith('/encryption')) {
-          if (rejectDiscovery) return http.Response('{}', 503);
-          return _ok({
-            'channel_id': 'chat',
-            'self_user_id': id,
-            'participants': [
-              for (final e in identities.entries)
-                {
-                  'user_id': e.key,
-                  'wire_user_id': e.key,
-                  'current': current.contains(e.key),
-                  'identity': e.value,
-                },
-              for (final uid in current.where(
-                (uid) => !identities.containsKey(uid),
-              ))
-                {
-                  'user_id': uid,
-                  'wire_user_id': uid,
-                  'current': true,
-                  'identity': null,
-                },
-            ],
-          });
-        }
-        if (path.endsWith('/channels/chat'))
-          return _ok({'id': 'chat', 'type': 'group_dm'});
-        if (path.endsWith('/channels/public'))
-          return _ok({'id': 'public', 'type': 'text', 'space_id': 'space'});
-        if (path.contains('/cdn/'))
-          return http.Response.bytes(sealedFiles.single, 200);
-        if (path.contains('/messages')) {
-          if (request.method == 'GET')
-            return _ok({
-              'id': 'message',
-              'channel_id': 'chat',
-              'author_id': 'alice',
-              'content': wireContent,
-            });
-          if (body != null) {
-            requests.add(Map<String, dynamic>.from(body as Map));
-            wireContent = body['content'] as String;
-            return _ok({
-              'id': 'message',
-              'channel_id': path.contains('public') ? 'public' : 'chat',
-              'author_id': id,
-              'content': wireContent,
-              if (path.contains('public')) 'space_id': 'space',
-            });
-          }
-        }
-        throw StateError('Unexpected request: ${request.method} $path');
-      }),
-    ),
-  );
-  static http.Response _ok(Object? data) => http.Response(
-    jsonEncode({'data': data}),
-    200,
-    headers: {'content-type': 'application/json'},
-  );
-  Future<void> setup() async {
-    await client('alice').encryption!.initialize();
-    await client('bob').encryption!.initialize();
-  }
-
-  AccordMessage wire(
-    String content, {
-    String author = 'alice',
-    String channel = 'chat',
-    String? reply,
-    List<AccordAttachment>? attachments,
-  }) => AccordMessage(
-    id: 'message',
-    channelId: channel,
-    authorId: author,
-    content: content,
-    replyTo: reply,
-    attachments: attachments,
-  );
-  Future<void> close() async {
-    for (final c in clients.values) {
-      await c.dispose();
-    }
-  }
-}
+import 'e2ee_test_server.dart';
 
 void main() {
   late Harness h;
@@ -220,9 +85,19 @@ void main() {
                   )
                   as Map)['payload']
               as List;
-      expect((payload[8] as List).map((r) => (r as List)[0]), [
+      // v2: an account entry plus one per active device, for every current
+      // participant, sorted by user then key id.
+      final recipients = [
+        for (final r in payload[9] as List) [(r as List)[0], r[1]],
+      ];
+      expect(recipients.map((r) => r[0]), [
+        'alice',
         'alice',
         'charlie',
+        'charlie',
+      ]);
+      expect(recipients, [
+        for (final r in h.server.expectedRecipients()) [r[0], r[1]],
       ]);
       final excluded = await h
           .client('bob')
@@ -246,7 +121,7 @@ void main() {
       final envelope =
           jsonDecode(stored.substring(PrivateChatEncryption.prefix.length))
               as Map;
-      (envelope['payload'] as List)[7] = base64Encode(List.filled(40, 42));
+      (envelope['payload'] as List)[8] = base64Encode(List.filled(40, 42));
       final tampered = await h
           .client('bob')
           .encryption!
@@ -284,7 +159,10 @@ void main() {
       expect(h.requests, isEmpty);
       h.current.remove('not-upgraded');
       await h.client('alice').encryption!.participants('chat');
-      h.identities['bob'] = h.identities['alice']!;
+      final alice = h.server.users['alice']!.account!;
+      h.server.users['bob']!.account!
+        ..exchangeKey = alice.exchangeKey
+        ..signingKey = alice.signingKey;
       final changed = await h.client('alice').messages.create('chat', {
         'content': 'must not leak',
       });
@@ -395,95 +273,62 @@ void main() {
     },
   );
   test(
-    'a second device whose identity is refused stops re-registering per decrypt',
+    'a second device registers once as pending and reports it per message',
     () async {
-      final sent = await h.client('alice').encryption!.encrypt('chat', {
+      // v2: a device without the keyring waits for approval instead of being
+      // refused (v1 answered 409 and the device showed the conflict text).
+      final sent = await h.e('alice').encrypt('chat', {
         'content': 'phone cannot read this',
       });
       final stored = sent.data['content'] as String;
-      var puts = 0;
-      final phone = AccordClient(
-        token: 'bob',
-        tokenType: 'Bearer',
-        baseUrl: 'https://chat.test',
-        encryptionUserId: 'bob',
-        encryptionStore: MemoryKeys(),
-        httpClient: MockClient((r) async {
-          if (r.url.path.endsWith('/users/@me/encryption')) {
-            puts++;
-            return http.Response(
-              jsonEncode({
-                'error': {
-                  'message': 'This account already has an encryption identity.',
-                },
-              }),
-              409,
-            );
-          }
-          if (r.url.path.endsWith('/messages')) {
-            return Harness._ok([
-              for (var i = 0; i < 3; i++)
-                {
-                  'id': 'm$i',
-                  'channel_id': 'chat',
-                  'author_id': 'alice',
-                  'content': stored,
-                },
-            ]);
-          }
-          throw StateError('Unexpected request: ${r.method} ${r.url.path}');
-        }),
-      );
-      try {
-        // History pages, previews and gateway decrypts each used to retry the
-        // refused registration, exhausting the per-user rate limit.
-        for (var page = 0; page < 3; page++) {
-          final result = await phone.messages.list('chat');
-          expect(result.ok, true);
-          final messages = (result.data as List).cast<AccordMessage>();
-          expect(
-            messages.map((m) => m.encryptionError),
-            everyElement(contains('already has an encryption identity')),
-          );
-        }
-        await phone.encryption!.decrypt(h.wire(stored));
-        expect(puts, 1);
-      } finally {
-        await phone.dispose();
+      h.server.history.addAll([
+        for (var i = 0; i < 3; i++)
+          {
+            'id': 'm$i',
+            'channel_id': 'chat',
+            'author_id': 'alice',
+            'content': stored,
+          },
+      ]);
+      final phone = h.client('bob-phone', user: 'bob');
+      // History pages, previews and gateway decrypts must not re-register.
+      for (var page = 0; page < 3; page++) {
+        final result = await phone.messages.list('chat');
+        expect(result.ok, true);
+        final messages = (result.data as List).cast<AccordMessage>();
+        expect(
+          messages.map((m) => m.encryptionError),
+          everyElement(PrivateChatEncryption.pendingMessage),
+        );
       }
+      await phone.encryption!.decrypt(h.wire(stored));
+      expect(phone.encryption!.setup, PrivateChatSetup.pending);
+      expect(
+        h.server.paths.where(
+          (p) => p.startsWith('PUT /users/@me/encryption/devices/'),
+        ),
+        hasLength(3), // alice, bob, bob-phone: once each
+      );
     },
   );
   test('a transient registration failure is retried', () async {
-    var puts = 0;
-    final client = AccordClient(
-      token: 'flaky',
-      tokenType: 'Bearer',
-      baseUrl: 'https://chat.test',
-      encryptionUserId: 'flaky',
-      encryptionStore: MemoryKeys(),
-      httpClient: MockClient((r) async {
-        puts++;
-        return puts == 1
-            ? http.Response('{}', 503)
-            : Harness._ok(jsonDecode(r.body));
-      }),
+    h.server.failures = 1;
+    final client = h.client('flaky');
+    await expectLater(
+      client.encryption!.initialize(),
+      throwsA(isA<EncryptionException>()),
     );
-    try {
-      await expectLater(
-        client.encryption!.initialize(),
-        throwsA(isA<EncryptionException>()),
-      );
-      await client.encryption!.initialize();
-      expect(puts, 2);
-    } finally {
-      await client.dispose();
-    }
+    expect(client.encryption!.setup, PrivateChatSetup.unknown);
+    await client.encryption!.initialize();
+    expect(client.encryption!.setup, PrivateChatSetup.active);
+    expect(h.server.users['flaky']!.account, isNotNull);
   });
   test('vault failure prevents public key registration', () async {
     final store = MemoryKeys()..failWrites = true;
     final client = h.client('unpersisted', store: store);
     await expectLater(client.encryption!.initialize(), throwsStateError);
-    expect(h.identities.containsKey('unpersisted'), false);
+    expect(h.server.users['unpersisted']?.account, isNull);
+    expect(h.server.users['unpersisted']?.devices ?? const {}, isEmpty);
   });
   test(
     'concurrent gateway consumers receive independent decrypted models',
@@ -510,60 +355,29 @@ void main() {
       const password = 'test backup passphrase';
       final backup = await h.client('alice').encryption!.exportBackup(password);
       expect(backup, isNot(contains('exchange_private')));
-      final second = AccordClient(
-        token: 'alice',
-        tokenType: 'Bearer',
-        baseUrl: 'https://chat.test',
-        encryptionUserId: 'alice',
-        encryptionStore: MemoryKeys(),
-        httpClient: MockClient((r) async {
-          if (r.url.path.endsWith('/users/@me/encryption')) {
-            final key = jsonDecode(r.body);
-            return jsonEncode(key) == jsonEncode(h.identities['alice'])
-                ? Harness._ok(key)
-                : http.Response('{}', 409);
-          }
-          return Harness._ok({
-            'channel_id': 'chat',
-            'self_user_id': 'alice',
-            'participants': [
-              for (final e in h.identities.entries)
-                {
-                  'user_id': e.key,
-                  'wire_user_id': e.key,
-                  'current': true,
-                  'identity': e.value,
-                },
-            ],
-          });
-        }),
+      final second = h.client('alice-2', user: 'alice');
+      // v2: the second device waits for approval instead of failing.
+      await second.encryption!.initialize();
+      expect(second.encryption!.setup, PrivateChatSetup.pending);
+      await expectLater(
+        second.encryption!.importBackup(backup, 'wrong passphrase'),
+        throwsA(anything),
       );
-      try {
-        await expectLater(
-          second.encryption!.initialize(),
-          throwsA(isA<EncryptionException>()),
-        );
-        await expectLater(
-          second.encryption!.importBackup(backup, 'wrong passphrase'),
-          throwsA(anything),
-        );
-        await second.encryption!.importBackup(backup, password);
-        final before = await h.client('bob').encryption!.encrypt('chat', {
-          'content': 'history on new device',
-        });
-        expect(
-          (await second.encryption!.decrypt(
-            h.wire(before.data['content'] as String, author: 'bob'),
-          )).content,
-          'history on new device',
-        );
-        await expectLater(
-          h.client('bob').encryption!.importBackup(backup, password),
-          throwsA(isA<EncryptionException>()),
-        );
-      } finally {
-        await second.dispose();
-      }
+      await second.encryption!.importBackup(backup, password);
+      expect(second.encryption!.setup, PrivateChatSetup.active);
+      final before = await h.client('bob').encryption!.encrypt('chat', {
+        'content': 'history on new device',
+      });
+      expect(
+        (await second.encryption!.decrypt(
+          h.wire(before.data['content'] as String, author: 'bob'),
+        )).content,
+        'history on new device',
+      );
+      await expectLater(
+        h.client('bob').encryption!.importBackup(backup, password),
+        throwsA(isA<EncryptionException>()),
+      );
     },
     timeout: const Timeout(Duration(minutes: 3)),
   );
