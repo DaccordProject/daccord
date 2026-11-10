@@ -897,8 +897,76 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
             icon: Icon(Icons.more_vert, size: 20, color: colors.gray),
           ),
       ],
+      onCompactHeaderMenu: (paneEntries) =>
+          _showCompactMenu(title, directUser, paneEntries),
+      composerHint: group ? 'Message $title' : 'Message @$title',
       onUserTap: _showUserProfile,
       onUserContextMenu: _showUserMenu,
+    );
+  }
+
+  /// The phone header's single menu: calling, the pane's own controls, then the
+  /// person's or group's actions, each labelled rather than an icon to guess.
+  void _showCompactMenu(
+    String title,
+    AccordUser? directUser,
+    List<AccordMenuEntry> paneEntries,
+  ) {
+    final leading = [
+      AccordMenuEntry(
+        label: 'Start voice call',
+        icon: Icons.call,
+        onSelected: () => _startCall(video: false),
+      ),
+      AccordMenuEntry(
+        label: 'Start video call',
+        icon: Icons.videocam,
+        onSelected: () => _startCall(video: true),
+      ),
+      ...paneEntries,
+    ];
+    if (directUser != null && !_isGroupChannel) {
+      final others = _others(_channel, widget.selfId);
+      showAccordDmUserContextMenu(
+        context,
+        ref,
+        directUser,
+        currentDmUserId: others.length == 1 ? others.first.id : null,
+        leadingEntries: leading,
+      );
+      return;
+    }
+    showAccordContextMenu(
+      context,
+      title: title,
+      titleIcon: Icons.group_outlined,
+      entries: [
+        ...leading,
+        if (_isGroupChannel) ...[
+          const AccordMenuEntry.divider(),
+          AccordMenuEntry(
+            label: 'View members',
+            icon: Icons.people_outline,
+            onSelected: _showMembers,
+          ),
+          AccordMenuEntry(
+            label: 'Add member',
+            icon: Icons.person_add_alt,
+            onSelected: _addMember,
+          ),
+          AccordMenuEntry(
+            label: 'Rename group',
+            icon: Icons.edit_outlined,
+            onSelected: _rename,
+          ),
+          AccordMenuEntry(
+            label: 'Leave group',
+            icon: Icons.logout,
+            destructive: true,
+            onSelected: _leave,
+          ),
+        ],
+      ],
     );
   }
 

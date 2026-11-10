@@ -394,6 +394,91 @@ void main() {
       );
     },
   );
+  test(
+    'a second device whose identity is refused stops re-registering per decrypt',
+    () async {
+      final sent = await h.client('alice').encryption!.encrypt('chat', {
+        'content': 'phone cannot read this',
+      });
+      final stored = sent.data['content'] as String;
+      var puts = 0;
+      final phone = AccordClient(
+        token: 'bob',
+        tokenType: 'Bearer',
+        baseUrl: 'https://chat.test',
+        encryptionUserId: 'bob',
+        encryptionStore: MemoryKeys(),
+        httpClient: MockClient((r) async {
+          if (r.url.path.endsWith('/users/@me/encryption')) {
+            puts++;
+            return http.Response(
+              jsonEncode({
+                'error': {
+                  'message': 'This account already has an encryption identity.',
+                },
+              }),
+              409,
+            );
+          }
+          if (r.url.path.endsWith('/messages')) {
+            return Harness._ok([
+              for (var i = 0; i < 3; i++)
+                {
+                  'id': 'm$i',
+                  'channel_id': 'chat',
+                  'author_id': 'alice',
+                  'content': stored,
+                },
+            ]);
+          }
+          throw StateError('Unexpected request: ${r.method} ${r.url.path}');
+        }),
+      );
+      try {
+        // History pages, previews and gateway decrypts each used to retry the
+        // refused registration, exhausting the per-user rate limit.
+        for (var page = 0; page < 3; page++) {
+          final result = await phone.messages.list('chat');
+          expect(result.ok, true);
+          final messages = (result.data as List).cast<AccordMessage>();
+          expect(
+            messages.map((m) => m.encryptionError),
+            everyElement(contains('already has an encryption identity')),
+          );
+        }
+        await phone.encryption!.decrypt(h.wire(stored));
+        expect(puts, 1);
+      } finally {
+        await phone.dispose();
+      }
+    },
+  );
+  test('a transient registration failure is retried', () async {
+    var puts = 0;
+    final client = AccordClient(
+      token: 'flaky',
+      tokenType: 'Bearer',
+      baseUrl: 'https://chat.test',
+      encryptionUserId: 'flaky',
+      encryptionStore: MemoryKeys(),
+      httpClient: MockClient((r) async {
+        puts++;
+        return puts == 1
+            ? http.Response('{}', 503)
+            : Harness._ok(jsonDecode(r.body));
+      }),
+    );
+    try {
+      await expectLater(
+        client.encryption!.initialize(),
+        throwsA(isA<EncryptionException>()),
+      );
+      await client.encryption!.initialize();
+      expect(puts, 2);
+    } finally {
+      await client.dispose();
+    }
+  });
   test('vault failure prevents public key registration', () async {
     final store = MemoryKeys()..failWrites = true;
     final client = h.client('unpersisted', store: store);

@@ -104,6 +104,8 @@ class MessagePane extends ConsumerStatefulWidget {
     this.headerLeading,
     this.headerTitle,
     this.headerActions = const [],
+    this.onCompactHeaderMenu,
+    this.composerHint,
     this.canManageMessagesOverride,
     this.onUserTap,
     this.onUserContextMenu,
@@ -141,6 +143,17 @@ class MessagePane extends ConsumerStatefulWidget {
   final Widget? headerTitle;
   final List<Widget> headerActions;
 
+  /// Opts into a compact header for narrow panes (phones): [headerActions] and
+  /// the pane's own pin/notification/encryption icons give way to one overflow
+  /// button, which calls this with the pane's entries so the caller can show
+  /// them alongside its own in a single labelled menu. A row of unlabelled
+  /// icons otherwise squeezes the title out and overflows the header.
+  final void Function(List<AccordMenuEntry> paneEntries)? onCompactHeaderMenu;
+
+  /// Composer placeholder for channels without a name (DMs); defaults to
+  /// "Message #channel".
+  final String? composerHint;
+
   /// Explicit message-management capability for contexts without a space role
   /// model. Accord grants DM participants channel permissions directly, so DM
   /// panes pass true while space channels continue using resolved permissions.
@@ -155,6 +168,42 @@ class MessagePane extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<MessagePane> createState() => _MessagePaneState();
+}
+
+/// Header width below which [MessagePane.onCompactHeaderMenu] collapses the
+/// header actions into one overflow menu: roughly a phone in portrait.
+const _compactHeaderWidth = 520.0;
+
+/// The compact header's single overflow button. Watches the channel's
+/// notification state so the entry it hands to [onOpen] describes the current
+/// level, then opens the labelled notification choices when picked.
+class _CompactHeaderMenuButton extends ConsumerWidget {
+  const _CompactHeaderMenuButton({
+    required this.channelId,
+    required this.onOpen,
+  });
+
+  final String channelId;
+  final ValueChanged<AccordMenuEntry> onOpen;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = BonfireThemeExtension.of(context);
+    final state = _watchNotifState(ref, channelId);
+    return IconButton(
+      tooltip: 'More options',
+      icon: Icon(Icons.more_vert, size: 20, color: colors.dirtyWhite),
+      onPressed: () => onOpen(
+        AccordMenuEntry(
+          label: 'Notifications',
+          icon: _notifIcon(state),
+          subtitle: state.muted ? 'Muted' : _notifLevelLabel(state.level),
+          onSelected: () =>
+              _showNotificationMenu(context, ref, state, channelId),
+        ),
+      ),
+    );
+  }
 }
 
 class _MessagePaneState extends ConsumerState<MessagePane> {
@@ -590,75 +639,120 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                       ),
                     ],
                   )
-                : Row(
-                    children: [
-                      if (widget.headerLeading != null)
-                        widget.headerLeading!
-                      else ...[
-                        Icon(
-                          panel
-                              ? Icons.chat_bubble_outline
-                              : channel?.type == 'announcement'
-                              ? Icons.campaign
-                              : Icons.tag,
-                          size: panel ? 16 : 18,
-                          color: colors.dirtyWhite,
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                      Expanded(
-                        child:
-                            widget.headerTitle ??
-                            Text(
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact =
+                          widget.onCompactHeaderMenu != null &&
+                          constraints.maxWidth < _compactHeaderWidth;
+                      return Row(
+                        children: [
+                          if (widget.headerLeading != null)
+                            widget.headerLeading!
+                          else ...[
+                            Icon(
                               panel
-                                  ? (widget.panelTitle ??
-                                        channel?.name ??
-                                        'Chat')
-                                  : channel?.name ?? '',
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleSmall,
+                                  ? Icons.chat_bubble_outline
+                                  : channel?.type == 'announcement'
+                                  ? Icons.campaign
+                                  : Icons.tag,
+                              size: panel ? 16 : 18,
+                              color: colors.dirtyWhite,
                             ),
-                      ),
-                      ...widget.headerActions,
-                      if (spaceId == null &&
-                          ref.accordClient?.encryption != null)
-                        IconButton(
-                          tooltip: 'End-to-end encryption and identity backup',
-                          icon: const Icon(Icons.lock_outline, size: 18),
-                          onPressed: () => showPrivateChatSecurity(
-                            context,
-                            ref.accordClient!.encryption!,
-                            channelId,
+                            const SizedBox(width: 6),
+                          ],
+                          Expanded(
+                            child:
+                                widget.headerTitle ??
+                                Text(
+                                  panel
+                                      ? (widget.panelTitle ??
+                                            channel?.name ??
+                                            'Chat')
+                                      : channel?.name ?? '',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
                           ),
-                        ),
-                      IconButton(
-                        tooltip: 'Pinned messages',
-                        onPressed: () => showPinnedMessages(
-                          context,
-                          channelId: channelId,
-                          spaceId: spaceId,
-                          canManage: canManageMessages,
-                          onUserTap: widget.onUserTap,
-                          onUserContextMenu: widget.onUserContextMenu,
-                        ),
-                        icon: Icon(
-                          Icons.push_pin_outlined,
-                          size: 18,
-                          color: colors.dirtyWhite,
-                        ),
-                      ),
-                      _MuteButton(channelId: channelId),
-                      if (panel && widget.onClosePanel != null)
-                        IconButton(
-                          tooltip: 'Close chat',
-                          onPressed: widget.onClosePanel,
-                          icon: Icon(
-                            Icons.close,
-                            size: 18,
-                            color: colors.dirtyWhite,
-                          ),
-                        ),
-                    ],
+                          if (compact)
+                            _CompactHeaderMenuButton(
+                              channelId: channelId,
+                              onOpen: (notifications) =>
+                                  widget.onCompactHeaderMenu!([
+                                    AccordMenuEntry(
+                                      label: 'Pinned messages',
+                                      icon: Icons.push_pin_outlined,
+                                      onSelected: () => showPinnedMessages(
+                                        context,
+                                        channelId: channelId,
+                                        spaceId: spaceId,
+                                        canManage: canManageMessages,
+                                        onUserTap: widget.onUserTap,
+                                        onUserContextMenu:
+                                            widget.onUserContextMenu,
+                                      ),
+                                    ),
+                                    notifications,
+                                    if (spaceId == null &&
+                                        ref.accordClient?.encryption != null)
+                                      AccordMenuEntry(
+                                        label: 'Encryption & backup',
+                                        icon: Icons.lock_outline,
+                                        subtitle:
+                                            'Verify keys or move your identity to another device',
+                                        onSelected: () =>
+                                            showPrivateChatSecurity(
+                                              context,
+                                              ref.accordClient!.encryption!,
+                                              channelId,
+                                            ),
+                                      ),
+                                  ]),
+                            )
+                          else ...[
+                            ...widget.headerActions,
+                            if (spaceId == null &&
+                                ref.accordClient?.encryption != null)
+                              IconButton(
+                                tooltip:
+                                    'End-to-end encryption and identity backup',
+                                icon: const Icon(Icons.lock_outline, size: 18),
+                                onPressed: () => showPrivateChatSecurity(
+                                  context,
+                                  ref.accordClient!.encryption!,
+                                  channelId,
+                                ),
+                              ),
+                            IconButton(
+                              tooltip: 'Pinned messages',
+                              onPressed: () => showPinnedMessages(
+                                context,
+                                channelId: channelId,
+                                spaceId: spaceId,
+                                canManage: canManageMessages,
+                                onUserTap: widget.onUserTap,
+                                onUserContextMenu: widget.onUserContextMenu,
+                              ),
+                              icon: Icon(
+                                Icons.push_pin_outlined,
+                                size: 18,
+                                color: colors.dirtyWhite,
+                              ),
+                            ),
+                            _MuteButton(channelId: channelId),
+                          ],
+                          if (panel && widget.onClosePanel != null)
+                            IconButton(
+                              tooltip: 'Close chat',
+                              onPressed: widget.onClosePanel,
+                              icon: Icon(
+                                Icons.close,
+                                size: 18,
+                                color: colors.dirtyWhite,
+                              ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
           ),
           Expanded(
@@ -794,6 +888,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
               channelName: panel
                   ? (widget.panelTitle ?? channel?.name)
                   : channel?.name,
+              hint: widget.composerHint,
               spaceId: spaceId,
               canMentionEveryone: canMentionEveryone,
               slowmodeSeconds: slowmodeSeconds,

@@ -144,4 +144,49 @@ void main() {
 
     expect(find.text('Report bob'), findsOneWidget);
   });
+
+  testWidgets('on a phone the DM header folds its actions into one labelled '
+      'menu', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      app(
+        (context) => () => showAccordDirectMessages(
+          context,
+          initialChannel: _dm,
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await _tick(tester);
+
+    // A row of unlabelled icons squeezed the name out and overflowed.
+    expect(tester.takeException(), isNull);
+    expect(find.text('bob'), findsOneWidget);
+    expect(find.byTooltip('Start voice call'), findsNothing);
+    expect(find.byTooltip('Pinned messages'), findsNothing);
+    expect(find.byTooltip('Conversation options'), findsNothing);
+    expect(find.widgetWithText(TextField, 'Message @bob'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('More options'));
+    await _tick(tester);
+
+    for (final label in [
+      'Start voice call',
+      'Start video call',
+      'Pinned messages',
+      'Notifications',
+      'View profile',
+      'Report user',
+      'Block',
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+
+    await tester.tap(find.text('Notifications'));
+    await _tick(tester);
+    expect(find.text('Only @mentions'), findsOneWidget);
+    expect(find.text('Mute'), findsOneWidget);
+  });
 }

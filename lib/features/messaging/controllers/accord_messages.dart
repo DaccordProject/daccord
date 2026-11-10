@@ -135,6 +135,11 @@ class AccordMessagesController extends _$AccordMessagesController {
       state = rows;
       _setLoadFailed(false);
       _refreshReactors(client, pending);
+    } catch (error) {
+      // A throw (rather than a failed result) would otherwise leave the cache
+      // null with no failure flag: a spinner that never resolves.
+      debugPrint('Failed to load messages for $channelId: $error');
+      if (_owns(request, client)) _setLoadFailed(true);
     } finally {
       if (_owns(request, client)) _history.finish(request);
     }

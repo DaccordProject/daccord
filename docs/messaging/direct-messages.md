@@ -49,6 +49,8 @@ The group menu lets the owner add or remove participants and rename the group. O
 
 Sending messages in a DM uses the same timeline and composer as a channel. Markdown, attachments, image/large-text paste, emoji, drafts, reactions, replies, threads, edits, deletes, pins, typing indicators, and older-history loading work the same way. DM voice and video calls remain available from the conversation header.
 
+On a phone (or any narrow window) the conversation header shows only the back button, the recipient, and a **⋮** button. That menu lists every header action with a label: **Start voice call**, **Start video call**, **Pinned messages**, **Notifications**, **Encryption & backup**, then the recipient's user menu (or, in a group, **View members**, **Add member**, **Rename group** and **Leave group**). Wider windows keep the icon buttons.
+
 ## User menus
 
 Right-click or long-press a DM recipient, message author, friend, or group member to open their user menu. From there you can view their account profile, start a separate DM, manage the friendship or block state, report the account, and copy their user ID or username. Group owners can also remove participants from the group-member menu.
