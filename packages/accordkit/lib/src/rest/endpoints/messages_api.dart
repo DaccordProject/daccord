@@ -97,21 +97,32 @@ class MessagesApi extends EndpointBase {
   /// on this route, so a rate limit is a cooldown to show the user, returned
   /// as a failure whose [AccordError.retryAfter] says how long. Exactly one
   /// request is made per call.
+  ///
+  /// A private send rejected with 409 (the recipients' keys or devices changed
+  /// since discovery) is re-encrypted against fresh discovery and retried once.
   Future<RestResult> create(String channelId, Map<String, dynamic> data) async {
+    final bool private;
     try {
-      if (await _private(channelId)) {
-        data = (await encryption!.encrypt(channelId, data)).data;
-      }
+      private = await _private(channelId);
     } catch (e) {
       return _failure(e);
     }
-    final result = await rest.makeRequest(
-      'POST',
-      '/channels/$channelId/messages',
-      body: data,
-      retryOnRateLimit: false,
-    );
-    return _decode(result);
+    for (var attempt = 0;; attempt++) {
+      var body = data;
+      try {
+        if (private) body = (await encryption!.encrypt(channelId, data)).data;
+      } catch (e) {
+        return _failure(e);
+      }
+      final result = await rest.makeRequest(
+        'POST',
+        '/channels/$channelId/messages',
+        body: body,
+        retryOnRateLimit: false,
+      );
+      if (private && result.statusCode == 409 && attempt == 0) continue;
+      return _decode(result);
+    }
   }
 
   /// Creates a message with file attachments via multipart/form-data.
@@ -134,30 +145,43 @@ class MessagesApi extends EndpointBase {
     Map<String, dynamic> data,
     List<Map<String, dynamic>> files,
   ) async {
+    final bool private;
     try {
-      if (await _private(channelId)) {
-        final encrypted =
-            await encryption!.encrypt(channelId, data, files: files);
-        data = encrypted.data;
-        files = encrypted.files;
-      }
+      private = await _private(channelId);
     } catch (e) {
       return _failure(e);
     }
-    final form = MultipartForm();
-    form.addJson('payload_json', data);
-    for (var i = 0; i < files.length; i++) {
-      final file = files[i];
-      final name = 'files[$i]';
-      final filename = (file['filename'] ?? 'attachment').toString();
-      final content = (file['content'] ?? Uint8List(0)) as List<int>;
-      final ct =
-          (file['content_type'] ?? 'application/octet-stream').toString();
-      form.addFile(name, filename, content, contentType: ct);
+    late RestResult result;
+    for (var attempt = 0;; attempt++) {
+      var body = data;
+      var parts = files;
+      try {
+        if (private) {
+          final encrypted =
+              await encryption!.encrypt(channelId, data, files: files);
+          body = encrypted.data;
+          parts = encrypted.files;
+        }
+      } catch (e) {
+        return _failure(e);
+      }
+      final form = MultipartForm();
+      form.addJson('payload_json', body);
+      for (var i = 0; i < parts.length; i++) {
+        final file = parts[i];
+        final name = 'files[$i]';
+        final filename = (file['filename'] ?? 'attachment').toString();
+        final content = (file['content'] ?? Uint8List(0)) as List<int>;
+        final ct =
+            (file['content_type'] ?? 'application/octet-stream').toString();
+        form.addFile(name, filename, content, contentType: ct);
+      }
+      result = await rest.makeMultipartRequest(
+          'POST', '/channels/$channelId/messages/upload', form,
+          retryOnRateLimit: false);
+      if (private && result.statusCode == 409 && attempt == 0) continue;
+      break;
     }
-    final result = await rest.makeMultipartRequest(
-        'POST', '/channels/$channelId/messages/upload', form,
-        retryOnRateLimit: false);
     await _decode(result);
     if (result.data is AccordMessage) {
       result.data = AccordMessageUpload(
@@ -169,33 +193,48 @@ class MessagesApi extends EndpointBase {
   }
 
   /// Edits an existing message.
+  ///
+  /// Private edits are re-encrypted and retried once on 409, like [create].
   Future<RestResult> edit(
       String channelId, String messageId, Map<String, dynamic> data) async {
+    AccordMessage? original;
     try {
       if (await _private(channelId)) {
-        final original = await fetch(channelId, messageId);
-        if (!original.ok || original.data is! AccordMessage) return original;
-        final message = original.data as AccordMessage;
-        if (!message.isEncrypted && message.attachments.isNotEmpty) {
+        final fetched = await fetch(channelId, messageId);
+        if (!fetched.ok || fetched.data is! AccordMessage) return fetched;
+        original = fetched.data as AccordMessage;
+        if (!original.isEncrypted && original.attachments.isNotEmpty) {
           throw const EncryptionException(
               'Re-upload legacy attachments to encrypt them before editing this message.');
         }
-        if (message.encryptionError != null) {
-          throw EncryptionException(message.encryptionError!);
+        if (original.encryptionError != null) {
+          throw EncryptionException(original.encryptionError!);
         }
-        data = (await encryption!.encrypt(
-                channelId, {...data, 'reply_to': message.replyTo},
-                editId: messageId, previousPayload: message.privatePayload))
-            .data;
-        data.remove('reply_to');
       }
     } catch (e) {
       return _failure(e);
     }
-    final result = await rest.makeRequest(
-        'PATCH', '/channels/$channelId/messages/$messageId',
-        body: data);
-    return _decode(result);
+    for (var attempt = 0;; attempt++) {
+      var body = data;
+      try {
+        if (original != null) {
+          body = (await encryption!.encrypt(
+                  channelId, {...data, 'reply_to': original.replyTo},
+                  editId: messageId, previousPayload: original.privatePayload))
+              .data;
+          body.remove('reply_to');
+        }
+      } catch (e) {
+        return _failure(e);
+      }
+      final result = await rest.makeRequest(
+          'PATCH', '/channels/$channelId/messages/$messageId',
+          body: body);
+      if (original != null && result.statusCode == 409 && attempt == 0) {
+        continue;
+      }
+      return _decode(result);
+    }
   }
 
   /// Deletes a single message.
