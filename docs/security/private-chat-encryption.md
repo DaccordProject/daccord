@@ -22,6 +22,13 @@ Removing a lost or retired device **rotates the account key**: a new account ver
 
 Contacts accept the new account version automatically because it is linked to the version they pinned by signatures in both directions; nothing needs to be re-verified, though fingerprints shown afterwards are those of the new key. A new key without a valid signature chain is treated like any other key change and blocks the chat. Older versions are trusted only when the newer, already-trusted version signed them, so a contact who first sees you after a rotation can still verify your earlier devices and messages, while keys the server invents for the past are ignored. Messages sent earlier by a removed device still verify.
 
+## In the app
+
+- **Setting up a new device.** While a device is pending, the DM list and every private conversation show a banner: *Encrypted messages can’t be read on this device until you approve it from a device you already use.* **Set up** opens a dialog with the device's link code and *Waiting for approval…*; it polls every 5 seconds and also reacts to the gateway. Once another device approves it, the dialog asks *Did it show this same code?* — **Codes match** finishes setup and reloads private history; **It showed a different code** discards the keys and shows a new code. **Import backup** is offered for when no other device is available.
+- **Approving from an existing device.** A prompt appears at the top of the app on every approved device: *Let “<device name>” read your encrypted chats?* with the link code and **Approve**, **Decline** and **Not now**. **Approve** is enabled only once the code is on screen.
+- **Managing devices.** In a private chat, open the lock button (on phones, **⋮ → Encryption & backup**) and choose **Manage devices** to see every device (this one is marked), approve or decline pending ones, and **Remove** others; removal explains that the device is signed out and stops reading new messages.
+- **Blocked.** A blocked device shows *Your encryption keys don’t match the server, so encrypted chats are blocked on this device.* with **Details**, which explains the state and offers backup import.
+
 ## Backups
 
 Backups require a passphrase of at least 12 characters and use PBKDF2-HMAC-SHA256 (600,000 iterations) and AES-256-GCM. They are scoped to the account and server. New backups (version 2) contain the whole keyring, so restore one made after the most recent device removal: an older backup lacks the current account key and is refused (approve the device from another one instead). Version 1 backups from earlier releases still import while the account has not been rotated.

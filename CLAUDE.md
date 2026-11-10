@@ -190,6 +190,19 @@ parsed in `accord_ready_sync.dart`. Use `ReadStateController.acknowledge` for
 local reads so retries, monotonic cursors and notification dismissal stay
 consistent. Details: `docs/notification-read-state-audit.md`.
 
+## Private chat encryption
+
+DMs and group DMs use E2EE v2 (`packages/accordkit/lib/src/e2ee/`): per-device
+keys certified by a versioned account key, two-sided link-code approval, and
+removal by account-key rotation. Wire formats must stay byte-identical to
+`accordserver`; `test/fixtures/e2ee_v2.json` is checked on both sides. The app
+UI (setup banner, approval prompt, devices dialog) lives in
+`lib/features/messaging/{controllers,views}/private_chat_devices.dart`. Tests
+that drive the SDK from widgets must use one account per test: vault access is
+serialized per account in a process-wide queue. Live-server coverage:
+`ACCORD_E2E_URL=… dart test test/e2ee_live_server_test.dart` in
+`packages/accordkit`. Details: `docs/security/private-chat-encryption.md`.
+
 ## AutoMod
 
 `lib/features/automod/` owns the policy/review UI and block-before-delete flow.
