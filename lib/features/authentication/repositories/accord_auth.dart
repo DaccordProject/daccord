@@ -981,6 +981,7 @@ class AccordAuth extends _$AccordAuth {
     final client = AccordClient(
       encryptionStore: session.isGuest ? null : PlatformEncryptionKeyStore(),
       encryptionUserId: session.isGuest ? null : session.userId,
+      encryptionDeviceName: encryptionDeviceName(),
       token: session.token,
       tokenType: session.tokenType,
       baseUrl: session.server.baseUrl,
@@ -999,6 +1000,9 @@ class AccordAuth extends _$AccordAuth {
               GatewayIntents.presences,
               GatewayIntents.voiceStates,
               GatewayIntents.experiences,
+              // Device approval prompts and device-list changes for private
+              // chat encryption (`encryption.*`); no other event uses it.
+              GatewayIntents.directMessages,
             ],
     );
     _connections[key] = _Conn(client: client, session: session);
