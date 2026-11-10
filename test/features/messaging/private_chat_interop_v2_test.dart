@@ -138,7 +138,12 @@ AccordClient _client(
           'user_context': user,
           'account': {'version': 1, ...self['account'] as Map},
           'successions': [
-            {'version': 1, ...self['account'] as Map, 'signature': null},
+            {
+              'version': 1,
+              ...self['account'] as Map,
+              'signature': null,
+              'back_signature': null,
+            },
           ],
           'devices': [],
         };
@@ -157,7 +162,12 @@ AccordClient _client(
                 'identity': p['account'],
                 'account_version': 1,
                 'successions': [
-                  {'version': 1, ...p['account'] as Map, 'signature': null},
+                  {
+                    'version': 1,
+                    ...p['account'] as Map,
+                    'signature': null,
+                    'back_signature': null,
+                  },
                 ],
                 'devices': [
                   for (final d in p['devices'] as List)
@@ -236,8 +246,9 @@ void main() {
               as Map;
       expect(envelope.keys, ['payload', 'signature']);
       final p = envelope['payload'] as List;
-      expect(p, hasLength(10));
+      expect(p, hasLength(11));
       expect(p.sublist(0, 4), [2, 'chat', 'alice', _deviceId('alice')]);
+      expect(p[10], 1); // R5: the sender's signed account version.
       final device = (fixture['devices'] as List).single as Map;
       expect(
         await verifySignature(

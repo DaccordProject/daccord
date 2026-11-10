@@ -55,11 +55,13 @@ class FakeAccount {
   String exchangeKey;
   String signingKey;
   String? signature;
+  String? backSignature;
   FakeAccount(
     this.version,
     this.exchangeKey,
     this.signingKey, [
     this.signature,
+    this.backSignature,
   ]);
   Map<String, dynamic> get identity => {
     'exchange_key': exchangeKey,
@@ -108,6 +110,9 @@ class E2eeServer {
   /// Omit the unsigned version-1 entry from `successions`, as servers did
   /// before it was added (clients must handle both shapes).
   bool legacySuccessions = false;
+
+  /// Apply the next rotation, then answer 503 (a lost response).
+  bool loseRotationResponse = false;
   int messageAttempts = 0;
 
   FakeUser user(String id) => users.putIfAbsent(id, () => FakeUser(id));
@@ -210,21 +215,30 @@ class E2eeServer {
     if (envelope.length != 2) return error(400, 'invalid E2EE envelope');
     final p = envelope['payload'] as List;
     final u = users[author]!;
-    if (p.length != 10 || p[0] != 2 || p[1] != 'chat' || p[2] != author) {
+    if (p.length != 11 || p[0] != 2 || p[1] != 'chat' || p[2] != author) {
       return error(400, 'E2EE message context does not match request');
+    }
+    // R5: the signed sender account version is the author's current one.
+    if (p[10] is! int || (p[10] as int) < 1) {
+      return error(400, 'invalid E2EE account version');
+    }
+    if (p[10] != u.account!.version) {
+      return error(409, 'Encryption keys changed. Refresh before sending.');
     }
     final device = u.devices[p[3]];
     if (device == null || device['status'] != 'active') {
       return error(403, 'E2EE sender device is not active');
     }
-    if (device['account_version'] != u.account!.version ||
-        !await _certificateValid(
-          u,
-          p[3] as String,
-          device,
-          device['certificate'],
-          u.account!.version,
-        )) {
+    if (device['account_version'] != p[10]) {
+      return error(409, 'Encryption keys changed. Refresh before sending.');
+    }
+    if (!await _certificateValid(
+      u,
+      p[3] as String,
+      device,
+      device['certificate'],
+      u.account!.version,
+    )) {
       return error(400, 'E2EE sender device is not active');
     }
     if (!await verifySignature(
@@ -251,9 +265,17 @@ class E2eeServer {
     return null;
   }
 
+  /// A malicious server showing session token → a different account key.
+  final accountOverride = <String, FakeAccount>{};
+
   Map<String, dynamic> _state(FakeUser u, String token) => {
     'user_context': u.id,
-    'account': u.account == null
+    'account': accountOverride[token] != null
+        ? {
+            'version': accountOverride[token]!.version,
+            ...accountOverride[token]!.identity,
+          }
+        : u.account == null
         ? null
         : {'version': u.account!.version, ...u.account!.identity},
     'successions': u.account == null ? [] : _successions(u),
@@ -285,6 +307,7 @@ class E2eeServer {
         'exchange_key': a.exchangeKey,
         'signing_key': a.signingKey,
         'signature': a.signature,
+        'back_signature': a.backSignature,
       },
   ];
 
@@ -377,6 +400,17 @@ class E2eeServer {
               u.devices.values.where((d) => d['status'] != 'revoked').length >=
                   20) {
             return error(400, 'Too many encryption devices.');
+          }
+          // R6: proof of the device key for this session's bearer token.
+          final digest = base64Encode(
+            (await Sha256().hash(utf8.encode(token))).bytes,
+          );
+          if (!await verifySignature(
+            _json(['daccord-e2ee-bind-v2', uid, id, digest]),
+            b['binding'],
+            b['signing_key'],
+          )) {
+            return error(400, 'Invalid device binding.');
           }
           final next =
               row ??
@@ -509,6 +543,17 @@ class E2eeServer {
             ]),
             b['signature'],
             u.account!.signingKey,
+          ) ||
+          !await verifySignature(
+            _json([
+              'daccord-e2ee-rotate-back-v2',
+              uid,
+              version,
+              u.account!.exchangeKey,
+              u.account!.signingKey,
+            ]),
+            b['back_signature'],
+            account['signing_key'],
           )) {
         return error(400, 'Invalid succession.');
       }
@@ -541,6 +586,7 @@ class E2eeServer {
         account['exchange_key'] as String,
         account['signing_key'] as String,
         b['signature'] as String,
+        b['back_signature'] as String,
       );
       u.accounts.add(next);
       for (final id in remaining) {
@@ -569,6 +615,10 @@ class E2eeServer {
       u.devices.removeWhere((_, d) => d['status'] == 'pending');
       u.packages.addAll(packages);
       events.add((user: uid, type: 'encryption.devices_update', data: {}));
+      if (loseRotationResponse) {
+        loseRotationResponse = false;
+        return http.Response('{}', 503); // Applied, but the reply was lost.
+      }
       return ok(_state(u, token));
     }
     if (path == '/channels/chat/encryption') {
@@ -691,7 +741,20 @@ class Harness {
     );
     expect(await e(approver).linkCodeFor(device), code);
     await e(approver).approveDevice(device.deviceId);
+    // R1: the new device waits for its user to confirm the codes matched.
+    expect(await e(pending).checkApproval(), false);
+    expect(e(pending).setup, PrivateChatSetup.approved);
+    await e(pending).confirmApproval();
+    expect(e(pending).setup, PrivateChatSetup.active);
     expect(await e(pending).checkApproval(), true);
+  }
+
+  /// Simulates an app restart of session [name]: same vault, new client.
+  Future<PrivateChatEncryption> restart(String name, {String? user}) async {
+    await clients.remove(name)?.dispose();
+    final restarted = client(name, user: user).encryption!;
+    await restarted.initialize();
+    return restarted;
   }
 
   AccordMessage wire(
@@ -861,3 +924,52 @@ String scopeOf(String user) =>
     base64Url.encode(utf8.encode('https://chat.test/api/v1|$user'));
 
 Uint8List bytesOf(String text) => Uint8List.fromList(utf8.encode(text));
+
+/// Keys an attacker controls: each private key is 32 copies of a seed byte.
+class SeededAccount {
+  final int version;
+  final int exchangeSeed;
+  final int signingSeed;
+  late final String exchangeKey;
+  late final String signingKey;
+  SeededAccount(this.version, this.exchangeSeed, this.signingSeed);
+
+  Future<SeededAccount> init() async {
+    exchangeKey = base64Encode(
+      (await (await X25519().newKeyPairFromSeed(
+        List.filled(32, exchangeSeed),
+      )).extractPublicKey()).bytes,
+    );
+    signingKey = base64Encode(
+      (await (await Ed25519().newKeyPairFromSeed(
+        List.filled(32, signingSeed),
+      )).extractPublicKey()).bytes,
+    );
+    return this;
+  }
+
+  Map<String, String> get secret => {
+    'exchange_private': base64Encode(List.filled(32, exchangeSeed)),
+    'signing_private': base64Encode(List.filled(32, signingSeed)),
+  };
+  String get keyringJson => jsonEncode({
+    'accounts': [
+      {'version': version, ...secret},
+    ],
+  });
+  FakeAccount get fake => FakeAccount(version, exchangeKey, signingKey);
+
+  Future<String> sign(List<Object?> message) async => base64Encode(
+    (await Ed25519().sign(
+      _json(message),
+      keyPair: await Ed25519().newKeyPairFromSeed(List.filled(32, signingSeed)),
+    )).bytes,
+  );
+}
+
+/// The private device record of session [name] (as stored in its vault).
+Map<String, dynamic> deviceSecret(Harness h, String name, {String? user}) =>
+    jsonDecode(
+          h.stores[name]!.values['e2ee.v2.${scopeOf(user ?? name)}.device']!,
+        )
+        as Map<String, dynamic>;

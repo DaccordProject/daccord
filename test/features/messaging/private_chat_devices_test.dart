@@ -154,14 +154,26 @@ void main() {
       final update = h.server.events.last;
       expect(update.type, 'encryption.devices_update');
       final updated = phone.onDevicesUpdate.first;
-      final active = phone.setupChanges.firstWhere(
-        (s) => s == PrivateChatSetup.active,
+      final approved = phone.setupChanges.firstWhere(
+        (s) => s == PrivateChatSetup.approved,
       );
       phone.handleGatewayEvent(update.type, update.data);
       await updated;
-      await active;
-      expect(setups, [PrivateChatSetup.pending, PrivateChatSetup.active]);
+      await approved;
       expect(h.server.users['alice']!.packages, isEmpty); // acknowledged
+      // R1: nothing is readable until the user confirms on this device too.
+      expect(
+        (await phone.decrypt(h.wire(v2))).encryptionError,
+        PrivateChatEncryption.pendingMessage,
+      );
+      expect(await phone.checkApproval(), false);
+      await phone.confirmApproval();
+      await Future<void>.delayed(Duration.zero); // Deliver the broadcast.
+      expect(setups, [
+        PrivateChatSetup.pending,
+        PrivateChatSetup.approved,
+        PrivateChatSetup.active,
+      ]);
       expect(await phone.checkApproval(), true);
 
       expect(
@@ -190,60 +202,109 @@ void main() {
     },
   );
 
-  test('a key package for a substituted account key is rejected', () async {
-    await h.setup();
-    final alice = h.e('alice');
-    // The server shows the phone a different account key: the codes differ.
-    final fake = FakeAccount(
-      1,
-      base64Encode(List.filled(32, 9)),
-      base64Encode(List.filled(32, 10)),
-    );
-    final real = h.server.users['alice']!.accounts.single;
-    h.server.users['alice']!.accounts[0] = fake;
-    final phone = h.client('alice-phone', user: 'alice').encryption!;
-    await phone.initialize();
-    final phoneCode = await phone.linkCode();
-    h.server.users['alice']!.accounts[0] = real;
-    final request = (await alice.listDevices()).firstWhere((d) => !d.current);
-    expect(await alice.linkCodeFor(request), isNot(phoneCode));
-    // Even if the user approves anyway, the phone refuses the package.
-    await alice.approveDevice(request.deviceId);
-    await expectLater(
-      phone.checkApproval(),
-      throwsA(isA<EncryptionException>()),
-    );
-    expect(phone.setup, PrivateChatSetup.pending);
+  test(
+    'finding 1: a new device never trusts a server-chosen account key without its user',
+    () async {
+      await h.setup();
+      final alice = h.e('alice');
+      // The server shows the new device an account key it controls.
+      final attacker = await SeededAccount(1, 9, 10).init();
+      h.server.accountOverride['alice-phone'] = attacker.fake;
+      final phone = h.client('alice-phone', user: 'alice').encryption!;
+      await phone.initialize();
+      expect(phone.setup, PrivateChatSetup.pending);
+      final phoneCode = await phone.linkCode();
+      final request = (await alice.listDevices()).firstWhere((d) => !d.current);
+      expect(await alice.linkCodeFor(request), isNot(phoneCode));
+      // Even if the user approves anyway, the real keyring does not match
+      // the key behind the phone's code: the package is refused.
+      await alice.approveDevice(request.deviceId);
+      expect(await phone.checkApproval(), false);
+      expect(phone.setup, PrivateChatSetup.pending);
 
-    // A package forged with another keyring is refused as well.
-    final attacker = jsonEncode({
-      'accounts': [
-        {
-          'version': 1,
-          'exchange_private': base64Encode(List.filled(32, 11)),
-          'signing_private': base64Encode(List.filled(32, 12)),
-        },
-      ],
-    });
-    final tablet = h.client('alice-tablet', user: 'alice').encryption!;
-    await tablet.initialize();
-    final row = h.server.users['alice']!.devices.values.firstWhere(
-      (d) => d['session'] == 'alice-tablet',
-    );
-    row['status'] = 'active';
-    h.server.users['alice']!.packages[row['device_id']
-        as String] = await sealPackage(
-      user: 'alice',
-      deviceId: row['device_id'] as String,
-      deviceExchangeKey: row['exchange_key'] as String,
-      keyringJson: attacker,
-    );
-    await expectLater(
-      tablet.checkApproval(),
-      throwsA(isA<EncryptionException>()),
-    );
-    expect(tablet.setup, PrivateChatSetup.pending);
-  });
+      // A server-made package for its own key is only staged: the device is
+      // "approved" but stays unusable until its user confirms the codes.
+      h.server.users['alice']!.packages[request.deviceId] = await sealPackage(
+        user: 'alice',
+        deviceId: request.deviceId,
+        deviceExchangeKey: request.exchangeKey,
+        keyringJson: attacker.keyringJson,
+      );
+      expect(await phone.checkApproval(), false);
+      expect(phone.setup, PrivateChatSetup.approved);
+      final sent = await alice.encrypt('chat', {'content': 'secret'});
+      expect(
+        (await phone.decrypt(
+          h.wire(sent.data['content'] as String),
+        )).encryptionError,
+        PrivateChatEncryption.pendingMessage,
+      );
+      // The codes differed, so the user rejects: a new device, a new code.
+      final again = phone.setupChanges.first;
+      await phone.rejectApproval();
+      expect(await again, PrivateChatSetup.pending);
+      expect(phone.setup, PrivateChatSetup.pending);
+      expect(await phone.linkCode(), isNot(phoneCode));
+      expect(
+        h.stores['alice-phone']!.values['e2ee.v2.${scopeOf('alice')}.approval'],
+        '',
+      );
+      expect(
+        h.stores['alice-phone']!.values['e2ee.v2.${scopeOf('alice')}.keyring'],
+        isNull,
+      );
+    },
+  );
+
+  test(
+    'finding 1: an active device never adopts a server-substituted account key',
+    () async {
+      await h.setup();
+      final keyring =
+          h.stores['alice']!.values['e2ee.v2.${scopeOf('alice')}.keyring'];
+      // The server swaps in its own key (same version, then a "rotation"
+      // without a valid succession) and seals that keyring to the device.
+      final attacker = await SeededAccount(1, 9, 10).init();
+      final alice = h.server.users['alice']!;
+      final real = alice.accounts.single;
+      alice.accounts[0] = attacker.fake;
+      final id = alice.devices.keys.single;
+      alice.packages[id] = await sealPackage(
+        user: 'alice',
+        deviceId: id,
+        deviceExchangeKey: alice.devices[id]!['exchange_key'] as String,
+        keyringJson: attacker.keyringJson,
+      );
+      expect(await h.e('alice').checkApproval(), false);
+      expect(h.e('alice').setup, PrivateChatSetup.blocked);
+      final restarted = await h.restart('alice');
+      expect(restarted.setup, PrivateChatSetup.blocked); // Never pending.
+      expect(
+        h.stores['alice']!.values['e2ee.v2.${scopeOf('alice')}.keyring'],
+        keyring,
+      );
+      final forged2 = await SeededAccount(2, 11, 12).init();
+      alice.accounts[0] = real;
+      alice.accounts.add(
+        forged2.fake..signature = base64Encode(List.filled(64, 1)),
+      );
+      expect(await restarted.checkApproval(), false);
+      expect(restarted.setup, PrivateChatSetup.blocked);
+      await expectLater(
+        restarted.encrypt('chat', {'content': 'x'}),
+        throwsA(
+          isA<EncryptionException>().having(
+            (e) => e.message,
+            'message',
+            PrivateChatEncryption.blockedMessage,
+          ),
+        ),
+      );
+      // Once the server shows the real key again, the device recovers.
+      alice.accounts.removeLast();
+      expect(await restarted.checkApproval(), true);
+    },
+  );
 
   test(
     'a declined device can ask again; active devices need rotation',
@@ -454,7 +515,8 @@ void main() {
       // certificate cannot be checked by a contact who pins version 2 now.
       h.server.legacySuccessions = true;
       final unknown = await h.e('bob').decrypt(h.wire(fromPhone));
-      expect(unknown.encryptionError, contains('device is unavailable'));
+      // (R5: its signed account version 1 is not verifiable for this pin.)
+      expect(unknown.encryptionError, contains('could not be verified'));
       final trust =
           jsonDecode(
                 h.stores['bob']!.values['e2ee.v1.${scopeOf('bob')}.trust']!,
@@ -635,6 +697,204 @@ void main() {
       });
       expect(edit.ok, false);
       expect(h.server.messageAttempts, 2);
+    },
+  );
+
+  /// laptop ("alice") + approved phone; returns the phone's device id.
+  Future<String> withPhone() async {
+    await h.setup();
+    await h.client('alice-phone', user: 'alice').encryption!.initialize();
+    await h.approve('alice', 'alice-phone');
+    return deviceIdOf(h.e('alice-phone'));
+  }
+
+  test(
+    'finding 2: an active device never falls back to an older own account version',
+    () async {
+      final phoneId = await withPhone();
+      final laptop = h.e('alice');
+      final alice = h.server.users['alice']!;
+      final saved = {
+        for (final e in alice.devices.entries)
+          e.key: Map<String, dynamic>.from(e.value),
+      };
+      await laptop.removeDevices([phoneId]);
+      // The server rolls back: version 1 is current again and the removed
+      // phone is active with its old certificate.
+      alice.accounts.removeLast();
+      alice.revoked.remove(phoneId);
+      alice.devices
+        ..clear()
+        ..addAll(saved);
+      h.server.deletedSessions.remove('alice-phone');
+      final sent = await h.client('alice').messages.create('chat', {
+        'content': 'must not reach the removed phone',
+      });
+      expect(sent.ok, false);
+      expect(sent.error!.message, PrivateChatEncryption.blockedMessage);
+      expect(h.server.requests, isEmpty);
+      final restarted = await h.restart('alice');
+      expect(restarted.setup, PrivateChatSetup.blocked);
+      // A backup of the old version cannot roll the device back either.
+      const password = 'correct horse battery';
+      final stale = await v1Backup(
+        scopeOf('alice'),
+        jsonEncode(v1Secret(h, 'alice')),
+        password,
+      );
+      await expectLater(
+        restarted.importBackup(stale, password),
+        throwsA(isA<EncryptionException>()),
+      );
+      expect(restarted.setup, PrivateChatSetup.blocked);
+    },
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
+
+  test(
+    'finding 3: rotation never re-certifies a removed device the server lists as active',
+    () async {
+      final phoneId = await withPhone();
+      await h.client('alice-tablet', user: 'alice').encryption!.initialize();
+      await h.approve('alice', 'alice-tablet');
+      final tabletId = await deviceIdOf(h.e('alice-tablet'));
+      final alice = h.server.users['alice']!;
+      final phoneRow = Map<String, dynamic>.from(alice.devices[phoneId]!);
+      await h.e('alice').removeDevices([phoneId]);
+      // The server resurrects the phone with its version-1 certificate.
+      alice.devices[phoneId] = {...phoneRow, 'status': 'active'};
+      alice.revoked.remove(phoneId);
+      await expectLater(
+        h.e('alice').removeDevices([tabletId]),
+        throwsA(isA<EncryptionException>()),
+      );
+      expect(alice.account!.version, 2);
+      expect(alice.packages.containsKey(phoneId), false);
+      expect(alice.devices[tabletId]!['status'], 'active');
+    },
+  );
+
+  test(
+    'finding 4: older account versions need back-signatures; forged history is refused',
+    () async {
+      final phoneId = await withPhone();
+      await h.e('charlie').initialize();
+      h.current.add('charlie');
+      await h.e('alice').removeDevices([phoneId]);
+      final alice = h.server.users['alice']!;
+      // The server invents a version 1 and signs the real version 2 with it
+      // ("older signs newer"); it cannot produce version 2's back-signature.
+      final fake = await SeededAccount(1, 51, 52).init();
+      alice.accounts[0] = fake.fake;
+      final v2 = alice.accounts[1];
+      v2.signature = await fake.sign([
+        'daccord-e2ee-rotate-v2',
+        'alice',
+        2,
+        v2.exchangeKey,
+        v2.signingKey,
+      ]);
+      final forged = await encryptV1(
+        author: 'alice',
+        authorSecret: fake.secret,
+        recipients: {
+          'alice': fake.exchangeKey,
+          'bob': h.server.users['bob']!.account!.exchangeKey,
+          'charlie': h.server.users['charlie']!.account!.exchangeKey,
+        },
+        content: 'forged history',
+      );
+      final read = await h.e('charlie').decrypt(h.wire(forged));
+      expect(read.encryptionError, isNotNull);
+      expect(read.content, isNot('forged history'));
+      // A device certified by the invented version is not accepted either.
+      const fakeId = 'ZmFrZWZha2VmYWtlZmFrZQ';
+      alice.devices[fakeId] = {
+        'device_id': fakeId,
+        'exchange_key': fake.exchangeKey,
+        'signing_key': fake.signingKey,
+        'certificate': await fake.sign([
+          'daccord-e2ee-device-v2',
+          'alice',
+          1,
+          fakeId,
+          fake.exchangeKey,
+          fake.signingKey,
+        ]),
+        'account_version': 1,
+        'status': 'revoked',
+      };
+      final keys = await h.e('charlie').participants('chat');
+      expect((keys['alice']!['devices'] as Map).containsKey(fakeId), false);
+      expect(
+        (keys['alice']!['accounts'] as List).map((a) => (a as Map)['version']),
+        [2],
+      );
+    },
+  );
+
+  test(
+    'finding 5: a rotation whose response is lost is completed on restart',
+    () async {
+      final phoneId = await withPhone();
+      h.server.loseRotationResponse = true;
+      await expectLater(
+        h.e('alice').removeDevices([phoneId]),
+        throwsA(isA<EncryptionException>()),
+      );
+      expect(h.server.users['alice']!.account!.version, 2);
+      expect(
+        h.stores['alice']!.values['e2ee.v2.${scopeOf('alice')}.rotation'],
+        isNotEmpty,
+      );
+      final restarted = await h.restart('alice');
+      expect(restarted.setup, PrivateChatSetup.active);
+      expect(
+        h.stores['alice']!.values['e2ee.v2.${scopeOf('alice')}.rotation'],
+        '',
+      );
+      final sent = await h.client('alice').messages.create('chat', {
+        'content': 'still mine',
+      });
+      expect(sent.ok, true);
+      expect(payloadOf(h.wireContent!)[10], 2);
+      expect(
+        (await h.e('bob').decrypt(h.wire(h.wireContent!))).content,
+        'still mine',
+      );
+    },
+  );
+
+  test(
+    'R5: the signed sender account version advances pins and cannot predate the device',
+    () async {
+      final phoneId = await withPhone();
+      final bob = h.e('bob');
+      final before = await bob.participants('chat');
+      await h.e('alice').removeDevices([phoneId]);
+      final after = await send(h.e('alice'), 'version 2 era');
+      expect(payloadOf(after), hasLength(11));
+      expect(payloadOf(after)[10], 2);
+      final stale = await bob.decrypt(h.wire(after), participantKeys: before);
+      expect(stale.encryptionError, contains('could not be verified'));
+      expect((await bob.decrypt(h.wire(after))).content, 'version 2 era');
+
+      // Correctly signed by the device, but claiming an older version than
+      // its certificate: refused.
+      final p = payloadOf(after)..[10] = 1;
+      final device = deviceSecret(h, 'alice', user: 'alice');
+      final signature = await Ed25519().sign(
+        utf8.encode(jsonEncode(p)),
+        keyPair: await Ed25519().newKeyPairFromSeed(
+          base64Decode(device['signing_private'] as String),
+        ),
+      );
+      final downgraded =
+          '${PrivateChatEncryption.prefixV2}${jsonEncode({'payload': p, 'signature': base64Encode(signature.bytes)})}';
+      expect(
+        (await bob.decrypt(h.wire(downgraded))).encryptionError,
+        contains('account version'),
+      );
     },
   );
 }
