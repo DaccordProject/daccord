@@ -1842,10 +1842,10 @@ class PrivateChatEncryption {
       throw const EncryptionException(
           'Sender encryption device is unavailable.');
     }
-    if ((p[10] as int) < (device['account_version'] as int)) {
-      throw const EncryptionException(
-          'Encrypted message account version is invalid.');
-    }
+    // No floor against the device certificate's version: rotation
+    // re-certifies the remaining devices at the new version, so their earlier
+    // messages legitimately carry an older one. The version is signed and
+    // bound into the context, and must be one we verified above.
     if (!await _verify(
         _json(p), envelope['signature'], device['signing_key'])) {
       throw const EncryptionException(

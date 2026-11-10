@@ -866,12 +866,17 @@ void main() {
   );
 
   test(
-    'R5: the signed sender account version advances pins and cannot predate the device',
+    'R5: the signed sender account version advances pins; history survives re-certification',
     () async {
       final phoneId = await withPhone();
       final bob = h.e('bob');
       final before = await bob.participants('chat');
+      final earlier = await send(h.e('alice'), 'version 1 era');
+      expect(payloadOf(earlier)[10], 1);
       await h.e('alice').removeDevices([phoneId]);
+      // The laptop is re-certified at version 2; what it signed at version 1
+      // must still verify (a live-server run caught this being refused).
+      expect((await bob.decrypt(h.wire(earlier))).content, 'version 1 era');
       final after = await send(h.e('alice'), 'version 2 era');
       expect(payloadOf(after), hasLength(11));
       expect(payloadOf(after)[10], 2);
@@ -879,8 +884,8 @@ void main() {
       expect(stale.encryptionError, contains('could not be verified'));
       expect((await bob.decrypt(h.wire(after))).content, 'version 2 era');
 
-      // Correctly signed by the device, but claiming an older version than
-      // its certificate: refused.
+      // Re-signed by the device with a different version: the body was sealed
+      // to the original context, so it no longer opens.
       final p = payloadOf(after)..[10] = 1;
       final device = deviceSecret(h, 'alice', user: 'alice');
       final signature = await Ed25519().sign(
@@ -893,7 +898,7 @@ void main() {
           '${PrivateChatEncryption.prefixV2}${jsonEncode({'payload': p, 'signature': base64Encode(signature.bytes)})}';
       expect(
         (await bob.decrypt(h.wire(downgraded))).encryptionError,
-        contains('account version'),
+        isNotNull,
       );
     },
   );
