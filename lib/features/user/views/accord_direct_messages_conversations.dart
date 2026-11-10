@@ -186,6 +186,7 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const PrivateChatSetupBanner(),
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 4, 4),
           child: Row(

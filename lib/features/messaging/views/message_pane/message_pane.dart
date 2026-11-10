@@ -9,6 +9,7 @@ import 'package:bonfire/features/automod/views/block_attachment_dialog.dart';
 
 import 'dart:async';
 import 'package:bonfire/features/messaging/views/private_chat_security.dart';
+import 'package:bonfire/features/messaging/views/private_chat_devices.dart';
 import 'package:bonfire/features/messaging/views/encrypted_attachment.dart';
 import 'dart:convert';
 
@@ -698,7 +699,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                                         label: 'Encryption & backup',
                                         icon: Icons.lock_outline,
                                         subtitle:
-                                            'Verify keys or move your identity to another device',
+                                            'Verify keys, manage devices and backups',
                                         onSelected: () =>
                                             showPrivateChatSecurity(
                                               context,
@@ -755,6 +756,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                     },
                   ),
           ),
+          if (spaceId == null && !panel) const PrivateChatSetupBanner(),
           Expanded(
             child: messages == null
                 ? _historyEmptyState(channelId)
