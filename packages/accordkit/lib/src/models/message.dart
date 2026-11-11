@@ -10,8 +10,11 @@ class AccordMessage {
   Map<String, dynamic>? encryptedWire;
   Map<String, dynamic>? privatePayload;
   String? encryptionError;
+
+  /// Any `daccord-e2ee:<version>:` envelope (v1, v2, or a newer version this
+  /// client cannot read) is ciphertext and never shown as plain text.
   bool get isEncrypted =>
-      encryptedWire != null || content.startsWith('daccord-e2ee:1:');
+      encryptedWire != null || content.startsWith('daccord-e2ee:');
   String id;
   String channelId;
   String? spaceId;

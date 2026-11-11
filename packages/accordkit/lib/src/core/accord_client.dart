@@ -62,6 +62,7 @@ class AccordClient {
   late final MessagesApi messages;
   PrivateChatEncryption? encryption;
   StreamSubscription<Map<String, dynamic>>? _encryptionReady;
+  StreamSubscription<RawGatewayEvent>? _encryptionEvents;
   late final MembersApi members;
   late final RolesApi roles;
   late final BansApi bans;
@@ -82,6 +83,7 @@ class AccordClient {
   AccordClient({
     EncryptionKeyStore? encryptionStore,
     String? encryptionUserId,
+    String encryptionDeviceName = 'Daccord',
     this.token = '',
     this.tokenType = 'Bot',
     List<String>? intents,
@@ -116,8 +118,9 @@ class AccordClient {
     spaces = SpacesApi(rest);
     channels = ChannelsApi(rest);
     if (encryptionStore != null && encryptionUserId != null) {
-      encryption =
-          PrivateChatEncryption(rest, encryptionStore, encryptionUserId);
+      encryption = PrivateChatEncryption(
+          rest, encryptionStore, encryptionUserId,
+          deviceName: encryptionDeviceName);
     }
     messages = MessagesApi(rest, encryption: encryption);
     members = MembersApi(rest);
@@ -148,6 +151,13 @@ class AccordClient {
           if (raw is Map && raw['id'] is String) {
             messages.requireEncryptionFor(raw['id'] as String);
           }
+        }
+      });
+      // Device approval requests and device-list changes (rotations,
+      // approvals of this device) for the account's private chat keys.
+      _encryptionEvents = gateway.onRawEvent.listen((event) {
+        if (event.type.startsWith('encryption.')) {
+          encryption?.handleGatewayEvent(event.type, event.data);
         }
       });
     }
@@ -186,6 +196,8 @@ class AccordClient {
   /// Releases the REST client and gateway.
   Future<void> dispose() async {
     await _encryptionReady?.cancel();
+    await _encryptionEvents?.cancel();
+    await encryption?.dispose();
     await gateway.dispose();
     rest.close();
   }

@@ -1,11 +1,14 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/messaging/views/private_chat_devices.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+/// Encryption details for a private chat: participant fingerprints (when
+/// [channelId] is given), this account's devices, and identity backups.
 Future<void> showPrivateChatSecurity(
   BuildContext context,
   PrivateChatEncryption encryption,
-  String channelId,
+  String? channelId,
 ) => showDialog<void>(
   context: context,
   builder: (_) => _SecurityDialog(encryption: encryption, channelId: channelId),
@@ -13,7 +16,7 @@ Future<void> showPrivateChatSecurity(
 
 class _SecurityDialog extends StatefulWidget {
   final PrivateChatEncryption encryption;
-  final String channelId;
+  final String? channelId;
   const _SecurityDialog({required this.encryption, required this.channelId});
   @override
   State<_SecurityDialog> createState() => _SecurityDialogState();
@@ -24,16 +27,19 @@ class _SecurityDialogState extends State<_SecurityDialog> {
   final _backup = TextEditingController();
   String? _status;
   bool _busy = false;
-  late Future<List<String>> _fingerprints;
+  late Future<List<String>>? _fingerprints;
   @override
   void initState() {
     super.initState();
     _fingerprints = _load();
   }
 
-  Future<List<String>> _load() async {
+  Future<List<String>>? _load() =>
+      widget.channelId == null ? null : _loadFingerprints(widget.channelId!);
+
+  Future<List<String>> _loadFingerprints(String channelId) async {
     final keys = await widget.encryption.participants(
-      widget.channelId,
+      channelId,
       requireReady: false,
     );
     return [
@@ -80,20 +86,61 @@ class _SecurityDialogState extends State<_SecurityDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'New messages and files are end-to-end encrypted. Compare fingerprints with each participant through another trusted way of contacting them. Keys are trusted on first use; changes block sending and decryption.',
+              'New messages and files are end-to-end encrypted. Compare fingerprints with each participant through another trusted way of contacting them. Keys are trusted on first use; an unexplained change blocks sending and decryption.',
             ),
-            const SizedBox(height: 12),
-            FutureBuilder<List<String>>(
-              future: _fingerprints,
-              builder: (_, snapshot) {
-                if (snapshot.hasError) return Text(snapshot.error.toString());
-                if (!snapshot.hasData) return const LinearProgressIndicator();
-                return SelectableText(snapshot.data!.join('\n\n'));
-              },
-            ),
+            if (_fingerprints != null) ...[
+              const SizedBox(height: 12),
+              FutureBuilder<List<String>>(
+                future: _fingerprints,
+                builder: (_, snapshot) {
+                  if (snapshot.hasError) {
+                    return Text(snapshot.error.toString());
+                  }
+                  if (!snapshot.hasData) {
+                    return const LinearProgressIndicator();
+                  }
+                  return SelectableText(snapshot.data!.join('\n\n'));
+                },
+              ),
+            ],
             const SizedBox(height: 16),
+            Text('Devices', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 4),
+            if (widget.encryption.setup == PrivateChatSetup.blocked) ...[
+              Text(
+                widget.encryption.legacyServer
+                    ? widget.encryption.blockedReason
+                    : '${widget.encryption.blockedReason} This can mean the server or your account was tampered with. Importing a current backup restores your keys.',
+              ),
+            ] else if (widget.encryption.legacyServer) ...[
+              const Text(
+                'This server doesn’t support approving devices yet. To read encrypted chats on another device, import a backup there.',
+              ),
+            ] else if (widget.encryption.setup == PrivateChatSetup.pending ||
+                widget.encryption.setup == PrivateChatSetup.approved) ...[
+              const Text(
+                'This device isn’t approved yet. Approve it from a device you already use, or import a backup below.',
+              ),
+              TextButton(
+                onPressed: () =>
+                    showDeviceLinkDialog(context, widget.encryption),
+                child: const Text('Approve from another device'),
+              ),
+            ] else ...[
+              const Text(
+                'Each device has its own keys. New devices are approved from one you already use; removing a device stops it reading anything sent afterwards.',
+              ),
+              TextButton(
+                onPressed: () =>
+                    showEncryptionDevices(context, widget.encryption),
+                child: const Text('Manage devices'),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Text('Backup', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 4),
             const Text(
-              'Keep an encrypted identity backup to use another device. Without your identity, encrypted history cannot be recovered. Signing out keeps this device’s encryption keys. Messages sent before encryption remain unencrypted.',
+              'A backup lets you set up a device when no other device is available. Without a backup or another device, encrypted history cannot be recovered. Signing out keeps this device’s encryption keys. Messages sent before encryption remain unencrypted.',
             ),
             const SizedBox(height: 12),
             TextField(

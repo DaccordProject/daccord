@@ -1,3 +1,4 @@
+import 'package:bonfire/features/messaging/views/private_chat_devices.dart';
 import 'package:bonfire/features/profiles/views/profile_gate.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/voice/views/incoming_call_overlay.dart';
@@ -17,7 +18,9 @@ const double maxEffectiveTextScale = 2.0;
 /// 2. the device-profile PIN gate, which replaces the Navigator with the lock
 ///    screen until the active profile is unlocked;
 /// 3. the incoming-call banner host, above every route so a ring stays
-///    answerable from inside a dialog or the full-screen call view (#139).
+///    answerable from inside a dialog or the full-screen call view (#139);
+/// 4. the encryption device-approval prompt, so a new device's request
+///    reaches whichever approved device the user is looking at.
 ///
 /// This must be the *only* Navigator ancestry the app has: wrapping the router
 /// app in another `MaterialApp` makes `rootNavigator: true` lookups (dialogs,
@@ -44,7 +47,9 @@ Widget buildAppShell(
     // The gate wraps the banner host too: a locked profile shows neither the
     // app nor who is calling it.
     child: ProfileGate(
-      child: withIncomingCallOverlay(withExperienceTurns(child)),
+      child: withIncomingCallOverlay(
+        withDeviceApprovalPrompts(withExperienceTurns(child)),
+      ),
     ),
   );
 }

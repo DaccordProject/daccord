@@ -6,6 +6,7 @@ import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/views/message_pane/message_pane.dart';
+import 'package:bonfire/features/messaging/views/private_chat_devices.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
