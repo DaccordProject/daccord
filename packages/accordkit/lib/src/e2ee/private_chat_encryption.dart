@@ -97,6 +97,10 @@ class PrivateChatEncryption {
       "This device isn't approved for encrypted chats yet.";
   static const blockedMessage =
       "Your encryption keys don't match the server. Sending and decryption are blocked.";
+  static const legacyConflictMessage =
+      "This account's encryption identity is on another device and this server doesn't support device approval yet. Import that device's encrypted backup here.";
+  static const legacyDevicesMessage =
+      "This server doesn't support device approval yet.";
 
   final AccordRest rest;
   final EncryptionKeyStore store;
@@ -133,6 +137,11 @@ class PrivateChatEncryption {
   /// Own devices this one has seen removed; they never count as active again.
   final Map<String, Map<String, dynamic>> _floorRevoked = {};
   PrivateChatSetup _setup = PrivateChatSetup.unknown;
+  String? _blockedReason;
+
+  /// The server predates per-device keys (no `GET /users/@me/encryption`):
+  /// this client then speaks v1 only. Probed again on the next start.
+  bool _legacy = false;
   Future<void>? _initializing;
   final Map<String, Map<String, dynamic>> _trusted = {};
   final Map<String, String> _channels = {};
@@ -175,6 +184,12 @@ class PrivateChatEncryption {
   /// Whether this device can read and send private chats.
   PrivateChatSetup get setup => _setup;
 
+  /// Why [setup] is [PrivateChatSetup.blocked] (user-facing).
+  String get blockedReason => _blockedReason ?? blockedMessage;
+
+  /// Whether the server only supports v1 (no devices, approval or rotation).
+  bool get legacyServer => _legacy;
+
   /// Emits whenever [setup] changes. Also re-emits [PrivateChatSetup.pending]
   /// whenever this device's link code changed (re-read [linkCode] then).
   Stream<PrivateChatSetup> get setupChanges => _setupChanges.stream;
@@ -192,7 +207,10 @@ class PrivateChatEncryption {
     if (!_setupChanges.isClosed) _setupChanges.add(value);
   }
 
-  void _block() => _setSetup(PrivateChatSetup.blocked);
+  void _block([String? reason]) {
+    _blockedReason = reason;
+    _setSetup(PrivateChatSetup.blocked);
+  }
 
   /// Routes gateway `encryption.*` events; [AccordClient] calls this.
   void handleGatewayEvent(String type, Map<String, dynamic> data) {
@@ -325,7 +343,10 @@ class PrivateChatEncryption {
   bool get _holdsKeyring => _confirmed && _keyring.isNotEmpty;
 
   Future<void> _register({bool renewed = false, bool refreshed = false}) async {
-    var state = await _fetchState();
+    final probed = await _probeState();
+    if (probed == null) return _registerLegacy();
+    _legacy = false;
+    var state = probed;
     var account = _map(state['account']);
     if (account == null) {
       if (_keyring.isEmpty) {
@@ -463,8 +484,45 @@ class PrivateChatEncryption {
   Map<String, dynamic>? _ownRow(Map<String, dynamic> state) =>
       _rows(state).where((r) => r['device_id'] == _device!.id).firstOrNull;
 
-  Future<Map<String, dynamic>> _fetchState() async {
+  /// A server without v2 runs the v1 protocol: the newest keyring version is
+  /// the account identity, registered with the v1 `PUT`. A 409 means another
+  /// device owns the identity; without device approval only a backup helps.
+  Future<void> _registerLegacy() async {
+    _legacy = true;
+    if (_keyring.isEmpty) {
+      await _writeKeyring([await _newAccount(1)], confirmed: false);
+    }
+    final result =
+        await rest.makeRequest('PUT', '/users/@me/encryption', body: {
+      'exchange_key': _keyring.last.exchangeKey,
+      'signing_key': _keyring.last.signingKey,
+    });
+    if (result.statusCode == 409) return _block(legacyConflictMessage);
+    if (!result.ok) {
+      throw EncryptionException(
+          result.error?.message ?? 'Unable to set up private chat encryption.');
+    }
+    if (!_confirmed) await _writeKeyring(_keyring);
+    _setSetup(PrivateChatSetup.active);
+  }
+
+  /// The account state, or null when the server predates v2 (404/405).
+  Future<Map<String, dynamic>?> _probeState() async {
     final result = await rest.makeRequest('GET', '/users/@me/encryption');
+    if (result.statusCode == 404 || result.statusCode == 405) return null;
+    return _stateFrom(result);
+  }
+
+  void _requireDevices() {
+    if (_legacy) throw const EncryptionException(legacyDevicesMessage);
+  }
+
+  Future<Map<String, dynamic>> _fetchState() async {
+    _requireDevices();
+    return _stateFrom(await rest.makeRequest('GET', '/users/@me/encryption'));
+  }
+
+  Map<String, dynamic> _stateFrom(RestResult result) {
     if (!result.ok || result.data is! Map) {
       throw EncryptionException(
           result.error?.message ?? 'Unable to load encryption devices.');
@@ -875,7 +933,7 @@ class PrivateChatEncryption {
   void _requireActive() {
     switch (_setup) {
       case PrivateChatSetup.blocked:
-        throw const EncryptionException(blockedMessage);
+        throw EncryptionException(blockedReason);
       case PrivateChatSetup.pending:
       case PrivateChatSetup.approved:
         throw const EncryptionException(pendingMessage);
@@ -892,6 +950,7 @@ class PrivateChatEncryption {
   /// registration; re-read it whenever [setupChanges] emits `pending`.
   Future<String> linkCode() async {
     await initialize();
+    _requireDevices();
     final d = _device!;
     final accountKey = _setup == PrivateChatSetup.active
         ? _keyring.last.signingKey
@@ -909,6 +968,7 @@ class PrivateChatEncryption {
   /// or whose keys changed since.
   Future<String> linkCodeFor(EncryptionDevice device) async {
     await initialize();
+    _requireDevices();
     _requireActive();
     if (!_deviceIdPattern.hasMatch(device.deviceId)) {
       throw const EncryptionException('Invalid encryption device id.');
@@ -929,6 +989,7 @@ class PrivateChatEncryption {
   /// same link code: install the approved keyring and become active.
   Future<void> confirmApproval() async {
     await initialize();
+    _requireDevices();
     await _serialized(() async {
       final staged = _staged;
       if (_setup != PrivateChatSetup.approved || staged == null) {
@@ -949,6 +1010,7 @@ class PrivateChatEncryption {
   /// register again as a new pending device (with a new link code).
   Future<void> rejectApproval() async {
     await initialize();
+    _requireDevices();
     await _serialized(() async {
       if (_setup != PrivateChatSetup.approved) {
         throw const EncryptionException(
@@ -1000,6 +1062,7 @@ class PrivateChatEncryption {
   /// device asks its user to confirm too.
   Future<void> approveDevice(String deviceId) async {
     await initialize();
+    _requireDevices();
     _requireActive();
     final compared = _compared[deviceId];
     if (compared == null) {
@@ -1040,6 +1103,8 @@ class PrivateChatEncryption {
 
   /// Declines a pending device (no rotation needed: it never held keys).
   Future<void> declineDevice(String deviceId) async {
+    await initialize();
+    _requireDevices();
     final result = await rest.makeRequest(
         'DELETE', '/users/@me/encryption/devices/$deviceId');
     if (!result.ok) {
@@ -1054,6 +1119,7 @@ class PrivateChatEncryption {
   /// discarded by the rotation too. This device cannot remove itself.
   Future<void> removeDevices(List<String> deviceIds) async {
     await initialize();
+    _requireDevices();
     _requireActive();
     if (deviceIds.isEmpty) return;
     final d = _device!;
@@ -1178,6 +1244,7 @@ class PrivateChatEncryption {
   /// Returns true once this device is active on the current account key.
   Future<bool> checkApproval() async {
     await initialize();
+    if (_legacy) return _setup == PrivateChatSetup.active;
     return _serialized(() async {
       final state = await _fetchState();
       final account = _map(state['account']);
@@ -1208,7 +1275,7 @@ class PrivateChatEncryption {
       {bool requireReady = true}) async {
     await initialize();
     if (_setup == PrivateChatSetup.blocked) {
-      throw const EncryptionException(blockedMessage);
+      throw EncryptionException(blockedReason);
     }
     final result =
         await rest.makeRequest('GET', '/channels/$channelId/encryption');
@@ -1245,7 +1312,13 @@ class PrivateChatEncryption {
     }
     _aliases[channelId] = aliases;
     final self = _selves[channelId]!;
-    if (_setup == PrivateChatSetup.active) {
+    if (_setup == PrivateChatSetup.active && _legacy) {
+      // v1 servers know one identity per account and no versions.
+      final mine = found[self] == null ? null : _rowAccount(found[self]!);
+      if (!_sameKeys(mine, _keyring.last.public)) {
+        throw const EncryptionException(blockedMessage);
+      }
+    } else if (_setup == PrivateChatSetup.active) {
       final mine = found[self] == null ? null : _rowAccount(found[self]!);
       if (!_isCurrent(mine)) {
         if (mine != null && (mine['version'] as int) > _keyring.last.version) {
@@ -1270,7 +1343,8 @@ class PrivateChatEncryption {
         for (final e in resolved.entries)
           e.key: {
             for (final f in e.value.entries)
-              if (f.key != 'active_devices' && f.key != 'invalid_devices')
+              if (!const {'active_devices', 'invalid_devices', 'v2'}
+                  .contains(f.key))
                 f.key: f.value
           }
       };
@@ -1437,6 +1511,8 @@ class PrivateChatEncryption {
       'devices': devices,
       'active_devices': active..sort(),
       'invalid_devices': invalid,
+      // A v1 chat home lists no devices or versions.
+      'v2': row['devices'] is List,
     };
   }
 
@@ -1556,8 +1632,14 @@ class PrivateChatEncryption {
         ]);
       }
     }
-    if (!(keys[wireSender]?['active_devices'] as List? ?? const [])
-        .contains(device.id)) {
+    // v1 when the server or chat home predates v2, or a participant has an
+    // identity but no active device (an old client that cannot read v2).
+    final useV1 = _legacy ||
+        keys.values.any(
+            (i) => i['v2'] != true || (i['active_devices'] as List).isEmpty);
+    if (!useV1 &&
+        !(keys[wireSender]?['active_devices'] as List? ?? const [])
+            .contains(device.id)) {
       throw const EncryptionException(pendingMessage);
     }
     targets.sort((a, b) {
@@ -1594,6 +1676,16 @@ class PrivateChatEncryption {
           files.isNotEmpty ? fileMetadata : previousPayload?['files'] ?? [],
       'embeds': data['embeds'] ?? previousPayload?['embeds'] ?? []
     };
+    if (useV1) {
+      return (
+        data: {
+          'content': await _envelopeV1(channelId, keys, privatePayload,
+              replyTo: data['reply_to'] as String?, editId: editId),
+          if (data['reply_to'] != null) 'reply_to': data['reply_to']
+        },
+        files: sealedFiles
+      );
+    }
     final ephemeral = await _exchange.newKeyPair();
     final p = <dynamic>[
       2,
@@ -1640,6 +1732,58 @@ class PrivateChatEncryption {
       },
       files: sealedFiles
     );
+  }
+
+  /// A v1 envelope exactly as v1 admission expects: signed by the current
+  /// account key, one recipient per current participant (their current
+  /// account exchange key), sorted by wire user id.
+  Future<String> _envelopeV1(String channelId,
+      Map<String, Map<String, dynamic>> keys, Map<String, dynamic> payload,
+      {String? replyTo, String? editId}) async {
+    if (keys.length > 100) {
+      throw const EncryptionException(
+          'This chat has too many participants for encryption.');
+    }
+    final account = _keyring.last;
+    final ephemeral = await _exchange.newKeyPair();
+    final p = <dynamic>[
+      1,
+      _channels[channelId]!,
+      _selves[channelId]!,
+      base64Encode(_random(16)),
+      _messageId(channelId, replyTo),
+      _messageId(channelId, editId),
+      base64Encode((await ephemeral.extractPublicKey()).bytes),
+      '',
+      <dynamic>[],
+    ];
+    final context = _contextV1(p);
+    final contentKey = SecretKey(_random(32));
+    p[7] = await _seal(_json(payload), contentKey, context);
+    if (base64Decode(p[7] as String).length > 64 * 1024) {
+      throw const EncryptionException('Encrypted message is too large.');
+    }
+    final keyBytes = await contentKey.extractBytes();
+    for (final id in keys.keys.toList()..sort()) {
+      final public = keys[id]!['exchange_key'] as String;
+      final wrapping = await _derive(ephemeral, public,
+          _json(['daccord-e2ee-wrap-v1', base64Encode(context), id, public]));
+      (p[8] as List).add([
+        id,
+        public,
+        await _seal(
+            keyBytes, wrapping, _json([base64Encode(context), id, public]))
+      ]);
+    }
+    final signature = await _signing.sign(_json(p), keyPair: account.signing);
+    final wire = '$prefixV1${jsonEncode({
+          'payload': p,
+          'signature': base64Encode(signature.bytes)
+        })}';
+    if (wire.length > 256 * 1024) {
+      throw const EncryptionException('Encrypted message is too large.');
+    }
+    return wire;
   }
 
   static List<int> _contextV1(List<dynamic> p) =>
@@ -1966,6 +2110,37 @@ class PrivateChatEncryption {
     });
   }
 
+  /// On a v1-only server a backup restores the identity the server holds.
+  Future<void> _importLegacy(List<_Account> imported) async {
+    _legacy = true;
+    final merged = {for (final a in imported) a.version: a};
+    if (_holdsKeyring) {
+      for (final a in _keyring) {
+        final other = merged[a.version];
+        if (other != null && !other.sameAs(a)) {
+          throw const EncryptionException(
+              'This backup belongs to different encryption keys.');
+        }
+        merged[a.version] = a;
+      }
+    }
+    final keyring =
+        (merged.keys.toList()..sort()).map((v) => merged[v]!).toList();
+    final result =
+        await rest.makeRequest('PUT', '/users/@me/encryption', body: {
+      'exchange_key': keyring.last.exchangeKey,
+      'signing_key': keyring.last.signingKey,
+    });
+    if (!result.ok) {
+      throw EncryptionException(
+          result.error?.message ?? 'Backup identity was rejected.');
+    }
+    await _writeKeyring(keyring);
+    await _setStaged(null);
+    await _setLinkKey(null);
+    _setSetup(PrivateChatSetup.active);
+  }
+
   /// Imports a v1 (single identity) or v2 (keyring) backup; this device then
   /// certifies itself and becomes active. The backup must contain the
   /// account's current key, never older than keys this device already knew,
@@ -1999,7 +2174,10 @@ class PrivateChatEncryption {
         'This backup does not contain your current encryption key. Approve this device from another device instead.');
     await _serialized(() async {
       if (_device == null) await _loadLocal();
-      final state = await _fetchState();
+      final probed = await _probeState();
+      if (probed == null) return _importLegacy(imported);
+      _legacy = false;
+      final state = probed;
       var account = _map(state['account']);
       if (account == null) {
         if (imported.length != 1 ||
