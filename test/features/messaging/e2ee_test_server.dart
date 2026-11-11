@@ -111,6 +111,14 @@ class E2eeServer {
   /// before it was added (clients must handle both shapes).
   bool legacySuccessions = false;
 
+  /// A server without v2 (accordserver before per-device keys): no
+  /// `GET /users/@me/encryption`, device or rotation endpoints (405), v1-only
+  /// discovery rows, and v2 envelopes are refused.
+  bool legacy = false;
+
+  /// A v1 chat home: discovery rows carry no v2 fields.
+  bool v1Discovery = false;
+
   /// Apply the next rotation, then answer 503 (a lost response).
   bool loseRotationResponse = false;
   int messageAttempts = 0;
@@ -205,7 +213,15 @@ class E2eeServer {
     if (alwaysConflict) {
       return error(409, 'Encryption keys changed. Refresh before sending.');
     }
-    if (content.startsWith(PrivateChatEncryption.prefixV1)) return null;
+    if (content.startsWith(PrivateChatEncryption.prefixV1)) {
+      return _admitV1(author, content);
+    }
+    if (legacy) {
+      return error(
+        400,
+        'Private chats require end-to-end encryption. Upgrade your client.',
+      );
+    }
     if (!content.startsWith(PrivateChatEncryption.prefixV2)) {
       return error(400, 'Private chats require end-to-end encryption.');
     }
@@ -311,26 +327,82 @@ class E2eeServer {
       },
   ];
 
-  Map<String, dynamic> _discoveryRow(FakeUser u) => {
-    'user_id': u.id,
-    'wire_user_id': u.id,
-    'current': current.contains(u.id),
-    'identity': u.account!.identity,
-    'account_version': u.account!.version,
-    'successions': _successions(u),
-    'devices': [
-      for (final d in u.devices.values)
-        if (d['status'] != 'pending')
-          {
-            'device_id': d['device_id'],
-            'exchange_key': d['exchange_key'],
-            'signing_key': d['signing_key'],
-            'certificate': d['certificate'],
-            'account_version': d['account_version'],
-            'revoked': d['status'] == 'revoked',
-          },
-    ],
-  };
+  /// v1 admission (also on v2 servers): one recipient per current
+  /// participant, sorted, each with their CURRENT account exchange key, and a
+  /// signature by the author's CURRENT account signing key.
+  Future<http.Response?> _admitV1(String author, String content) async {
+    final envelope =
+        jsonDecode(content.substring(PrivateChatEncryption.prefixV1.length))
+            as Map;
+    final p = envelope['payload'] as List;
+    if (envelope.length != 2 ||
+        p.length != 9 ||
+        p[0] != 1 ||
+        p[1] != 'chat' ||
+        p[2] != author) {
+      return error(400, 'E2EE message context does not match request');
+    }
+    final recipients = p[8] as List;
+    final expected = [...current]..sort();
+    if (recipients.length != expected.length) {
+      return error(400, 'E2EE recipients must match current chat membership');
+    }
+    for (var i = 0; i < expected.length; i++) {
+      final r = recipients[i] as List;
+      final key = users[expected[i]]?.account;
+      if (r.length != 3 || r[0] != expected[i]) {
+        return error(400, 'invalid or duplicate E2EE recipient');
+      }
+      if (key == null) {
+        return error(400, 'Every participant must set up encryption.');
+      }
+      if (r[1] != key.exchangeKey) {
+        return error(409, 'Encryption keys changed. Refresh before sending.');
+      }
+      if (base64Decode(r[2] as String).length != 60) {
+        return error(400, 'invalid wrapped key');
+      }
+    }
+    if (!await verifySignature(
+      _json(p),
+      envelope['signature'],
+      users[author]!.account!.signingKey,
+    )) {
+      return error(400, 'E2EE signature verification failed');
+    }
+    if (!tokens.add('$author:${p[3]}')) {
+      return error(409, 'Encrypted message was already accepted');
+    }
+    return null;
+  }
+
+  Map<String, dynamic> _discoveryRow(FakeUser u) => legacy || v1Discovery
+      ? {
+          'user_id': u.id,
+          'wire_user_id': u.id,
+          'current': current.contains(u.id),
+          'identity': u.account!.identity,
+        }
+      : {
+          'user_id': u.id,
+          'wire_user_id': u.id,
+          'current': current.contains(u.id),
+          'identity': u.account!.identity,
+          'account_version': u.account!.version,
+          'successions': _successions(u),
+          'devices': [
+            for (final d in u.devices.values)
+              if (d['status'] != 'pending')
+                {
+                  'device_id': d['device_id'],
+                  'exchange_key': d['exchange_key'],
+                  'signing_key': d['signing_key'],
+                  'certificate': d['certificate'],
+                  'account_version': d['account_version'],
+                  'revoked': d['status'] == 'revoked',
+                },
+          ],
+        };
 
   Map<String, dynamic>? _multipartPayload(http.Request request) {
     final text = utf8.decode(request.bodyBytes, allowMalformed: true);
@@ -359,6 +431,11 @@ class E2eeServer {
         : jsonDecode(request.body);
     final u = user(uid);
     final now = DateTime.now().toUtc().toIso8601String();
+    if (legacy &&
+        path.startsWith('/users/@me/encryption') &&
+        !(path == '/users/@me/encryption' && method == 'PUT')) {
+      return http.Response('', 405);
+    }
     if (path == '/users/@me/encryption') {
       if (method == 'GET') return ok(_state(u, token));
       final key = (body as Map).cast<String, dynamic>();
@@ -973,3 +1050,70 @@ Map<String, dynamic> deviceSecret(Harness h, String name, {String? user}) =>
           h.stores[name]!.values['e2ee.v2.${scopeOf(user ?? name)}.device']!,
         )
         as Map<String, dynamic>;
+
+/// What a pre-v2 client does with a v1 envelope: verify the author's account
+/// signature, unwrap its own entry with its account exchange key, decrypt.
+Future<String> decryptAsOldClient({
+  required String content,
+  required String user,
+  required SeededAccount account,
+  required String authorSigningKey,
+}) async {
+  expect(content, startsWith(PrivateChatEncryption.prefixV1));
+  final envelope =
+      jsonDecode(content.substring(PrivateChatEncryption.prefixV1.length))
+          as Map;
+  final p = envelope['payload'] as List;
+  expect(
+    await verifySignature(_json(p), envelope['signature'], authorSigningKey),
+    true,
+  );
+  final mine = (p[8] as List).cast<List<dynamic>>().singleWhere(
+    (r) => r[0] == user,
+  );
+  expect(mine[1], account.exchangeKey);
+  final context = _json(['daccord-e2ee-v1', ...p.sublist(1, 7)]);
+  final shared = await X25519().sharedSecretKey(
+    keyPair: await X25519().newKeyPairFromSeed(
+      List.filled(32, account.exchangeSeed),
+    ),
+    remotePublicKey: SimplePublicKey(
+      base64Decode(p[6] as String),
+      type: KeyPairType.x25519,
+    ),
+  );
+  final wrapping = await Hkdf(hmac: Hmac.sha256(), outputLength: 32).deriveKey(
+    secretKey: shared,
+    nonce: const [],
+    info: _json([
+      'daccord-e2ee-wrap-v1',
+      base64Encode(context),
+      user,
+      account.exchangeKey,
+    ]),
+  );
+  Future<List<int>> open(String encoded, SecretKey key, List<int> aad) {
+    final bytes = base64Decode(encoded);
+    return AesGcm.with256bits().decrypt(
+      SecretBox(
+        bytes.sublist(12, bytes.length - 16),
+        nonce: bytes.sublist(0, 12),
+        mac: Mac(bytes.sublist(bytes.length - 16)),
+      ),
+      secretKey: key,
+      aad: aad,
+    );
+  }
+
+  final key = SecretKey(
+    await open(
+      mine[2] as String,
+      wrapping,
+      _json([base64Encode(context), user, account.exchangeKey]),
+    ),
+  );
+  final body = jsonDecode(
+    utf8.decode(await open(p[7] as String, key, context)),
+  );
+  return (body as Map)['content'] as String;
+}
