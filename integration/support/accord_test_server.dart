@@ -23,7 +23,7 @@ import 'dart:convert';
 import 'dart:io';
 
 const _defaultImage =
-    'ghcr.io/daccordproject/accordserver@sha256:9f76756599fded6ec3f8b5f9638ed436e3ff73b96df24afd880c40673da8acf2';
+    'ghcr.io/daccordproject/accordserver@sha256:8bd593bdc8cb4b4c47427ea3ab00e85e2e93c2947a8e09ac44438ba3f484657e';
 const _defaultLiveKitImage =
     'livekit/livekit-server@sha256:9e34703b97ceb9f622bcbb533107e4786c7aa65966f0494966a452ad41a0c0d4';
 
