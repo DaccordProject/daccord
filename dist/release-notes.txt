@@ -4,7 +4,8 @@
 # To override one release, add `# Release version: x.y.z` and the user-facing
 # text below it. The script rejects missing or stale version markers before any
 # store upload.
-# Release version: 0.2.27
+# Release version: 0.2.28
 
-• Blocking someone now stops their direct messages, mentions, sounds and call rings, while their messages in shared channels stay visible.
-• Member lists now include every member, and online status recovers more reliably after reconnecting.
+• Direct messages no longer get stuck loading on phones, and the conversation's calls, pins, notifications and encryption options now sit in one labelled ⋮ menu.
+• Set up encrypted chats on a new device by approving it from one you already use and comparing a code — no backup to copy.
+• Remove a lost device from Encryption & backup → Manage devices; it can no longer read new encrypted messages. (Device approval needs Accord Server 0.2.5.)
