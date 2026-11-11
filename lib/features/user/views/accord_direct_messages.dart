@@ -220,6 +220,7 @@ Future<void> showAccordDmUserContextMenu(
   AccordUser user, {
   Offset? globalPosition,
   String? currentDmUserId,
+  List<AccordMenuEntry> leadingEntries = const [],
   List<AccordMenuEntry> extraEntries = const [],
 }) async {
   final client = ref.accordClient;
@@ -241,6 +242,10 @@ Future<void> showAccordDmUserContextMenu(
 
   final rel = relationship;
   final entries = <AccordMenuEntry>[
+    if (leadingEntries.isNotEmpty) ...[
+      ...leadingEntries,
+      const AccordMenuEntry.divider(),
+    ],
     AccordMenuEntry(
       label: 'View profile',
       icon: Icons.account_circle_outlined,

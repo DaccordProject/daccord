@@ -21,6 +21,12 @@ class EncryptionException implements Exception {
   String toString() => message;
 }
 
+/// The server already holds a different identity for this account; only
+/// importing that identity's backup can resolve it.
+class _IdentityConflict extends EncryptionException {
+  const _IdentityConflict(super.message);
+}
+
 /// V1 account identity, per-message content keys, signed recipient envelopes.
 /// No server secret, shared group key, plaintext fallback, or forward-secrecy claim.
 class PrivateChatEncryption {
@@ -55,9 +61,14 @@ class PrivateChatEncryption {
   String get _identityKey => 'e2ee.v1.$_scope.identity';
   String get _trustKey => 'e2ee.v1.$_scope.trust';
 
+  /// Registers this device's identity once. A transient failure is retried by
+  /// the next caller, but an identity conflict is kept until [importBackup]:
+  /// the server refuses every retry, and re-registering on each decrypt spent a
+  /// request per history page or preview — enough to exhaust the per-user rate
+  /// limit and leave private history loading behind 429 back-offs.
   Future<void> initialize() =>
       _initializing ??= _serialized(_initialize).catchError((Object e) {
-        _initializing = null;
+        if (e is! _IdentityConflict) _initializing = null;
         throw e;
       });
 
@@ -76,6 +87,10 @@ class PrivateChatEncryption {
     await _loadIdentity(raw);
     final result =
         await rest.makeRequest('PUT', '/users/@me/encryption', body: _identity);
+    if (result.statusCode == 409) {
+      throw _IdentityConflict(result.error?.message ??
+          'This account already has an encryption identity. Import its encrypted backup on this device.');
+    }
     if (!result.ok) {
       throw EncryptionException(
           result.error?.message ?? 'Unable to set up private chat encryption.');

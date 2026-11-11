@@ -15,6 +15,7 @@ class _Composer extends ConsumerStatefulWidget {
   const _Composer({
     required this.channelId,
     this.channelName,
+    this.hint,
     this.spaceId,
     required this.canMentionEveryone,
     this.slowmodeSeconds = 0,
@@ -25,6 +26,10 @@ class _Composer extends ConsumerStatefulWidget {
 
   final String channelId;
   final String? channelName;
+
+  /// Placeholder override for panes whose channel has no name, such as a DM
+  /// ("Message @name"). Defaults to "Message #channel".
+  final String? hint;
   final String? spaceId;
   final bool canMentionEveryone;
 
@@ -565,9 +570,10 @@ class _ComposerState extends ConsumerState<_Composer> {
         _attachments.length >= limits.maxAttachmentsPerMessage;
     final hint = _dragging
         ? 'Drop files to attach'
-        : widget.channelName != null
-        ? 'Message #${widget.channelName}'
-        : 'Message';
+        : widget.hint ??
+              (widget.channelName?.isNotEmpty == true
+                  ? 'Message #${widget.channelName}'
+                  : 'Message');
     final now = DateTime.now();
     final cooldown = _cooldown != null && _cooldown!.isActive(now)
         ? _cooldown
