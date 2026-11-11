@@ -85,6 +85,7 @@ Future<Map<String, dynamic>> _rawLatest(String token, String channel) async {
 }
 
 void main() {
+  legacyMain();
   test(
     'devices: pending → approved reads history, removal rotates the account',
     () async {
@@ -229,6 +230,80 @@ void main() {
       expect(phone.encryption!.setup, PrivateChatSetup.active);
     },
     skip: _baseUrl == null ? 'set ACCORD_E2E_URL to run' : false,
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+}
+
+/// Against a server that predates per-device keys (v1 only). Set
+/// `ACCORD_E2E_LEGACY_URL` to such a server, e.g. a build of accordserver
+/// before private chat encryption v2.
+final _legacyUrl = Platform.environment['ACCORD_E2E_LEGACY_URL'];
+
+void legacyMain() {
+  test(
+    'v1-only server: new clients fall back to v1 and stay usable',
+    () async {
+      final suffix = Random().nextInt(1 << 32).toRadixString(36);
+      Future<_Account> register(String name) async {
+        final response = await http.post(
+          Uri.parse('$_legacyUrl/api/v1/auth/register'),
+          headers: {'content-type': 'application/json'},
+          body: jsonEncode({
+            'username': name,
+            'password': 'correct-horse-$name',
+          }),
+        );
+        expect(response.statusCode, 200, reason: response.body);
+        final data = (jsonDecode(response.body) as Map)['data'] as Map;
+        return (
+          id: (data['user'] as Map)['id'] as String,
+          token: data['token'] as String,
+        );
+      }
+
+      AccordClient device(String token, String id) => AccordClient(
+            token: token,
+            tokenType: 'Bearer',
+            baseUrl: _legacyUrl!,
+            encryptionStore: _MemoryKeys(),
+            encryptionUserId: id,
+            encryptionDeviceName: 'Legacy',
+          );
+
+      final dana = await register('dana$suffix');
+      final eli = await register('eli$suffix');
+      final danaClient = device(dana.token, dana.id);
+      final eliClient = device(eli.token, eli.id);
+      addTearDown(() async {
+        await danaClient.dispose();
+        await eliClient.dispose();
+      });
+      await danaClient.encryption!.initialize();
+      await eliClient.encryption!.initialize();
+      expect(danaClient.encryption!.legacyServer, isTrue);
+      expect(danaClient.encryption!.setup, PrivateChatSetup.active);
+      expect(eliClient.encryption!.setup, PrivateChatSetup.active);
+
+      final dm = await eliClient.users.createDm({
+        'recipients': [dana.id],
+      });
+      expect(dm.ok, true, reason: '${dm.error}');
+      final channel = (dm.data as AccordChannel).id;
+      final sent = await eliClient.messages.create(channel, {
+        'content': 'v1 still works',
+      });
+      expect(sent.ok, true, reason: '${sent.error}');
+      final history = await danaClient.messages.list(channel);
+      expect(
+        (history.data as List).cast<AccordMessage>().first.content,
+        'v1 still works',
+      );
+      await expectLater(
+        danaClient.encryption!.listDevices(),
+        throwsA(isA<EncryptionException>()),
+      );
+    },
+    skip: _legacyUrl == null ? 'set ACCORD_E2E_LEGACY_URL to run' : false,
     timeout: const Timeout(Duration(minutes: 2)),
   );
 }
