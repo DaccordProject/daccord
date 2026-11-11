@@ -249,10 +249,11 @@ class PrivateChatSetupBanner extends ConsumerWidget {
             'setting up encrypted chats.',
         'Confirm',
       ),
+      // The SDK says why: a key mismatch, or (on servers without device
+      // approval) another device holding the account's identity.
       PrivateChatSetup.blocked => (
         Icons.gpp_bad_outlined,
-        'Your encryption keys don’t match the server, so encrypted chats are '
-            'blocked on this device.',
+        encryption.blockedReason,
         'Details',
       ),
       _ => (null, null, null),

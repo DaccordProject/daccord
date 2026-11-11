@@ -107,8 +107,14 @@ class _SecurityDialogState extends State<_SecurityDialog> {
             Text('Devices', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 4),
             if (widget.encryption.setup == PrivateChatSetup.blocked) ...[
+              Text(
+                widget.encryption.legacyServer
+                    ? widget.encryption.blockedReason
+                    : '${widget.encryption.blockedReason} This can mean the server or your account was tampered with. Importing a current backup restores your keys.',
+              ),
+            ] else if (widget.encryption.legacyServer) ...[
               const Text(
-                'Your encryption keys don’t match what the server reports, so sending and decryption are blocked on this device. This can mean the server or your account was tampered with. Importing a current backup restores your keys.',
+                'This server doesn’t support approving devices yet. To read encrypted chats on another device, import a backup there.',
               ),
             ] else if (widget.encryption.setup == PrivateChatSetup.pending ||
                 widget.encryption.setup == PrivateChatSetup.approved) ...[
