@@ -22,6 +22,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+/// LiveKit credentials shared by the server under test and the opt-in SFU
+/// fixture. accordserver (since 0.1.34) refuses to start with LiveKit's
+/// well-known development pair (`devkey` / `secret`), so the suite uses its
+/// own throwaway values instead.
+const _liveKitApiKey = 'accord-integration';
+const _liveKitApiSecret = 'accord-integration-secret-for-tests-only-0001';
+
 const _defaultImage =
     'ghcr.io/daccordproject/accordserver@sha256:8bd593bdc8cb4b4c47427ea3ab00e85e2e93c2947a8e09ac44438ba3f484657e';
 const _defaultLiveKitImage =
@@ -243,8 +250,8 @@ class AccordTestServer {
     if (liveKit == null) 'ACCORD_TEST_MODE': '1',
     'LIVEKIT_URL': liveKit?.internalUrl ?? 'ws://127.0.0.1:7880',
     'LIVEKIT_EXTERNAL_URL': liveKit?.externalUrl ?? 'ws://127.0.0.1:7880',
-    'LIVEKIT_API_KEY': 'devkey',
-    'LIVEKIT_API_SECRET': 'secret',
+    'LIVEKIT_API_KEY': _liveKitApiKey,
+    'LIVEKIT_API_SECRET': _liveKitApiSecret,
     'RUST_LOG': _env('ACCORD_TEST_LOG') ?? 'warn',
   };
 
@@ -439,7 +446,7 @@ class _LiveKitFixture {
       '--port', '$signalPort',
       '--rtc.tcp_port', '$tcpPort',
       '--udp-port', '$udpPort',
-      '--keys', 'devkey: secret',
+      '--keys', '$_liveKitApiKey: $_liveKitApiSecret',
     ]);
     if (result.exitCode != 0) {
       throw ServerUnavailable(
