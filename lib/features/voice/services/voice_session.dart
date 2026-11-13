@@ -386,7 +386,11 @@ class VoiceSession {
   /// LiveKit falls back to its slide-oriented screen-share presets (720p caps
   /// at 800 kbps @ 5 fps, 1080p at 2.5 Mbps @ 15 fps), so we publish the track
   /// ourselves with an explicit `screenShareEncoding`.
-  Future<void> setScreenShareEnabled(
+  /// Returns whether the share is now in the requested state. Starting a
+  /// share fails when the user cancels the platform picker (web
+  /// `NotAllowedError`) or capture can't start; callers must not flip their
+  /// own state on a false.
+  Future<bool> setScreenShareEnabled(
     bool enabled, {
     String? sourceId,
     int? width,
@@ -396,14 +400,14 @@ class VoiceSession {
     bool motionPriority = true,
   }) async {
     final participant = _room?.localParticipant;
-    if (participant == null) return;
+    if (participant == null) return false;
 
     if (!enabled) {
       await _guardMedia(
         'screen share',
         () => participant.setScreenShareEnabled(false),
       );
-      return;
+      return true;
     }
 
     final resolvedFps = fps ?? defaultScreenShareFps;
@@ -421,7 +425,7 @@ class VoiceSession {
       params: VideoParameters(dimensions: dimensions, encoding: encoding),
     );
 
-    await _guardMedia(
+    return _guardMedia(
       'screen share',
       () => _publishScreenShare(
         participant,
@@ -615,11 +619,13 @@ class VoiceSession {
   /// Runs a LiveKit media toggle, logging platform/plugin errors (e.g. "No
   /// active stream to cancel" when the OS already tore the capture down)
   /// instead of letting them crash the app.
-  Future<void> _guardMedia(String what, Future<void>? Function() op) async {
+  Future<bool> _guardMedia(String what, Future<void>? Function() op) async {
     try {
       await op();
+      return true;
     } catch (e) {
       debugPrint('LiveKit $what toggle failed: $e');
+      return false;
     }
   }
 
