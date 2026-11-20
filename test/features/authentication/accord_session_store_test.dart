@@ -95,6 +95,46 @@ void main() {
     expect(box.get('session').toString(), contains('recoverable-secret'));
   });
 
+  test(
+    'metadata refresh keeps the reference and never changes the active account',
+    () async {
+      final background = AccordSession(
+        server: AccordServer.fromBaseUrl('https://other.example.test'),
+        token: 'background-token',
+        userId: 'user-2',
+        username: 'Other',
+      );
+      // Distinct references, as production generates per account.
+      var next = 0;
+      final store = AccordSessionStore(
+        credentialVault: vault,
+        createReference: () => 'reference-${next++}'.padRight(32, 'x'),
+      );
+      await store.persist(background);
+      await store.persist(session());
+      final references = {...vault.values.keys};
+
+      await store.updateMetadata(background.copyWith(isAdmin: true));
+      await store.updateMetadata(session().copyWith(isAdmin: true));
+
+      final active = await store.readRestorableActive();
+      expect(active?.key, session().key);
+      expect(active?.isAdmin, isTrue);
+      final accounts = {for (final s in await store.listAccounts()) s.key: s};
+      expect(accounts[background.key]?.isAdmin, isTrue);
+      expect(accounts[background.key]?.token, 'background-token');
+      expect(vault.values.keys.toSet(), references);
+      final box = await Hive.openBox('accord-session');
+      expect(box.toMap().toString(), isNot(contains('background-token')));
+    },
+  );
+
+  test('metadata refresh ignores accounts that were never saved', () async {
+    await store.updateMetadata(session().copyWith(isAdmin: true));
+    expect(await store.readRestorableActive(), isNull);
+    expect(await store.listAccounts(), isEmpty);
+  });
+
   test('removing the final reference deletes the vault credential', () async {
     final value = session();
     await store.persist(value);

@@ -34,6 +34,7 @@ New to daccord? Start here.
 
 ## For Admins
 
+- [Becoming an Admin](administration/becoming-an-admin.md) -- Create a space you control, or administer your own server
 - [Managing Your Space](administration/managing-your-space.md) -- Channels, roles, and settings
 - [Moderation](administration/moderation.md) -- Keep your community safe
 - [Invites](administration/invites.md) -- Invite people to your server

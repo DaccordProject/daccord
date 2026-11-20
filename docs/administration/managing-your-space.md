@@ -7,7 +7,7 @@ section: administration
 
 # Managing Your Space
 
-If you have admin permissions, you can manage your space's channels, roles, and settings.
+If you own a space, or have a role with **Manage Space**, you can manage its channels, roles, and settings. Not sure you have access, or want a space of your own? See [Becoming an Admin](becoming-an-admin.md).
 
 ## Accessing Space Settings
 

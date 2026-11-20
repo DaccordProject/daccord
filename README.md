@@ -116,7 +116,7 @@ Daccord connects only to **Daccord/Accord servers** — there is no Discord inte
    chat.example.com
    ```
 
-   Self-hosting on your own machine or LAN? Include the scheme, e.g. `http://localhost:39099`.
+   Running the server on this same computer? Include the scheme, e.g. `http://localhost:39099`. Other machines, including ones on your LAN, must be reached over `https://` ([why](docs/self-hosting/desktop-app.md#reaching-the-server-from-other-devices)).
 
 4. Sign in with your username and password, or switch to **Register** to create an account on that server.
 5. That's it — you're in. 🎉
@@ -146,7 +146,7 @@ End-user documentation lives in [`docs/`](docs/index.md):
 - [Installing daccord](docs/getting-started/installation.md) · [Adding a server](docs/getting-started/adding-a-server.md) · [Creating an account](docs/getting-started/creating-an-account.md)
 - [Spaces and channels](docs/navigation/spaces-and-channels.md) · [Sending messages](docs/messaging/sending-messages.md) · [Voice and video](docs/voice-and-video/voice-channels.md)
 - [Themes and appearance](docs/customization/themes.md) · [Profiles](docs/customization/profiles.md)
-- [Managing your space](docs/administration/managing-your-space.md) · [Moderation](docs/administration/moderation.md) · [Invites](docs/administration/invites.md)
+- [Becoming an admin](docs/administration/becoming-an-admin.md) · [Managing your space](docs/administration/managing-your-space.md) · [Moderation](docs/administration/moderation.md) · [Invites](docs/administration/invites.md)
 - [Self-hosting](docs/self-hosting/overview.md) · [Network behavior and privacy](docs/privacy-network.md) · [Troubleshooting](docs/troubleshooting/common-issues.md)
 
 Maintainer-facing notes: [release signing](docs/release-signing.md) and [store deployment](docs/app-store-deploy.md).

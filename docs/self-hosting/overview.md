@@ -15,7 +15,7 @@ There are two supported ways to host, depending on how much you want to manage.
 
 ### Accord desktop app — the easy way
 
-The [Accord desktop app](desktop-app.md) is a small tray application you install like any other program (`.dmg`, `.deb`/`.AppImage`, or `.msi`). It bundles the server and the voice server together, generates all its own configuration on first launch, and keeps itself up to date. There is nothing to configure and no command line involved.
+The [Accord desktop app](desktop-app.md) is a small tray application you install like any other program (`.dmg`, `.deb`/`.AppImage`, or `.msi`). It bundles the server and the voice server together, generates all its own configuration on first launch, and keeps itself up to date. Running it needs no configuration. Becoming the server's administrator takes one terminal command; see [Becoming an Admin](../administration/becoming-an-admin.md).
 
 This is the best choice if you want to:
 
@@ -55,3 +55,5 @@ Both paths run the same accordserver, so you can start with the desktop app and 
 ## Connecting once you're hosting
 
 However you host, members connect the same way: open daccord, click the **+** button in the sidebar, and enter your server's address. See [Adding a Server](../getting-started/adding-a-server.md) for the client side.
+
+Signing up on your own server doesn't make you its administrator: new accounts, including the first, are ordinary members of the default **General** space. Any account can create and own its own space; server-wide administration is set up on the host. See [Becoming an Admin](../administration/becoming-an-admin.md).

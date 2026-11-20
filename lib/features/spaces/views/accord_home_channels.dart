@@ -90,6 +90,12 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
+              if (canCreateSpaces(ref.watch(accordAuthProvider)))
+                FilledButton(
+                  onPressed: () =>
+                      showAddServerDialog(context, createSpace: true),
+                  child: const Text('Create a space'),
+                ),
               TextButton(
                 onPressed: () => showAddServerDialog(context),
                 child: const Text('Join with invite'),

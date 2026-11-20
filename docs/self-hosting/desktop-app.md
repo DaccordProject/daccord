@@ -80,6 +80,72 @@ WebSocket traffic (`/ws`) goes through the same proxy. Caddy forwards it with no
 
 Create an account on your new server and you're in. See [Creating an Account](../getting-started/creating-an-account.md) and [Adding a Server](../getting-started/adding-a-server.md) for the client-side steps.
 
+That account is an ordinary member of the default **General** space, which you can't customise. To set up a space of your own, use **+ → Create** in Daccord 0.2.29 or later; you own any space you create. To manage the whole server, including General, create an administrator account as described below. See [Becoming an Admin](../administration/becoming-an-admin.md) for the difference.
+
+## Creating your administrator account
+
+Server administrator accounts are created on the computer running Accord, with one terminal command. The command adds a new account and exits. It doesn't change your existing accounts or spaces, and Accord can keep running while you use it. Run it as the same user that runs the tray app.
+
+Choose a new username (the examples use `operator`) and a password of 16 to 128 characters. The commands hide the password as you type it and remove it from the terminal afterwards.
+
+| Installed from | Server program | Data folder |
+|---|---|---|
+| Linux `.deb` | `/usr/bin/accordserver` | `~/.local/share/accord` |
+| Linux `.AppImage` | packed inside the AppImage | `~/.local/share/accord` |
+| macOS `.dmg` | `/Applications/Accord.app/Contents/MacOS/accordserver` | `~/Library/Application Support/gg.daccord.Accord` |
+| Windows `-setup.exe` | `%LOCALAPPDATA%\Accord\accordserver.exe` | `%APPDATA%\daccord\Accord\data` |
+| Windows `.msi` | `C:\Program Files\Accord\accordserver.exe` | `%APPDATA%\daccord\Accord\data` |
+
+These are the default install locations. On Linux, the data folder is `$XDG_DATA_HOME/accord` if you set `XDG_DATA_HOME`.
+
+**Windows.** Open PowerShell from the Start menu (not as administrator) and paste:
+
+```powershell
+$server = "$env:LOCALAPPDATA\Accord\accordserver.exe"
+if (-not (Test-Path $server)) { $server = "$env:ProgramFiles\Accord\accordserver.exe" }
+$secure = Read-Host 'Admin password (16+ characters)' -AsSecureString
+$env:ACCORD_BOOTSTRAP_PASSWORD = [System.Net.NetworkCredential]::new('', $secure).Password
+& $server --data-dir "$env:APPDATA\daccord\Accord\data" --bootstrap-admin operator
+Remove-Item Env:ACCORD_BOOTSTRAP_PASSWORD
+Remove-Variable secure
+```
+
+**macOS.** Open Terminal and paste:
+
+```sh
+printf 'Admin password (16+ characters): '; stty -echo; read -r ACCORD_BOOTSTRAP_PASSWORD; stty echo; echo
+export ACCORD_BOOTSTRAP_PASSWORD
+/Applications/Accord.app/Contents/MacOS/accordserver --data-dir "$HOME/Library/Application Support/gg.daccord.Accord" --bootstrap-admin operator
+unset ACCORD_BOOTSTRAP_PASSWORD
+```
+
+If macOS blocks the program, allow it under **System Settings → Privacy & Security** and run the command again.
+
+**Linux (`.deb`).** Open a terminal and paste:
+
+```bash
+printf 'Admin password (16+ characters): '; stty -echo; read -r ACCORD_BOOTSTRAP_PASSWORD; stty echo; echo
+export ACCORD_BOOTSTRAP_PASSWORD
+accordserver --data-dir "${XDG_DATA_HOME:-$HOME/.local/share}/accord" --bootstrap-admin operator
+unset ACCORD_BOOTSTRAP_PASSWORD
+```
+
+**Linux (AppImage).** Extract the server program to a temporary folder, run it, then delete the folder. Replace `~/Applications/Accord.AppImage` with your AppImage's path:
+
+```bash
+work=$(mktemp -d) && cd "$work"
+~/Applications/Accord.AppImage --appimage-extract usr/bin/accordserver
+printf 'Admin password (16+ characters): '; stty -echo; read -r ACCORD_BOOTSTRAP_PASSWORD; stty echo; echo
+export ACCORD_BOOTSTRAP_PASSWORD
+./squashfs-root/usr/bin/accordserver --data-dir "${XDG_DATA_HOME:-$HOME/.local/share}/accord" --bootstrap-admin operator
+unset ACCORD_BOOTSTRAP_PASSWORD
+cd ~ && rm -rf "$work"
+```
+
+The command prints `administrator created` when it succeeds. If it reports `could not create admin`, the username is already taken or the password isn't 16–128 characters; try again. Then, in Daccord, log out and sign in with the new username and password, and open **Settings → Server administration**. To give your everyday account administrator access, follow [Becoming an Admin](../administration/becoming-an-admin.md#become-the-server-administrator).
+
+The server's [security operations guide](https://github.com/DaccordProject/accordserver/blob/master/docs/security-operations.md) covers more detail, including password rotation and recovery.
+
 ## Inviting people from outside your network
 
 To let friends connect over the internet, follow the domain-name option in "Reaching the server from other devices" above. Forward these ports on your router to the computer running Accord:
@@ -102,7 +168,7 @@ On first launch, Accord creates a data folder for your server:
 |----------|-------------|
 | macOS | `~/Library/Application Support/gg.daccord.Accord/` |
 | Linux | `$XDG_DATA_HOME/accord/` (usually `~/.local/share/accord/`) |
-| Windows | `%APPDATA%\Accord\Accord\` |
+| Windows | `%APPDATA%\daccord\Accord\data\` |
 
 Inside you'll find:
 
