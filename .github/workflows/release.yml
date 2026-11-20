@@ -86,7 +86,7 @@ jobs:
     # skipping this also skips build/release (they need it), leaving just the
     # App Store deploy jobs.
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -137,15 +137,15 @@ jobs:
         include:
           - name: Web (JavaScript)
             platform: web
-            os: ubuntu-latest
+            os: ubuntu-24.04
             artifact: daccord-web
           - name: Android
             platform: android
-            os: ubuntu-latest
+            os: ubuntu-24.04
             artifact: daccord-android
           - name: Linux
             platform: linux
-            os: ubuntu-latest
+            os: ubuntu-24.04
             artifact: daccord-linux-x86_64
           - name: Windows
             platform: windows
@@ -528,7 +528,7 @@ jobs:
   release:
     name: Create Release
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       # As in the build job: `secrets` is unavailable in a step `if:`, so resolve
       # the presence test into a plain string here and gate the step on env.
@@ -672,7 +672,7 @@ jobs:
   website-rebuild:
     name: Rebuild daccord.gg /chat/
     needs: release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # This cross-repository notification is not a shipped executable artifact:
     # without the token, the website keeps serving the previous client until a
     # rebuild is triggered by hand.
@@ -988,7 +988,7 @@ jobs:
     name: Google Play
     needs: [verify, ci]
     if: ${{ always() && needs.ci.result == 'success' && ((github.event_name == 'push' && needs.verify.result == 'success') || (github.event_name == 'workflow_dispatch' && inputs.deploy_android)) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache
       ANDROID_SIGN_AVAILABLE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' && secrets.ANDROID_SIGNING_CERT_SHA256 != '' }}
@@ -1144,7 +1144,7 @@ jobs:
   android-promote:
     name: Promote on Google Play
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.promote_version_code != '' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1178,7 +1178,7 @@ jobs:
   android-tracks:
     name: Inspect Google Play tracks
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.inspect_play_tracks }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

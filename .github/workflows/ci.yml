@@ -93,7 +93,7 @@ env:
 jobs:
   release-tools:
     name: Release tooling
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -112,7 +112,7 @@ jobs:
 
   analyze:
     name: Analyze & Test (${{ matrix.channel }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       # Run every channel even if one fails, so a stable-only break and a
       # beta-only break are both reported in the same run.
@@ -202,7 +202,7 @@ jobs:
 
   accordkit:
     name: Vendored accordkit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -234,7 +234,7 @@ jobs:
 
   experience-runtime:
     name: Bounded WASM host (native and browser)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d
@@ -255,7 +255,7 @@ jobs:
 
   experience-widgets:
     name: Arcade browser widgets (${{ matrix.mode }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -273,7 +273,7 @@ jobs:
 
   markdown-viewer:
     name: Vendored markdown_viewer
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -307,7 +307,7 @@ jobs:
 
   livekit-android:
     name: LiveKit Android native tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -352,7 +352,7 @@ jobs:
     # This intentionally covers only the stable accordkit REST/gateway seam.
     # The broader controller/UI scenarios below remain advisory until their
     # external toolchain and display flakes have been removed.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -400,13 +400,13 @@ jobs:
     # the job "passed" in 2m50s having run nothing — 0 tests passed, 16
     # skipped, because docker isn't available there. Only the
     # `portainer-accord-*` runners carry a `docker` label, and no runner has
-    # both `docker` and `flutter`. On ubuntu-latest the same suite is 15/15 in
+    # both `docker` and `flutter`. On ubuntu-24.04 the same suite is 15/15 in
     # ~2m13s.
     #
     # To move it back: expose docker to the `flutter` runners, or stand up a
     # long-lived test server and set ACCORD_TEST_SERVER_URL on this job — the
     # fixture prefers that over spawning anything (integration/README.md).
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Separate from `analyze` on purpose: these need a real server, so a
     # registry outage or a server-side regression must not redden the unit
     # gate. See integration/README.md and #217.
@@ -464,7 +464,7 @@ jobs:
     # flutter_webrtc needs (3.18+), its libmpv is far older than media_kit
     # expects, and installing the build deps on EOL focal took ~100 minutes.
     # Revisit if the runner image is ever rebuilt on 24.04.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Non-blocking for the same reason as `integration`, plus this one also
     # depends on a working display and the Linux desktop toolchain.
     # See integration_test/README.md and #221.
@@ -529,7 +529,7 @@ jobs:
     name: Multi-instance (two clients)
     # GitHub-hosted for the same reason as ui-e2e: it builds and runs the Linux
     # desktop app, which the Ubuntu 20.04 self-hosted runners can't do.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     continue-on-error: true
     steps:
       - name: Checkout
@@ -597,7 +597,7 @@ jobs:
     # This launches the real release bundle under xvfb and checks the pixels,
     # including the non-blit compositor path NVIDIA drivers take. GitHub-hosted
     # for the same reason as ui-e2e.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -654,7 +654,7 @@ jobs:
     # host-sensitive for the default gate. It is visible and runnable from
     # workflow_dispatch via the livekit_sfu checkbox, and remains advisory.
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.livekit_sfu }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     continue-on-error: true
     steps:
       - name: Checkout
@@ -735,7 +735,7 @@ jobs:
         include:
           - name: Web (JavaScript)
             platform: web
-            os: ubuntu-latest
+            os: ubuntu-24.04
             artifact: daccord-web
             path: build/web/
           - name: macOS
@@ -750,12 +750,12 @@ jobs:
             path: build/ios/iphoneos/*.app/
           - name: Android
             platform: android
-            os: ubuntu-latest
+            os: ubuntu-24.04
             artifact: daccord-android
             path: build/app/outputs/flutter-apk/*.apk
           - name: Linux
             platform: linux
-            os: ubuntu-latest
+            os: ubuntu-24.04
             artifact: daccord-linux
             path: build/linux/x64/release/bundle/
           - name: Windows
