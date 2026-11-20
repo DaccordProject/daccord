@@ -70,6 +70,25 @@ class AccordSessionStore {
     await box.put(_sessionKey, _metadata(session, reference));
   }
 
+  /// Rewrites the stored metadata (such as the admin flag) of an account that
+  /// is already saved. Leaves the active pointer, credential reference and
+  /// vault untouched, so a background connection never becomes active.
+  Future<void> updateMetadata(AccordSession session) async {
+    if (session.isGuest || session.isExpired) return;
+    final box = await _box();
+    final accounts = _accountsFrom(box);
+    final accountReference = _referenceFrom(accounts[session.key]);
+    if (accountReference != null) {
+      accounts[session.key] = _metadata(session, accountReference);
+      await box.put(_accountsKey, accounts);
+    }
+    final active = box.get(_sessionKey);
+    final activeReference = _referenceFrom(active);
+    if (activeReference != null && _rawSessionKey(active) == session.key) {
+      await box.put(_sessionKey, _metadata(session, activeReference));
+    }
+  }
+
   /// Active session eligible for restart. Legacy plaintext is migrated before
   /// the hydrated in-memory session is returned.
   Future<AccordSession?> readRestorableActive() async {

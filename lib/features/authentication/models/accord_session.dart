@@ -52,6 +52,18 @@ class AccordSession {
 
   bool get isExpired => isExpiredAt(DateTime.now().toUtc());
 
+  AccordSession copyWith({bool? isAdmin}) => AccordSession(
+    server: server,
+    token: token,
+    tokenType: tokenType,
+    userId: userId,
+    username: username,
+    avatar: avatar,
+    isAdmin: isAdmin ?? this.isAdmin,
+    isGuest: isGuest,
+    expiresAt: expiresAt,
+  );
+
   Map<String, dynamic> toJson() => {
     'server': server.toJson(),
     'token': token,

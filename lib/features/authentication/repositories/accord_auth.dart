@@ -1006,6 +1006,10 @@ class AccordAuth extends _$AccordAuth {
             ],
     );
     _connections[key] = _Conn(client: client, session: session);
+    // The admin flag is saved with the session, but an operator can grant or
+    // revoke it at any time. READY carries the server's current record on
+    // every (re)identify; the subscription ends when the client is disposed.
+    client.onReady.listen((ready) => syncSelfFromReady(key, client, ready));
     ref
         .read(accordConnectionCoordinatorProvider)
         .attach(
@@ -1020,6 +1024,39 @@ class AccordAuth extends _$AccordAuth {
 
     if (makeActive) return _makeActive(key);
     return state;
+  }
+
+  /// Applies READY's self user to the live and saved session for [key], so an
+  /// instance-admin grant or revocation takes effect on the next connect
+  /// instead of requiring a sign-out. Ignores stale clients, guests and READY
+  /// payloads for a different user.
+  @visibleForTesting
+  void syncSelfFromReady(
+    String key,
+    AccordClient client,
+    Map<String, dynamic> ready,
+  ) {
+    final conn = _connections[key];
+    if (conn == null || !identical(conn.client, client)) return;
+    if (conn.session.isGuest) return;
+    final raw = ready['user'];
+    if (raw is! Map) return;
+    final user = AccordUser.fromJson(Map<String, dynamic>.from(raw));
+    if (user.id != conn.session.userId) return;
+    if (user.isAdmin == conn.session.isAdmin) return;
+
+    final session = conn.session.copyWith(isAdmin: user.isAdmin);
+    _connections[key] = _Conn(client: client, session: session);
+    ref.read(connectionsControllerProvider.notifier).register(session);
+    if (ref.read(connectionsControllerProvider).activeKey == key &&
+        state is AccordAuthLoggedIn) {
+      state = AccordAuthLoggedIn(client: client, session: session);
+    }
+    unawaited(
+      _store.updateMetadata(session).catchError((Object e) {
+        debugPrint('Failed to save refreshed session: $e');
+      }),
+    );
   }
 
   /// Promotes the connection [key] to active: snapshots the outgoing server's
