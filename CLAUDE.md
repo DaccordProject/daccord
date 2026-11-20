@@ -183,6 +183,16 @@ When in doubt about Accord behaviour, read `packages/accordkit` (the vendored SD
 - Session credential references remain random and profile-local. Platform vault operations share an isolate-wide queue because the Linux backend rewrites the entire vault; see `test/features/authentication/session_credential_vault_test.dart`.
 - Don't reintroduce Discord endpoints, Discord branding, or Firebase push without explicit instruction.
 
+## Admin onboarding
+
+Registration never grants instance admin; the default General space is owned
+by a hidden System account. Any signed-in, non-guest account can create and
+own a space (`createOwnedSpace`, `lib/features/spaces/services/create_space.dart`,
+via the Add a Server dialog's Create tab). `AccordSession.isAdmin` is refreshed
+from every gateway READY (`AccordAuth.syncSelfFromReady`) and saved with
+`AccordSessionStore.updateMetadata`, which never changes the active account.
+User steps live in `docs/administration/becoming-an-admin.md`.
+
 ## Read state
 
 Read-state updates live in `accord_message_events.dart`; READY cursors are

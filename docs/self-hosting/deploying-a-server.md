@@ -28,12 +28,18 @@ This is the simplest way to get a server running. It includes accordserver, a Li
    cd accordserver
    ```
 
-2. Create a `.env` file with your LiveKit credentials (use unique random values):
+2. Create a `.env` file next to `docker-compose.yml`. The stack refuses to
+   start until all three values are set:
 
    ```bash
-   LIVEKIT_API_KEY=your-api-key
-   LIVEKIT_API_SECRET=your-api-secret
+   LIVEKIT_API_KEY=replace-with-random-value
+   LIVEKIT_API_SECRET=replace-with-another-random-value
+   LIVEKIT_NODE_IP=203.0.113.10
    ```
+
+   Generate each LiveKit value with `openssl rand -hex 32`. Don't reuse
+   `devkey`/`secret` or any example value. Set `LIVEKIT_NODE_IP` to the
+   server's public IPv4 address. Keep the file private (`chmod 600 .env`).
 
    Then edit `docker-compose.yml` (or `docker-compose.postgres.yml`) and replace the example domains with your own. The compose file sets them directly, so values in `.env` don't override them:
    - `caddy: chat.example.com` (chat) and `MASTER_SERVER_PUBLIC_URL`
@@ -49,6 +55,21 @@ This is the simplest way to get a server running. It includes accordserver, a Li
 
 The server listens on port **39099** by default. Caddy handles HTTPS termination automatically if your DNS is configured.
 
+## Creating your administrator account
+
+Accounts registered through Daccord are ordinary members, including the first one. Create the server administrator from the folder containing `docker-compose.yml` and `.env`. The password must be 16–128 characters, and the username (here `operator`) must not already exist:
+
+```bash
+read -r -s -p 'Admin password (16+ characters): ' ACCORD_BOOTSTRAP_PASSWORD; echo
+export ACCORD_BOOTSTRAP_PASSWORD
+docker compose run --rm -e ACCORD_BOOTSTRAP_PASSWORD accordserver ./accordserver --bootstrap-admin operator
+unset ACCORD_BOOTSTRAP_PASSWORD
+```
+
+For PostgreSQL, add `-f docker-compose.postgres.yml` after `docker compose`. For a build from source, run `./target/release/accordserver --bootstrap-admin operator` from the folder you start the server in, with the same `DATABASE_URL`.
+
+The command creates the account and exits; the running server is unaffected. Sign in to Daccord with the new account and open **Settings → Server administration**. To give your everyday account administrator access, see [Becoming an Admin](../administration/becoming-an-admin.md#become-the-server-administrator). The server's [security operations guide](https://github.com/DaccordProject/accordserver/blob/master/docs/security-operations.md) covers password rotation and recovery.
+
 ## Using PostgreSQL (Recommended for Production)
 
 For production deployments, use the PostgreSQL compose file instead of the default SQLite backend:
@@ -57,9 +78,10 @@ For production deployments, use the PostgreSQL compose file instead of the defau
 docker compose -f docker-compose.postgres.yml up -d
 ```
 
-This adds a PostgreSQL 17 database with persistent storage. Set the database connection in your `.env`:
+This adds a PostgreSQL 17 database with persistent storage. Add the database password and connection URL to your `.env`, using the same password in both:
 
 ```bash
+POSTGRES_PASSWORD=your-password
 DATABASE_URL=postgres://accord:your-password@postgres/accord
 ```
 
@@ -150,7 +172,7 @@ Keep `39099` (accordserver) and `7880` (LiveKit signaling) off the public intern
 
 ## Connecting from daccord
 
-Once your server is running, open daccord and click the **+** button in the sidebar to add a new server. Enter your server's address and create an account. Use the HTTPS domain served by the Caddy reverse proxy, for example `chat.example.com`. The client connects to accordserver's plain-HTTP port `39099` directly only from the same machine, e.g. `http://localhost:39099` when running from source (the Compose stack doesn't publish `39099`). Plain `http://` to a LAN or public IP, such as `http://192.168.1.50:39099`, is rejected with "Accord server URL must use HTTPS. HTTP is allowed only for loopback development." Reach the server through the reverse proxy instead.
+Once your server is running, open daccord and click the **+** button in the sidebar to add a new server. Enter your server's address and create an account, or sign in with the [administrator account](#creating-your-administrator-account). Use the HTTPS domain served by the Caddy reverse proxy, for example `chat.example.com`. The client connects to accordserver's plain-HTTP port `39099` directly only from the same machine, e.g. `http://localhost:39099` when running from source (the Compose stack doesn't publish `39099`). Plain `http://` to a LAN or public IP, such as `http://192.168.1.50:39099`, is rejected with "Accord server URL must use HTTPS. HTTP is allowed only for loopback development." Reach the server through the reverse proxy instead.
 
 ## Updating
 
