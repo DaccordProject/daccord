@@ -1,3 +1,4 @@
+import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/authentication/utils/credential_validation.dart';
@@ -8,11 +9,13 @@ import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/services/deep_link_navigation.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:bonfire/features/server/services/federation_join.dart';
+import 'package:bonfire/features/spaces/services/create_space.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
 import 'package:bonfire/shared/components/dialog_title_bar.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Opens the in-app "Add a Server" dialog. Mirrors the reference client's
 /// add-server flow: an **Enter URL** tab (paste a server URL or `daccord://`
@@ -21,7 +24,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// `daccord://` deep link is opened while already signed in. [joinSpaceId], when
 /// set, is joined on the new connection once authentication succeeds — used when
 /// the discovery browser sends the user here to sign in before joining a public
-/// space.
+/// space. [createSpace] opens the **Create** tab, which makes a space owned by
+/// the active account on its current server.
 ///
 /// Authentication here goes through the multi-connection add-server methods on
 /// [AccordAuth], which keep the current connection active until the new one
@@ -31,6 +35,7 @@ Future<void> showAddServerDialog(
   String? initialUrl,
   String? joinSpaceId,
   bool autoConnect = false,
+  bool createSpace = false,
 }) {
   return showDialog<void>(
     context: context,
@@ -38,6 +43,7 @@ Future<void> showAddServerDialog(
       initialUrl: initialUrl,
       joinSpaceId: joinSpaceId,
       autoConnect: autoConnect,
+      createSpace: createSpace,
     ),
   );
 }
@@ -49,11 +55,13 @@ class _AddServerDialog extends ConsumerStatefulWidget {
     this.initialUrl,
     this.joinSpaceId,
     this.autoConnect = false,
+    this.createSpace = false,
   });
 
   final String? initialUrl;
   final String? joinSpaceId;
   final bool autoConnect;
+  final bool createSpace;
 
   @override
   ConsumerState<_AddServerDialog> createState() => _AddServerDialogState();
@@ -61,7 +69,13 @@ class _AddServerDialog extends ConsumerStatefulWidget {
 
 class _AddServerDialogState extends ConsumerState<_AddServerDialog>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 3, vsync: this);
+  static const _createTabIndex = 3;
+
+  late final TabController _tabs = TabController(
+    length: 4,
+    initialIndex: widget.createSpace ? _createTabIndex : 0,
+    vsync: this,
+  );
 
   final _urlCtrl = TextEditingController();
   final _userCtrl = TextEditingController();
@@ -72,6 +86,11 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
   final _newPasswordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
   final _fedCtrl = TextEditingController();
+  final _createCtrl = TextEditingController();
+
+  // "Create a space" tab state.
+  bool _createBusy = false;
+  String? _createError;
 
   // "Join federated space" tab state (independent of the URL flow above).
   bool _fedBusy = false;
@@ -127,6 +146,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
     _newPasswordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
     _fedCtrl.dispose();
+    _createCtrl.dispose();
     super.dispose();
   }
 
@@ -402,6 +422,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
                 Tab(text: 'Enter URL'),
                 Tab(text: 'Browse'),
                 Tab(text: 'Federated'),
+                Tab(text: 'Create'),
               ],
             ),
             Flexible(
@@ -429,6 +450,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
                     },
                   ),
                   _federatedTab(theme, colors),
+                  _createTab(theme, colors),
                 ],
               ),
             ),
@@ -671,5 +693,95 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
         _fedError = outcome.error;
       });
     }
+  }
+
+  /// The "Create a space" tab: any signed-in account can create a space on
+  /// its current server and becomes its owner — no instance admin needed.
+  Widget _createTab(ThemeData theme, BonfireThemeExtension colors) {
+    final auth = ref.watch(accordAuthProvider);
+    final allowed = canCreateSpaces(auth);
+    final enabled = allowed && !_createBusy;
+    final server = auth is AccordAuthLoggedIn ? auth.session.server : null;
+    final serverName = server?.name ?? server?.baseUrl ?? 'this server';
+    final unavailable = auth is AccordAuthLoggedIn && auth.session.isGuest
+        ? 'Guests can’t create spaces. Sign in with an account first.'
+        : 'Connect to a server first, then create a space on it.';
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Create your own space', style: theme.textTheme.labelLarge),
+          const SizedBox(height: 6),
+          Text(
+            allowed
+                ? 'Make a space on $serverName. You’ll own it: set up its '
+                      'channels, roles and emoji, then invite people with a link.'
+                : unavailable,
+            style: theme.textTheme.bodySmall?.copyWith(color: colors.gray),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _createCtrl,
+            enabled: enabled,
+            autofocus: allowed,
+            maxLength: maxSpaceNameLength,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(
+              isDense: true,
+              labelText: 'Space name',
+              hintText: 'My space',
+              border: OutlineInputBorder(),
+            ),
+            onSubmitted: (_) => enabled ? _submitCreateSpace() : null,
+          ),
+          if (_createError != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _createError!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              FilledButton(
+                onPressed: enabled ? _submitCreateSpace : null,
+                child: _createBusy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Create'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _submitCreateSpace() async {
+    setState(() {
+      _createBusy = true;
+      _createError = null;
+    });
+    final outcome = await createOwnedSpace(ref, _createCtrl.text);
+    if (!mounted) return;
+    final space = outcome.space;
+    if (space == null) {
+      setState(() {
+        _createBusy = false;
+        _createError = outcome.error;
+      });
+      return;
+    }
+    final router = GoRouter.of(context);
+    Navigator.of(context).pop();
+    router.go('/spaces?space=${Uri.encodeComponent(space.id)}');
   }
 }
